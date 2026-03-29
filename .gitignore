@@ -44,3 +44,9 @@ next-env.d.ts
 
 # git worktrees
 .worktrees/
+
+# local dev
+dev.db
+dev.db-journal
+dev-server.log
+nul
