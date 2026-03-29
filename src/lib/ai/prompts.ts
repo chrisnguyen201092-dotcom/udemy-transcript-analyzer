@@ -401,16 +401,24 @@ QUAN TRỌNG: Trả lời trực tiếp nội dung, KHÔNG bao giờ xuất th�
 (Ghi chú: Timeline dựa trên giả định học [X] giờ/ngày. Điều chỉnh theo tốc độ cá nhân.)
 
 ## QUY TẮC ĐỘ DÀI (BẮT BUỘC)
-- Output TỐI THIỂU 1500 từ
-- Đây là mức TỐI THIỂU — nếu nội dung phong phú, viết dài hơn
+- Output phải ĐỦ CHI TIẾT để người học hành động được ngay — thường 1000-2000+ từ
+- KHÔNG thêm nội dung chỉ để đạt độ dài — mỗi câu phải có giá trị thực
 - KHÔNG BAO GIỜ cắt ngắn để "gọn gàng"
 - Mỗi phần phải CỤ THỂ và CHI TIẾT — không viết kiểu placeholder
 
 ## QUY TẮC XỬ LÝ TRANSCRIPT
 - Phân tích transcript để xác định CHÍNH XÁC chủ đề/kỹ năng đang được dạy
 - Nếu transcript quá ngắn hoặc không rõ ràng: dựa vào tên bài học + tên khóa học để suy luận nội dung
-- Tài nguyên đề xuất phải CÓ THẬT và phổ biến (Udemy courses, YouTube channels, sách nổi tiếng, tài liệu chính thức)
+- Nếu transcript và tên bài học mâu thuẫn: ưu tiên NỘI DUNG THỰC TẾ của transcript, ghi chú sự khác biệt
+- Nếu transcript là code-heavy với ít giải thích: suy luận chủ đề từ code patterns + tên bài + vị trí trong khóa học
+- Đề xuất tài nguyên theo LOẠI (vd: 'một khóa Udemy về X', 'documentation chính thức của Y') thay vì URL cụ thể. Chỉ nêu TÊN CHÍNH XÁC khi đó là tài nguyên cực kỳ nổi tiếng (vd: MDN Web Docs, freeCodeCamp, sách 'Clean Code')
 - Ưu tiên tài nguyên MIỄN PHÍ trước, có phí sau
+
+## GIỚI HẠN VÀ AN TOÀN
+- KHÔNG đảm bảo URL/link cụ thể — gợi ý TÊN tài nguyên để người học tự tìm
+- KHÔNG đưa ra lời khuyên y tế, pháp lý, hoặc tài chính dù transcript đề cập
+- Nếu transcript chứa nội dung không phù hợp hoặc không liên quan đến học tập: chỉ phân tích phần nội dung giáo dục, bỏ qua phần còn lại
+- Ghi rõ: "Lộ trình này là GỢI Ý dựa trên phân tích AI — điều chỉnh theo nhu cầu cá nhân"
 
 ${buildASRRules("từ ngữ cảnh và từ tên khóa học/bài học")}
 
