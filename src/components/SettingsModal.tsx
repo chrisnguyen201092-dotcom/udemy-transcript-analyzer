@@ -193,7 +193,7 @@ export function SettingsModal({ open, initialSettings, onSave, onClose }: Settin
           <Button
             onClick={() => onSave(draft)}
             disabled={!draft.apiKey || !draft.model}
-            className="cursor-pointer bg-[#5B5BD6] hover:bg-[#4F4DC4]"
+            className="cursor-pointer bg-[#A435F0] hover:bg-[#8710D8]"
           >
             Lưu Settings
           </Button>

@@ -97,7 +97,7 @@ export function ImportModal({
                       variant="outline"
                       onClick={() => onImport(c)}
                       disabled={importingId === c.id}
-                      className="shrink-0 cursor-pointer text-[#5B5BD6] border-[#5B5BD6]/20 hover:bg-[#5B5BD6]/5"
+                      className="shrink-0 cursor-pointer text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5"
                     >
                       {importingId === c.id ? (
                         <>

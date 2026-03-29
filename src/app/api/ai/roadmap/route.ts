@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { getSystemPrompt } from "@/lib/ai/prompts";
 
-const SummarySchema = z.object({
+const RoadmapSchema = z.object({
   lessonId: z.string(),
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
@@ -13,11 +13,11 @@ const SummarySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const { lessonId, apiKey, baseUrl, model } = SummarySchema.parse(await req.json());
+    const { lessonId, apiKey, baseUrl, model } = RoadmapSchema.parse(await req.json());
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
-      include: { course: true },
+      include: { course: { include: { lessons: { orderBy: { order: "asc" }, select: { title: true, order: true } } } } },
     });
 
     if (!lesson?.transcript) {
@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Build course context: list all lessons so AI can see the full curriculum
+    const lessonList = lesson.course.lessons
+      .map((l) => `  ${l.order}. ${l.title}`)
+      .join("\n");
 
     const client = new OpenAI({
       apiKey,
@@ -37,33 +42,33 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: getSystemPrompt("summary"),
+          content: getSystemPrompt("roadmap"),
         },
         {
           role: "user",
-          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}`,
+          content: `Phân tích bài học sau và đề xuất lộ trình học tập tối ưu:\n\nKhóa học: ${lesson.course.title}\nDanh sách bài học trong khóa:\n${lessonList}\n\nBài học hiện tại: ${lesson.title} (bài ${lesson.order})\nNội dung bài học:\n${lesson.transcript}`,
         },
       ],
     });
 
     const raw = response.choices[0].message.content ?? "";
-    const summary = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const roadmap = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 
     // Persist to DB
     await prisma.lesson.update({
       where: { id: lessonId },
-      data: { summary },
+      data: { roadmap },
     });
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ roadmap });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[summary]", msg);
+    console.error("[roadmap]", msg);
     return NextResponse.json(
-      { error: `Failed to generate summary: ${msg}` },
+      { error: `Failed to generate roadmap: ${msg}` },
       { status: 500 }
     );
   }

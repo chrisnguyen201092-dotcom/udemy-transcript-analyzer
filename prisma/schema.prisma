@@ -17,12 +17,15 @@ model Course {
 }
 
 model Lesson {
-  id          String   @id @default(cuid())
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title       String
-  order       Int
-  transcript  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title        String
+  order        Int
+  transcript   String?
+  summary      String?
+  explanation  String?
+  roadmap      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

@@ -42,9 +42,6 @@ export async function POST(req: NextRequest) {
     const client = new OpenAI({
       apiKey,
       baseURL: baseUrl.replace(/\/$/, ""),
-      defaultHeaders: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
     });
 
     const transcriptContext = `Dựa trên bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung: ${lesson.transcript}`;

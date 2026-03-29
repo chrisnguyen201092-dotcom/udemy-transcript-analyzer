@@ -59,12 +59,12 @@ export function CourseList({ courses, selectedCourseId, onSelect, onDelete }: Co
                   onClick={() => onSelect(course)}
                   className={`group flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-100 ${
                     isSelected
-                      ? "bg-[#5B5BD6]/10 text-[#5B5BD6]"
+                      ? "bg-[#A435F0]/10 text-[#A435F0]"
                       : "hover:bg-gray-100 text-gray-700"
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium truncate ${isSelected ? "text-[#5B5BD6]" : "text-gray-800"}`}>
+                    <p className={`text-xs font-medium truncate ${isSelected ? "text-[#A435F0]" : "text-gray-800"}`}>
                       {course.title}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">

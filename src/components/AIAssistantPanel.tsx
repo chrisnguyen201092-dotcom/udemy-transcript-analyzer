@@ -126,8 +126,8 @@ export function AIAssistantPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-[#5B5BD6]/10 flex items-center justify-center shrink-0">
-            <Zap className="w-3.5 h-3.5 text-[#5B5BD6]" />
+          <div className="w-7 h-7 rounded-lg bg-[#A435F0]/10 flex items-center justify-center shrink-0">
+            <Zap className="w-3.5 h-3.5 text-[#A435F0]" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-gray-900">AI Assistant</h2>
@@ -170,7 +170,7 @@ export function AIAssistantPanel({
             disabled={!hasTranscript || !isConfigured || loading}
             variant="outline"
             size="sm"
-            className="cursor-pointer flex-1 text-[#5B5BD6] border-[#5B5BD6]/20 hover:bg-[#5B5BD6]/5 hover:border-[#5B5BD6]/40 rounded-lg h-8 text-xs"
+            className="cursor-pointer flex-1 text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs"
           >
             Tóm tắt
           </Button>
@@ -179,7 +179,7 @@ export function AIAssistantPanel({
             disabled={!hasTranscript || !isConfigured || loading}
             variant="outline"
             size="sm"
-            className="cursor-pointer flex-1 text-[#5B5BD6] border-[#5B5BD6]/20 hover:bg-[#5B5BD6]/5 hover:border-[#5B5BD6]/40 rounded-lg h-8 text-xs"
+            className="cursor-pointer flex-1 text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs"
           >
             Giải thích
           </Button>
@@ -192,13 +192,13 @@ export function AIAssistantPanel({
             onChange={(e) => setChatInput(e.target.value)}
             placeholder="Hỏi về bài học..."
             disabled={!hasTranscript || !isConfigured}
-            className="flex-1 text-xs h-8 border-gray-200 focus-visible:ring-[#5B5BD6]/30"
+            className="flex-1 text-xs h-8 border-gray-200 focus-visible:ring-[#A435F0]/30"
           />
           <Button
             type="submit"
             size="sm"
             disabled={!hasTranscript || !isConfigured || chatLoading || !chatInput.trim()}
-            className="cursor-pointer h-8 w-8 p-0 bg-[#5B5BD6] hover:bg-[#4F4DC4] shrink-0"
+            className="cursor-pointer h-8 w-8 p-0 bg-[#A435F0] hover:bg-[#8710D8] shrink-0"
           >
             <Send className="w-3.5 h-3.5" />
           </Button>

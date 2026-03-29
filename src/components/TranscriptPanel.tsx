@@ -62,12 +62,12 @@ export function TranscriptPanel({ lesson, onSaveTranscript }: TranscriptPanelPro
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Paste transcript here..."
-              className="h-56 text-sm resize-none border-gray-200 focus-visible:ring-[#5B5BD6]/30 rounded-xl"
+              className="h-56 text-sm resize-none border-gray-200 focus-visible:ring-[#A435F0]/30 rounded-xl"
             />
             <Button
               onClick={handleSave}
               disabled={!draft.trim() || saving}
-              className="self-end gap-2 cursor-pointer bg-[#5B5BD6] hover:bg-[#4F4DC4] rounded-lg h-8 text-xs px-4"
+              className="self-end gap-2 cursor-pointer bg-[#A435F0] hover:bg-[#8710D8] rounded-lg h-8 text-xs px-4"
             >
               {saved ? (
                 <>

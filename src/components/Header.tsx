@@ -13,7 +13,7 @@ export function Header({ isConfigured, currentModel, onOpenSettings }: HeaderPro
   return (
     <header className="h-14 shrink-0 border-b border-gray-100 flex items-center justify-between px-5 bg-white">
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl bg-[#5B5BD6] flex items-center justify-center shadow-sm">
+        <div className="w-8 h-8 rounded-xl bg-[#A435F0] flex items-center justify-center shadow-sm">
           <Zap className="w-4 h-4 text-white fill-white" />
         </div>
         <span className="text-[15px] font-semibold text-gray-900 tracking-tight">

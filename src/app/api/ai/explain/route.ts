@@ -30,9 +30,6 @@ export async function POST(req: NextRequest) {
     const client = new OpenAI({
       apiKey,
       baseURL: baseUrl.replace(/\/$/, ""),
-      defaultHeaders: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
     });
 
     const response = await client.chat.completions.create({
@@ -51,6 +48,12 @@ export async function POST(req: NextRequest) {
 
     const raw = response.choices[0].message.content ?? "";
     const explanation = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+
+    // Persist to DB
+    await prisma.lesson.update({
+      where: { id: lessonId },
+      data: { explanation },
+    });
 
     return NextResponse.json({ explanation });
   } catch (error) {

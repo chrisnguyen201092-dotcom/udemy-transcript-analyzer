@@ -38,7 +38,7 @@ export function AddCoursePanel({
         <Button
           variant="outline"
           size="sm"
-          className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-[#5B5BD6] hover:border-[#5B5BD6]/30 text-xs h-8"
+          className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
           onClick={onOpenImport}
         >
           <Upload className="w-3.5 h-3.5" />
@@ -61,13 +61,13 @@ export function AddCoursePanel({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Tên course..."
-          className="flex-1 text-xs h-8 border-gray-200 focus-visible:ring-[#5B5BD6]/30"
+          className="flex-1 text-xs h-8 border-gray-200 focus-visible:ring-[#A435F0]/30"
         />
         <Button
           type="submit"
           size="sm"
           disabled={!title.trim()}
-          className="h-8 w-8 p-0 cursor-pointer bg-[#5B5BD6] hover:bg-[#4F4DC4] shrink-0"
+          className="h-8 w-8 p-0 cursor-pointer bg-[#A435F0] hover:bg-[#8710D8] shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
         </Button>

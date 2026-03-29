@@ -276,8 +276,8 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-6">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" className="text-[#5B5BD6]">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center">
+                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" className="text-[#A435F0]">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>

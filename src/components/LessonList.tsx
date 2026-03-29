@@ -53,7 +53,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
                   onClick={() => onSelect(lesson)}
                   className={`flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-100 ${
                     isSelected
-                      ? "bg-[#5B5BD6]/10"
+                      ? "bg-[#A435F0]/10"
                       : "hover:bg-gray-100"
                   }`}
                 >
@@ -61,7 +61,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
                     {lesson.order}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium leading-snug ${isSelected ? "text-[#5B5BD6]" : "text-gray-800"}`}>
+                    <p className={`text-xs font-medium leading-snug ${isSelected ? "text-[#A435F0]" : "text-gray-800"}`}>
                       {lesson.title}
                     </p>
                     <p className={`text-[10px] mt-0.5 ${lesson.transcript ? "text-emerald-600" : "text-gray-400"}`}>
@@ -80,13 +80,13 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
           value={newLessonTitle}
           onChange={(e) => setNewLessonTitle(e.target.value)}
           placeholder="Tên bài học..."
-          className="flex-1 text-xs h-7 border-gray-200 focus-visible:ring-[#5B5BD6]/30"
+          className="flex-1 text-xs h-7 border-gray-200 focus-visible:ring-[#A435F0]/30"
         />
         <Button
           type="submit"
           size="sm"
           disabled={!newLessonTitle.trim()}
-          className="h-7 w-7 p-0 cursor-pointer bg-[#5B5BD6] hover:bg-[#4F4DC4] shrink-0"
+          className="h-7 w-7 p-0 cursor-pointer bg-[#A435F0] hover:bg-[#8710D8] shrink-0"
         >
           <Plus className="w-3 h-3" />
         </Button>
