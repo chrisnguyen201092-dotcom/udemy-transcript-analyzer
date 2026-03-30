@@ -132,6 +132,11 @@ export function AIAssistantPanel({
   const [srsMode, setSrsMode] = useState(false);
   const [dueBadge, setDueBadge] = useState(0);
 
+  // AI mode selectors
+  const [socraticMode, setSocraticMode] = useState(false);
+  const [explainDepth, setExplainDepth] = useState<"simple" | "standard" | "deep">("standard");
+  const [summaryMode, setSummaryMode] = useState<"quick" | "detailed">("detailed");
+
   // Learner profile state
   const [learnerProfile, setLearnerProfile] = useState<{
     level: string;
@@ -428,7 +433,7 @@ export function AIAssistantPanel({
       const res = await fetch("/api/ai/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiBody()),
+        body: JSON.stringify({ ...apiBody(), mode: summaryMode }),
         signal: controller.signal,
       });
       const result = await readStreamOrJson(
@@ -460,7 +465,7 @@ export function AIAssistantPanel({
       const res = await fetch("/api/ai/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiBody()),
+        body: JSON.stringify({ ...apiBody(), depth: explainDepth }),
         signal: controller.signal,
       });
       const result = await readStreamOrJson(
@@ -597,6 +602,7 @@ export function AIAssistantPanel({
         body: JSON.stringify({
           ...apiBody(),
           messages: updatedMessages,
+          socraticMode,
         }),
       });
 
@@ -825,7 +831,7 @@ export function AIAssistantPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeTab !== "chat" && activeTab !== "notes" && (
+          {activeTab !== "chat" && activeTab !== "notes" && activeTab !== "analytics" && (
             <ExportDropdown
               lessonId={lesson.id}
               courseId={courseId}
@@ -896,6 +902,26 @@ export function AIAssistantPanel({
         {/* Tab: Summary */}
         {activeTab === "summary" && (
           <>
+            {/* Summary mode selector */}
+            <div className="flex gap-1.5 p-1 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800">
+              {([
+                { key: "detailed" as const, label: "Chi tiết", desc: "Tóm tắt đầy đủ" },
+                { key: "quick" as const, label: "Ngắn gọn", desc: "3-5 điểm chính" },
+              ]).map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setSummaryMode(mode.key)}
+                  title={mode.desc}
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    summaryMode === mode.key
+                      ? "bg-[#A435F0] text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
             {renderActionButton(
               "Tạo tóm tắt",
               "Tạo lại tóm tắt",
@@ -914,6 +940,27 @@ export function AIAssistantPanel({
         {/* Tab: Explain */}
         {activeTab === "explain" && (
           <>
+            {/* Explain depth selector */}
+            <div className="flex gap-1.5 p-1 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800">
+              {([
+                { key: "simple" as const, label: "Đơn giản", desc: "ELI5 — giải thích cơ bản" },
+                { key: "standard" as const, label: "Chuẩn", desc: "Feynman Technique" },
+                { key: "deep" as const, label: "Chuyên sâu", desc: "Edge cases, trade-offs" },
+              ]).map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => setExplainDepth(d.key)}
+                  title={d.desc}
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    explainDepth === d.key
+                      ? "bg-[#A435F0] text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
             {renderActionButton(
               "Giải thích bài học",
               "Giải thích lại",
@@ -1254,8 +1301,26 @@ export function AIAssistantPanel({
               </div>
             </ScrollArea>
 
-            {/* Chat input */}
-            <form onSubmit={handleChat} className="flex gap-1.5">
+            {/* Socratic mode toggle + Chat input */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSocraticMode(!socraticMode)}
+                  className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md transition-colors cursor-pointer border ${
+                    socraticMode
+                      ? "bg-[#A435F0]/10 text-[#A435F0] border-[#A435F0]/30"
+                      : "text-gray-400 border-gray-200 dark:border-gray-700 hover:text-gray-600 hover:border-gray-300"
+                  }`}
+                  title={socraticMode ? "AI dẫn dắt tư duy thay vì trả lời thẳng" : "Bật chế độ dẫn dắt tư duy (Socratic)"}
+                >
+                  🧠 Socratic
+                </button>
+                {socraticMode && (
+                  <span className="text-[10px] text-gray-400">AI sẽ dẫn dắt bạn tự tìm câu trả lời</span>
+                )}
+              </div>
+              <form onSubmit={handleChat} className="flex gap-1.5">
               <Input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
@@ -1277,7 +1342,13 @@ export function AIAssistantPanel({
                 <Send className="w-3.5 h-3.5" />
               </Button>
             </form>
+            </div>
           </>
+        )}
+
+        {/* Tab: Analytics */}
+        {activeTab === "analytics" && (
+          <AnalyticsCourseDetail courseId={courseId} />
         )}
       </div>
     </div>
