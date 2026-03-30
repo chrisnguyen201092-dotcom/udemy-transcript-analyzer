@@ -44,6 +44,10 @@ interface Course {
   id: string;
   url: string;
   title: string;
+  contentType: string;
+  author?: string | null;
+  isbn?: string | null;
+  publisher?: string | null;
   lessons: Lesson[];
   createdAt: string;
 }
@@ -69,7 +73,10 @@ export default function Home() {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
   // Multi-profile store
-  const [store, setStore] = useState<SettingsStore>(() => loadStore());
+  // Initialize with a stable server-safe default to avoid hydration mismatch,
+  // then hydrate from localStorage after mount.
+  const [store, setStore] = useState<SettingsStore>({ profiles: [], activeId: "" });
+  const [storeMounted, setStoreMounted] = useState(false);
 
   // Chat leave warning state
   const [chatMessageCount, setChatMessageCount] = useState(0);
@@ -103,6 +110,7 @@ export default function Home() {
   useEffect(() => {
     const s = loadStore();
     setStore(s);
+    setStoreMounted(true);
     fetchCourses();
   }, []);
 
@@ -478,7 +486,8 @@ export default function Home() {
     }
   };
 
-  const isConfigured = !!(settings.apiKey && settings.model);
+  // Defer isConfigured until after client hydration to prevent SSR mismatch
+  const isConfigured = storeMounted && !!(settings.apiKey && settings.model);
 
   // ── Keyboard shortcuts ──
 
@@ -661,6 +670,7 @@ export default function Home() {
               <AIAssistantPanel
                 lesson={selectedLesson}
                 courseId={selectedCourse!.id}
+                contentType={selectedCourse!.contentType}
                 settings={settings}
                 isConfigured={isConfigured}
                 onOpenSettings={() => setShowSettings(true)}
