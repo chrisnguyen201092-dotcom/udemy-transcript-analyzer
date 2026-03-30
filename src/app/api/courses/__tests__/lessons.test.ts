@@ -59,7 +59,7 @@ describe("POST /api/courses/[id]/lessons", () => {
     mockPrisma.lesson.create.mockResolvedValue(fakeLesson);
 
     const req = makeRequest("c1", { title: "Lesson 6" });
-    const res = await postLesson(req, { params: Promise.resolve({ id: "c1" }) });
+    await postLesson(req, { params: Promise.resolve({ id: "c1" }) });
 
     const createCall = mockPrisma.lesson.create.mock.calls[0][0];
     expect(createCall.data.order).toBe(6);

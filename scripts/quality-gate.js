@@ -5,6 +5,7 @@
  * Exit code 0 = all passed, 1 = one or more failed
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { execSync } = require('child_process')
 
 const steps = [

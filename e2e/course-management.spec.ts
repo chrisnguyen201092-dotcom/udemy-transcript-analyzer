@@ -35,7 +35,7 @@ test.describe("Course Management", () => {
 
   test("settings button or icon is accessible", async ({ page }) => {
     // Settings modal trigger (gear icon or settings button)
-    const settingsButton = page.locator(
+    page.locator(
       'button[aria-label*="setting" i], button[aria-label*="cài đặt" i], [data-testid="settings"], svg[data-icon="settings"]'
     ).first();
 

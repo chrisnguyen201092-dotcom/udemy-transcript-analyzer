@@ -13,7 +13,7 @@ test.describe("AI Features UI", () => {
 
   test("settings modal trigger exists", async ({ page }) => {
     // Settings button should be present (gear icon, settings text, etc.)
-    const settingsTriggers = page.locator(
+    page.locator(
       'button[aria-label*="setting" i], button:has-text("Setting"), button:has-text("Cài đặt"), [data-testid="settings-btn"]'
     );
 
@@ -26,7 +26,7 @@ test.describe("AI Features UI", () => {
   test("AI assistant panel area is in the DOM", async ({ page }) => {
     // AI panel should be rendered (tabs: Summary, Explain, Chat, Quiz, etc.)
     // Check for common AI feature labels
-    const aiLabels = page.locator(
+    page.locator(
       ':has-text("Summary"), :has-text("Tóm tắt"), :has-text("Chat"), :has-text("Quiz"), :has-text("Giải thích")'
     );
     // Verifying the page renders without crash is the main goal

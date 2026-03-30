@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Eye, RotateCw } from "lucide-react";
 
@@ -26,6 +26,58 @@ export function FlashcardDeck({ markdown }: FlashcardDeckProps) {
 
   const cards = parseFlashcards(markdown);
 
+  const currentCard = cards[currentIndex];
+
+  // Keep refs for keyboard handler to avoid stale closures
+  const stateRef = useRef({ currentIndex, cardsLength: cards.length });
+  useEffect(() => {
+    stateRef.current = { currentIndex, cardsLength: cards.length };
+  });
+
+  const handleNext = () => {
+    if (currentIndex < cards.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setIsFlipped(false);
+      setShowHint(false);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setIsFlipped(false);
+      setShowHint(false);
+    }
+  };
+
+  const handleFlip = () => {
+    setIsFlipped(!isFlipped);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const { currentIndex: idx, cardsLength } = stateRef.current;
+      if (e.key === "ArrowRight" && idx < cardsLength - 1) {
+        setCurrentIndex(idx + 1);
+        setIsFlipped(false);
+        setShowHint(false);
+      }
+      if (e.key === "ArrowLeft" && idx > 0) {
+        setCurrentIndex(idx - 1);
+        setIsFlipped(false);
+        setShowHint(false);
+      }
+      if (e.key === " ") {
+        e.preventDefault();
+        setIsFlipped((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!cards.length) {
     return (
       <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
@@ -33,43 +85,6 @@ export function FlashcardDeck({ markdown }: FlashcardDeckProps) {
       </pre>
     );
   }
-
-  const currentCard = cards[currentIndex];
-
-  const handleNext = useCallback(() => {
-    if (currentIndex < cards.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setIsFlipped(false);
-      setShowHint(false);
-    }
-  }, [currentIndex, cards.length]);
-
-  const handlePrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      setIsFlipped(false);
-      setShowHint(false);
-    }
-  }, [currentIndex]);
-
-  const handleFlip = useCallback(() => {
-    setIsFlipped(!isFlipped);
-  }, [isFlipped]);
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") handleNext();
-      if (e.key === "ArrowLeft") handlePrev();
-      if (e.key === " ") {
-        e.preventDefault();
-        handleFlip();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleNext, handlePrev, handleFlip]);
 
   return (
     <div className="space-y-4">

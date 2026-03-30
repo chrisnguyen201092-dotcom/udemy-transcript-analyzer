@@ -23,7 +23,7 @@ test.describe("Lesson & Transcript", () => {
 
   test("transcript panel or area is present in the DOM", async ({ page }) => {
     // TranscriptPanel should be rendered (possibly hidden or empty)
-    const transcriptArea = page.locator(
+    page.locator(
       '[data-testid="transcript"], [aria-label*="transcript" i], [placeholder*="transcript" i]'
     );
     // Even if not visible, the component should be in the DOM structure

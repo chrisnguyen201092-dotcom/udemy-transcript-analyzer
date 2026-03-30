@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { randomUUID } from "crypto";
 import { z } from "zod";
 
 const Schema = z.object({

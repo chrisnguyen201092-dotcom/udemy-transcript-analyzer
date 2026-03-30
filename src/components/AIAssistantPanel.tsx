@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Bot,
   Send,
   AlertCircle,
   Zap,
