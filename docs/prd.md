@@ -9,7 +9,7 @@
 
 ## 1. Tổng quan sản phẩm
 
-**Udemy Learner** là một ứng dụng web hỗ trợ học viên Udemy học hiệu quả hơn nhờ AI. Ứng dụng cho phép import khóa học từ tài khoản Udemy, xem và chỉnh sửa transcript của từng bài học, rồi dùng AI để tóm tắt, giải thích sâu, và chat trực tiếp về nội dung bài học.
+**Udemy Learner** là một ứng dụng web hỗ trợ học viên Udemy học hiệu quả hơn nhờ AI. Ứng dụng cho phép import khóa học từ tài khoản Udemy hoặc upload transcript từ file, xem và chỉnh sửa transcript của từng bài học, rồi dùng AI để tóm tắt, giải thích sâu, chat trực tiếp, luyện tập (quiz/flashcard/bài tập), và tạo lộ trình học tập cá nhân hóa cho toàn khóa.
 
 Mục tiêu cốt lõi: **biến transcript thô thành kiến thức có cấu trúc**, giúp học viên nắm bài nhanh hơn và sâu hơn.
 
@@ -23,6 +23,8 @@ Học viên Udemy gặp một số rào cản phổ biến:
 - Không có công cụ tóm tắt hay giải thích nội dung theo nhu cầu
 - Phải chuyển qua lại nhiều tab để tra cứu khi học
 - Không thể hỏi đáp tương tác với nội dung khóa học
+- Không có cách luyện tập kiến thức vừa học một cách có hệ thống
+- Khó định hướng học toàn khóa khi chưa biết tầm quan trọng của từng bài
 
 **Udemy Learner** giải quyết tất cả vấn đề này trong một giao diện duy nhất.
 
@@ -36,16 +38,17 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | **Self-learner** | Người tự học có tài khoản Udemy, muốn học có hệ thống hơn |
 | **Developer tự dùng** | Người cài ứng dụng local để dùng riêng với API key của mình |
 
-**Điều kiện tiên quyết:** Người dùng phải có tài khoản Udemy hợp lệ và API key từ một nhà cung cấp tương thích OpenAI.
+**Điều kiện tiên quyết:** Người dùng phải có API key từ một nhà cung cấp tương thích OpenAI. Tài khoản Udemy chỉ cần thiết khi dùng tính năng import từ Udemy; không cần khi upload file transcript thủ công.
 
 ---
 
 ## 4. Mục tiêu sản phẩm
 
 1. Import và lưu trữ khóa học Udemy cùng transcript một cách tự động
-2. Cung cấp 3 chế độ AI hỗ trợ học: Summary, Explain, Chat
-3. Cho phép quản lý thủ công khi không dùng API Udemy
-4. Chạy hoàn toàn local, không phụ thuộc backend bên ngoài ngoài AI provider
+2. Cung cấp 5 chế độ AI hỗ trợ học: Summary, Explain, Chat, Practice (Quiz/Flashcard/Exercises), Roadmap
+3. Cho phép upload transcript từ file cục bộ (`.vtt`, `.srt`, `.txt`) khi không có Udemy
+4. Lưu trữ kết quả AI vào database để tái sử dụng, không cần generate lại
+5. Chạy hoàn toàn local, không phụ thuộc backend bên ngoài ngoài AI provider
 
 ---
 
@@ -54,13 +57,18 @@ Học viên Udemy gặp một số rào cản phổ biến:
 ### In Scope
 
 - Import khóa học và transcript qua Udemy access token
+- Upload transcript từ file `.vtt`, `.srt`, `.txt` từ máy tính (không cần Udemy)
 - Quản lý khóa học và bài học thủ công (CRUD)
 - Xem và chỉnh sửa transcript từng bài học
-- AI Summary: tóm tắt bài học theo chuẩn giáo học pháp
+- AI Summary: tóm tắt bài học theo chuẩn giáo học pháp (Bloom's Taxonomy)
 - AI Explain: giải thích sâu bằng kỹ thuật Feynman
 - AI Chat: chat nhiều lượt có streaming với context bài học
+- AI Practice: Quiz (trắc nghiệm + Bloom's), Flashcard (SRS), Bài tập thực hành (Deliberate Practice)
+- AI Roadmap: phân tích toàn khóa, đề xuất lộ trình học tập cá nhân hóa
+- Persistence: kết quả AI được lưu vào DB và tải lại tự động
 - Cấu hình AI provider (base URL, API key, model)
 - Giao diện hoàn toàn bằng tiếng Việt
+- Docker support cho deployment
 
 ### Out of Scope
 
@@ -83,8 +91,8 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | F-02 | Hệ thống gọi Udemy API lấy danh sách khóa học đã enroll |
 | F-03 | Người dùng chọn khóa học cần import |
 | F-04 | Hệ thống tự động import curriculum (danh sách bài học) và transcript |
-| F-05 | Người dùng có thể thêm khóa học thủ công bằng URL và tiêu đề |
-| F-06 | Người dùng có thể xóa khóa học (xóa cả lessons liên quan) |
+| F-05 | Người dùng có thể thêm khóa học thủ công bằng tiêu đề |
+| F-06 | Người dùng có thể xóa khóa học (xóa cascade cả lessons và dữ liệu AI liên quan) |
 | F-07 | Danh sách khóa học hiển thị trong sidebar, sắp xếp theo thứ tự thêm vào |
 
 ### 6.2 Module: Quản lý bài học
@@ -95,50 +103,95 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | F-09 | Bài học hiển thị trong sidebar theo thứ tự (`order`) |
 | F-10 | Chọn bài học để xem nội dung transcript trong panel chính |
 
-### 6.3 Module: Transcript
+### 6.3 Module: Upload File Transcript
 
 | ID | Yêu cầu |
 |----|---------|
-| F-11 | Transcript tự động được import từ Udemy khi import khóa học |
-| F-12 | Người dùng có thể xem transcript của từng bài học |
-| F-13 | Người dùng có thể chỉnh sửa transcript và lưu lại |
+| F-11 | Người dùng mở `UploadModal` và chọn một hoặc nhiều file transcript từ máy tính |
+| F-12 | Hệ thống hỗ trợ 3 định dạng: `.vtt`, `.srt`, `.txt` |
+| F-13 | File được đọc client-side và gửi nội dung lên server qua JSON |
+| F-14 | Server parse từng định dạng: VTT/SRT loại bỏ timestamps và deduplicate dòng trùng, TXT dùng nguyên |
+| F-15 | Tên file (không có extension) trở thành tiêu đề bài học mới |
+| F-16 | Hệ thống tạo bài học mới trong khóa học đang chọn cho mỗi file upload |
 
-### 6.4 Module: AI Summary
-
-| ID | Yêu cầu |
-|----|---------|
-| F-14 | Người dùng nhấn nút Summary để tạo tóm tắt bài học |
-| F-15 | AI đóng vai Instructional Designer, dùng Bloom's Taxonomy để cấu trúc output |
-| F-16 | Output tối thiểu 600 từ, có thể lên tới 2500+ từ tùy nội dung |
-| F-17 | Hỗ trợ ASR degradation handling (transcript bị nhận dạng sai vẫn hoạt động) |
-| F-18 | Hỗ trợ code-switching (transcript trộn tiếng Anh/Việt) |
-
-### 6.5 Module: AI Explain
+### 6.4 Module: Transcript
 
 | ID | Yêu cầu |
 |----|---------|
-| F-19 | Người dùng nhấn nút Explain để nhận giải thích sâu về bài học |
-| F-20 | AI áp dụng Feynman Technique: giải thích như dạy người mới |
-| F-21 | Hệ thống tự phân loại Format A (nhiều code), Format B (nhiều lý thuyết), hoặc Hybrid dựa trên % code trong transcript |
-| F-22 | Output tối thiểu 800 từ, có thể lên tới 3500+ từ |
+| F-17 | Transcript tự động được import từ Udemy khi import khóa học |
+| F-18 | Người dùng có thể xem transcript của từng bài học |
+| F-19 | Người dùng có thể chỉnh sửa transcript và lưu lại |
 
-### 6.6 Module: AI Chat
-
-| ID | Yêu cầu |
-|----|---------|
-| F-23 | Người dùng chat nhiều lượt với AI về nội dung bài học hiện tại |
-| F-24 | Streaming response: text xuất hiện dần, không chờ full response |
-| F-25 | AI đóng vai tutor, nhận diện loại câu hỏi và điều chỉnh cách trả lời |
-| F-26 | Context bài học (transcript) được đưa vào mỗi turn của chat |
-
-### 6.7 Module: AI Settings
+### 6.5 Module: AI Summary
 
 | ID | Yêu cầu |
 |----|---------|
-| F-27 | Người dùng cấu hình base URL của AI provider (bất kỳ endpoint tương thích OpenAI) |
-| F-28 | Người dùng nhập API key |
-| F-29 | Hệ thống tự fetch danh sách model từ provider và hiển thị dropdown |
-| F-30 | Người dùng chọn model để dùng cho tất cả AI features |
+| F-20 | Người dùng nhấn nút Summary để tạo tóm tắt bài học |
+| F-21 | AI đóng vai Instructional Designer, dùng Bloom's Taxonomy để cấu trúc output |
+| F-22 | Output tối thiểu 600 từ, có thể lên tới 2500+ từ tùy nội dung |
+| F-23 | Hỗ trợ ASR degradation handling (transcript bị nhận dạng sai vẫn hoạt động) |
+| F-24 | Hỗ trợ code-switching (transcript trộn tiếng Anh/Việt) |
+| F-25 | Kết quả được persist vào `Lesson.summary` và tự động load lại khi chọn bài học |
+
+### 6.6 Module: AI Explain
+
+| ID | Yêu cầu |
+|----|---------|
+| F-26 | Người dùng nhấn nút Explain để nhận giải thích sâu về bài học |
+| F-27 | AI áp dụng Feynman Technique: giải thích như dạy người mới |
+| F-28 | Hệ thống tự phân loại Format A (nhiều code), Format B (nhiều lý thuyết), hoặc Hybrid dựa trên % code trong transcript |
+| F-29 | Output tối thiểu 800 từ, có thể lên tới 3500+ từ |
+| F-30 | Kết quả được persist vào `Lesson.explanation` và tự động load lại khi chọn bài học |
+
+### 6.7 Module: AI Chat
+
+| ID | Yêu cầu |
+|----|---------|
+| F-31 | Người dùng chat nhiều lượt với AI về nội dung bài học hiện tại |
+| F-32 | Streaming response: text xuất hiện dần, không chờ full response |
+| F-33 | AI đóng vai tutor, nhận diện 7 loại câu hỏi và điều chỉnh cách trả lời |
+| F-34 | Context bài học (transcript) được đưa vào mỗi turn của chat |
+| F-35 | Lịch sử chat không persist giữa các phiên (reset khi chọn bài khác) |
+
+### 6.8 Module: AI Practice (Luyện tập)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-36 | Người dùng chọn tab Practice và chế độ luyện tập: Quiz, Flashcard, hoặc Bài tập |
+| F-37 | **Quiz**: AI tạo 8–12 câu trắc nghiệm/đúng-sai/điền khuyết/trả lời ngắn/hoàn thành code; phân bố theo Bloom's Taxonomy 3 mức; có đáp án và giải thích chi tiết |
+| F-38 | **Flashcard**: AI tạo 15–25 thẻ theo SRS và Minimum Information Principle; 5 loại thẻ (Term→Definition, Concept→Explanation, Code→Output, Scenario→Solution, Compare→Differences); có mnemonic |
+| F-39 | **Bài tập thực hành**: AI tạo 3–5 bài theo Deliberate Practice; phân loại Tái hiện/Mở rộng/Sáng tạo/Debug/Mini Project; tự phân loại Lý thuyết/Thực hành/Hỗn hợp từ transcript; có rubric đánh giá và lời giải tham khảo |
+| F-40 | Kết quả Quiz persist vào `Lesson.quiz`; Flashcard vào `Lesson.flashcards`; Bài tập vào `Lesson.exercises` |
+| F-41 | Kết quả tự động load lại khi chọn lại bài học |
+
+### 6.9 Module: AI Roadmap (Lộ trình)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-42 | Người dùng click tab Roadmap trong AI panel để tạo lộ trình toàn khóa |
+| F-43 | AI phân tích TOÀN BỘ các bài học: aggregate transcripts (truncate mỗi bài tới 4000 chars để tránh vượt context window) |
+| F-44 | Output bao gồm: tổng quan khóa, phân giai đoạn học, bản đồ kiến thức, phương pháp học tối ưu, dự án tổng hợp, kế hoạch tuần |
+| F-45 | Roadmap không phụ thuộc vào bài học đang chọn — là course-level |
+| F-46 | Kết quả persist vào `Course.roadmap` và tự động load lại khi chọn lại khóa học |
+
+### 6.10 Module: AI Persistence
+
+| ID | Yêu cầu |
+|----|---------|
+| F-47 | Khi chọn bài học, hệ thống tự động load toàn bộ AI results đã lưu (summary, explanation, quiz, flashcards, exercises) qua `GET /api/lessons/[id]/ai` |
+| F-48 | Khi chọn khóa học, hệ thống tự động load roadmap đã lưu qua `GET /api/courses/[id]/ai` |
+| F-49 | Nếu đã có kết quả lưu sẵn, hiển thị ngay mà không cần generate lại |
+| F-50 | Người dùng có thể generate lại bất kỳ lúc nào; kết quả mới ghi đè kết quả cũ |
+
+### 6.11 Module: AI Settings
+
+| ID | Yêu cầu |
+|----|---------|
+| F-51 | Người dùng cấu hình base URL của AI provider (bất kỳ endpoint tương thích OpenAI) |
+| F-52 | Người dùng nhập API key |
+| F-53 | Hệ thống tự fetch danh sách model từ provider và hiển thị dropdown |
+| F-54 | Người dùng chọn model để dùng cho tất cả AI features |
+| F-55 | Toàn bộ settings lưu trong localStorage với key `udemy_ai_settings` |
 
 ---
 
@@ -152,13 +205,14 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | AI Summary/Explain | First token xuất hiện trong vòng 3 giây |
 | Chat streaming | Latency cảm nhận thấp nhờ streaming, không block UI |
 | Load danh sách khóa học | Dưới 500ms từ SQLite local |
+| Load AI results đã lưu | Tức thì (query DB local) |
 
 ### 7.2 Security
 
 | Yêu cầu | Chi tiết |
 |---------|---------|
 | Access token | Không lưu vào database, chỉ dùng trong phiên import |
-| API key | Lưu client-side (localStorage hoặc cấu hình), không gửi lên server ngoài |
+| API key | Lưu client-side (localStorage), không gửi lên server ngoài |
 | SQLite | Database local, không expose qua network |
 | CORS | Chỉ gọi API Udemy từ server-side để tránh CORS |
 
@@ -167,15 +221,17 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | Yêu cầu | Chi tiết |
 |---------|---------|
 | Ngôn ngữ giao diện | Hoàn toàn tiếng Việt |
-| Responsive | Tối ưu cho desktop (màn hình 1280px+) |
+| Responsive | Tối ưu cho desktop (màn hình 1280px+); sidebar + split panel |
 | Feedback trực quan | Loading states rõ ràng cho mọi thao tác AI |
 | Error handling | Hiển thị thông báo lỗi rõ ràng khi API fail |
+| AI results cache | Hiển thị kết quả đã lưu ngay khi chọn bài, không cần chờ |
 
 ### 7.4 Maintainability
 
 - Prompt architecture dùng DRY pattern: shared ASR rule builder và language rule builder
 - TypeScript strict mode trên toàn bộ codebase
 - Prisma schema làm single source of truth cho data model
+- Docker support cho deployment nhất quán
 
 ---
 
@@ -190,74 +246,94 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | Database | Prisma ORM + SQLite (local file) |
 | AI Integration | OpenAI SDK (compatible với mọi OpenAI-compatible provider) |
 | Language | TypeScript |
+| Validation | Zod |
+| Deploy | Docker (docker-compose) |
 
 ### 8.2 Data Model
 
 ```prisma
 model Course {
   id        String   @id @default(cuid())
-  url       String
+  url       String   @unique        // "" khi tạo thủ công
   title     String
+  roadmap   String?                 // AI-generated course roadmap
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   lessons   Lesson[]
 }
 
 model Lesson {
-  id         String   @id @default(cuid())
-  courseId   String
-  title      String
-  order      Int
-  transcript String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int
+  transcript  String?
+  summary     String?               // AI-generated lesson summary
+  explanation String?               // AI-generated lesson explanation
+  roadmap     String?               // Reserved (không dùng hiện tại)
+  quiz        String?               // AI-generated quiz
+  flashcards  String?               // AI-generated flashcard set
+  exercises   String?               // AI-generated practice exercises
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 ```
 
 ### 8.3 API Routes
 
-| Method | Endpoint | Chức năng |
-|--------|----------|-----------|
-| POST | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy |
-| POST | `/api/udemy/import` | Import khóa học, lessons, transcripts |
-| GET | `/api/courses` | Lấy tất cả khóa học |
-| POST | `/api/courses` | Tạo khóa học mới |
-| GET | `/api/courses/[id]` | Lấy chi tiết khóa học |
-| DELETE | `/api/courses/[id]` | Xóa khóa học |
-| POST | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học |
-| PUT | `/api/lessons/[id]/transcript` | Cập nhật transcript |
-| POST | `/api/ai/summary` | Tạo AI summary |
-| POST | `/api/ai/explain` | Tạo AI explanation |
-| POST | `/api/ai/chat` | Streaming chat (Server-Sent Events) |
-| POST | `/api/ai/models` | Lấy danh sách model từ provider |
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/courses` | Lấy tất cả khóa học kèm lessons | |
+| `POST` | `/api/courses` | Tạo khóa học mới | |
+| `GET` | `/api/courses/[id]` | Lấy chi tiết khóa học | |
+| `DELETE` | `/api/courses/[id]` | Xóa khóa học (cascade) | |
+| `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học | Trả về `roadmap` |
+| `POST` | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học | |
+| `POST` | `/api/courses/upload` | Upload file transcript → tạo bài học | `.vtt`, `.srt`, `.txt` |
+| `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
+| `PUT` | `/api/lessons/[id]/transcript` | Cập nhật transcript bài học | |
+| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | |
+| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | |
+| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist |
+| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level |
+| `POST` | `/api/ai/quiz` | Tạo Quiz / Flashcard / Exercises | Param: `mode: "quiz" \| "flashcards" \| "exercises"` |
+| `POST` | `/api/ai/models` | Lấy danh sách model từ provider | |
+| `POST` | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy | |
+| `POST` | `/api/udemy/import` | Import khóa học, lessons, transcripts từ Udemy | |
 
 ### 8.4 UI Architecture
 
-Ứng dụng là single-page với layout 2 cột:
+Ứng dụng là single-page với layout 3 vùng:
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Header (tên app + Settings button)             │
-├──────────────┬──────────────────────────────────┤
-│  Sidebar     │  Main Content                   │
-│  - CourseList│  - TranscriptPanel              │
-│  - LessonList│  - AIAssistantPanel             │
-│  - AddCourse │    (Summary | Explain | Chat)   │
-└──────────────┴──────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Header (tên app + tên model hiện tại + Settings button)    │
+├──────────────┬──────────────────────────────────────────────┤
+│  Sidebar     │  Main Content (split panel)                  │
+│  - AddCourse │  ┌──────────────────┬──────────────────────┐ │
+│  - Upload    │  │  TranscriptPanel │  AIAssistantPanel    │ │
+│  - CourseList│  │  (xem + edit)    │  Tab: Summary        │ │
+│  - LessonList│  │                  │  Tab: Explain        │ │
+│              │  │                  │  Tab: Chat           │ │
+│              │  │                  │  Tab: Roadmap        │ │
+│              │  │                  │  Tab: Practice       │ │
+│              │  └──────────────────┴──────────────────────┘ │
+└──────────────┴──────────────────────────────────────────────┘
 ```
 
 **Components chính:**
-- `Header` — thanh navigation + mở Settings
-- `AddCoursePanel` — form thêm khóa học thủ công + nút import Udemy
+- `Header` — thanh navigation, tên model hiện tại, mở Settings
+- `AddCoursePanel` — form thêm khóa học thủ công + nút import Udemy + nút upload file
 - `CourseList` — danh sách khóa học, select active
 - `LessonList` — danh sách bài học của khóa học đang chọn
 - `TranscriptPanel` — hiển thị và edit transcript
-- `AIAssistantPanel` — 3 tab: Summary, Explain, Chat
-- `SettingsModal` — cấu hình AI provider
-- `ImportModal` — nhập access token và chọn khóa học
+- `AIAssistantPanel` — 5 tab: Summary, Explain, Chat, Roadmap, Practice
+- `SettingsModal` — cấu hình AI provider (base URL, API key, model, Udemy cookie)
+- `ImportModal` — nhập access token và chọn khóa học từ Udemy
+- `UploadModal` — chọn file transcript từ máy tính để tạo bài học
 
-**shadcn/ui primitives dùng:** `button`, `dialog`, `input`, `label`, `select`, `textarea`, `badge`, `alert-dialog`, `scroll-area`, `separator`
+**shadcn/ui primitives dùng:** `button`, `dialog`, `input`, `label`, `select`, `textarea`, `badge`, `alert-dialog`, `scroll-area`, `separator`, `tabs`, `card`
 
 ---
 
@@ -275,18 +351,52 @@ model Lesson {
 7. Khóa học và bài học xuất hiện trong sidebar
 ```
 
-### Flow 2: Dùng AI Summary
+### Flow 2: Upload transcript từ file
+
+```
+1. Người dùng chọn khóa học trong sidebar
+2. Click "Upload file" → UploadModal mở ra
+3. Chọn một hoặc nhiều file .vtt / .srt / .txt từ máy tính
+4. Hệ thống đọc file client-side, gửi nội dung lên POST /api/courses/upload
+5. Server parse định dạng (strip timestamps, deduplicate VTT/SRT; giữ nguyên TXT)
+6. Bài học mới tạo ra với tên = tên file, transcript = nội dung đã parse
+7. Bài học xuất hiện trong sidebar, có thể dùng AI ngay
+```
+
+### Flow 3: Dùng AI Summary
 
 ```
 1. Người dùng chọn khóa học → chọn bài học
-2. Transcript hiển thị ở panel chính
-3. Người dùng click tab "Summary" trong AI panel
-4. Click nút "Tạo tóm tắt"
+2. Hệ thống load AI results đã lưu qua GET /api/lessons/[id]/ai
+3. Nếu đã có summary: hiển thị ngay trong tab Summary
+4. Nếu chưa có: người dùng click "Tạo tóm tắt"
 5. Hệ thống gọi POST /api/ai/summary với transcript
-6. Kết quả hiển thị, có thể cuộn đọc
+6. Kết quả stream, persist vào Lesson.summary
 ```
 
-### Flow 3: Chat với AI về bài học
+### Flow 4: Luyện tập với Quiz/Flashcard/Bài tập
+
+```
+1. Người dùng chọn bài học có transcript
+2. Click tab "Practice" trong AI panel
+3. Chọn chế độ: Quiz / Flashcard / Bài tập
+4. Hệ thống gọi POST /api/ai/quiz với mode tương ứng
+5. Kết quả hiển thị; persist vào Lesson.quiz / .flashcards / .exercises
+6. Lần sau chọn lại bài học: kết quả load tự động, không generate lại
+```
+
+### Flow 5: Tạo lộ trình toàn khóa
+
+```
+1. Người dùng chọn khóa học
+2. Click tab "Roadmap" trong AI panel
+3. Nếu đã có roadmap: hiển thị ngay (load từ Course.roadmap)
+4. Nếu chưa có: click "Tạo lộ trình"
+5. Hệ thống gọi POST /api/ai/roadmap với tất cả transcripts (truncated)
+6. Kết quả hiển thị; persist vào Course.roadmap
+```
+
+### Flow 6: Chat với AI về bài học
 
 ```
 1. Người dùng chọn bài học có transcript
@@ -297,7 +407,7 @@ model Lesson {
 6. Người dùng tiếp tục hỏi trong cùng session
 ```
 
-### Flow 4: Cấu hình AI provider
+### Flow 7: Cấu hình AI provider
 
 ```
 1. Click icon Settings trên Header
@@ -306,7 +416,7 @@ model Lesson {
 4. Nhập API key
 5. Hệ thống gọi POST /api/ai/models → load dropdown model
 6. Người dùng chọn model
-7. Lưu → Settings đóng lại
+7. Lưu → Settings đóng lại; tên model hiện trên Header
 ```
 
 ---
@@ -315,12 +425,14 @@ model Lesson {
 
 | Rủi ro | Mức độ | Giải pháp |
 |--------|--------|-----------|
-| Udemy thay đổi API / cookie format | Trung bình | Import thủ công vẫn hoạt động như fallback |
+| Udemy thay đổi API / cookie format | Trung bình | Upload file thủ công vẫn hoạt động như fallback hoàn chỉnh |
 | Access token hết hạn khi import | Thấp | Thông báo lỗi rõ ràng, yêu cầu token mới |
 | Transcript chất lượng kém (ASR noise) | Cao | Prompt có ASR degradation handling tích hợp sẵn |
 | AI provider không tương thích hoàn toàn | Trung bình | Test với OpenAI, Groq, Ollama; document known issues |
 | SQLite corrupted | Thấp | Backup database file định kỳ (manual) |
-| Context window vượt quá giới hạn model | Trung bình | Transcript dài bị truncate trước khi gửi AI |
+| Context window vượt quá giới hạn model | Trung bình | Transcript truncate trước khi gửi; Roadmap giới hạn 4000 chars/bài |
+| Reasoning model output thẻ `<think>` | Thấp | Think-tag suppression ở cả prompt-level và server-side regex |
+| File transcript định dạng lạ | Thấp | Validate extension; fallback plain text nếu parse fail |
 
 ---
 
@@ -329,22 +441,28 @@ model Lesson {
 ### v1.0 — Đã triển khai (hiện tại)
 
 - Import khóa học từ Udemy qua access token
+- Upload transcript từ file `.vtt`, `.srt`, `.txt` (không cần Udemy)
 - Quản lý khóa học và bài học thủ công
 - Xem và chỉnh sửa transcript
-- AI Summary với Bloom's Taxonomy
-- AI Explain với Feynman Technique
-- AI Chat streaming với context bài học
-- AI Settings: cấu hình provider, model
-- Prompt quality: Oracle-scored 9.4/10
-- DRY prompt architecture (shared rule builders)
+- AI Summary với Bloom's Taxonomy (persist)
+- AI Explain với Feynman Technique (persist)
+- AI Chat streaming với context bài học (không persist)
+- AI Practice: Quiz (8–12 câu, Bloom's) — persist
+- AI Practice: Flashcard (15–25 thẻ, SRS) — persist
+- AI Practice: Bài tập thực hành (3–5 bài, Deliberate Practice) — persist
+- AI Roadmap toàn khóa (Andragogy + Deliberate Practice) — persist vào Course
+- Persistence layer: lesson-level (`GET /api/lessons/[id]/ai`) + course-level (`GET /api/courses/[id]/ai`)
+- AI Settings: cấu hình provider, model — lưu localStorage
+- Prompt quality: DRY architecture (shared rule builders), Think-tag suppression
 - Giao diện tiếng Việt
+- Docker support
 
 ### v1.x — Tiềm năng cải tiến (chưa triển khai)
 
 > Phần này chỉ ghi nhận, không phải cam kết.
 
 - Lưu lịch sử chat giữa các phiên
-- Export summary/explain ra file Markdown
+- Export summary/explain/roadmap ra file Markdown
 - Hỗ trợ nhiều ngôn ngữ giao diện
 - PostgreSQL thay thế SQLite cho multi-user
 - Tìm kiếm toàn văn qua transcripts
@@ -355,6 +473,7 @@ model Lesson {
 
 | Tài liệu | Đường dẫn |
 |----------|-----------|
+| Feature List (đầy đủ) | `docs/features.md` |
 | Prompt Engineering Guide | `docs/educational-prompt-engineering.md` |
 | Prompts Design | `docs/PROMPTS_DESIGN.md` |
 | Source code | https://github.com/chrisnguyen201092-dotcom/udemy-transcript-analyzer |

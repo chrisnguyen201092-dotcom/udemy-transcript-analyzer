@@ -6,12 +6,16 @@
 |--------|-------------------|------------|-----------------|----------|
 | Quản lý Khóa học | 4 | 4 | 0 | 0 |
 | Udemy Import | 2 | 2 | 0 | 0 |
+| Upload File Cục bộ | 1 | 1 | 0 | 0 |
 | Quản lý Transcript | 3 | 3 | 0 | 0 |
-| AI Assistant | 4 | 4 | 0 | 0 |
+| AI Assistant — Bài học | 4 | 4 | 0 | 0 |
+| AI Assistant — Luyện tập | 3 | 3 | 0 | 0 |
+| AI Assistant — Lộ trình | 1 | 1 | 0 | 0 |
+| Persistence AI | 2 | 2 | 0 | 0 |
 | Cài đặt | 3 | 3 | 0 | 0 |
 | Prompt Engineering | 4 | 4 | 0 | 0 |
 | UI/UX | 4 | 4 | 0 | 0 |
-| **Tổng cộng** | **24** | **24** | **0** | **0** |
+| **Tổng cộng** | **31** | **31** | **0** | **0** |
 
 ---
 
@@ -19,10 +23,10 @@
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Tạo khóa học thủ công | Người dùng tự tạo khóa học mới bằng cách nhập tên và thông tin | ✅ Hoàn thành | `POST /api/courses` | Lưu vào SQLite qua Prisma, validate input phía server |
-| Danh sách khóa học | Hiển thị toàn bộ khóa học đã tạo hoặc import vào hệ thống | ✅ Hoàn thành | `GET /api/courses` | Trả về danh sách sắp xếp theo ngày tạo, dùng trong sidebar |
-| Xóa khóa học | Xóa khóa học và toàn bộ dữ liệu liên quan (lessons, transcripts) | ✅ Hoàn thành | `DELETE /api/courses/[id]` | Cascade delete qua Prisma relations |
-| Tạo bài học trong khóa học | Thêm bài học (lesson) mới vào một khóa học cụ thể | ✅ Hoàn thành | `POST /api/courses/[id]/lessons` | Gán `courseId`, hỗ trợ thứ tự bài học |
+| Tạo khóa học thủ công | Người dùng tự tạo khóa học mới bằng cách nhập tên | ✅ Hoàn thành | `POST /api/courses` | Lưu vào SQLite qua Prisma; `url` được lưu dưới dạng chuỗi rỗng `""` khi tạo thủ công |
+| Danh sách khóa học | Hiển thị toàn bộ khóa học đã tạo hoặc import vào hệ thống | ✅ Hoàn thành | `GET /api/courses` | Trả về danh sách kèm lessons, sắp xếp theo ngày tạo giảm dần |
+| Xóa khóa học | Xóa khóa học và toàn bộ dữ liệu liên quan (lessons, transcripts, AI results) | ✅ Hoàn thành | `DELETE /api/courses/[id]` | Cascade delete qua Prisma relations; xóa tất cả lessons và dữ liệu AI liên quan |
+| Tạo bài học trong khóa học | Thêm bài học (lesson) mới vào một khóa học cụ thể | ✅ Hoàn thành | `POST /api/courses/[id]/lessons` | Gán `courseId`, tự động tính `order` dựa trên số bài hiện có |
 
 ---
 
@@ -30,61 +34,153 @@
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Lấy danh sách khóa học đã đăng ký từ Udemy | Gọi Udemy API để lấy toàn bộ khóa học mà người dùng đã mua | ✅ Hoàn thành | `POST /api/udemy/courses` | Xác thực qua `access_token` cookie từ Udemy, parse JSON response |
-| Import curriculum và transcript từ Udemy | Import toàn bộ cấu trúc khóa học gồm chapters, lectures và transcript của từng bài | ✅ Hoàn thành | `POST /api/udemy/import` | Gọi Udemy curriculum API, lấy caption/transcript cho từng lecture, lưu vào DB |
+| Lấy danh sách khóa học đã đăng ký từ Udemy | Gọi Udemy API để lấy toàn bộ khóa học mà người dùng đã mua | ✅ Hoàn thành | `POST /api/udemy/courses` | Xác thực qua `access_token` cookie từ Udemy; gọi server-side để tránh CORS; trả về `id, title, url, num_lectures` |
+| Import curriculum và transcript từ Udemy | Import toàn bộ cấu trúc khóa học gồm chapters, lectures và transcript của từng bài | ✅ Hoàn thành | `POST /api/udemy/import` | Gọi Udemy curriculum API; lấy caption/transcript VTT cho từng lecture; parse VTT thành plain text; lưu Course + Lessons + transcripts vào DB |
 
 ---
 
-## Module 3: Quản lý Transcript
+## Module 3: Upload File Cục bộ
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Xem transcript trong panel | Hiển thị nội dung transcript của bài học trong panel bên trái giao diện | ✅ Hoàn thành | UI component: transcript panel | Render plain text, hỗ trợ scroll dài |
-| Chỉnh sửa và lưu transcript | Cho phép người dùng chỉnh sửa thủ công nội dung transcript rồi lưu lại | ✅ Hoàn thành | `PUT /api/lessons/[id]/transcript` | Textarea editable, auto-save hoặc save on button click |
-| Tự động import transcript từ Udemy | Transcript được kéo tự động khi import khóa học từ Udemy | ✅ Hoàn thành | `POST /api/udemy/import` | Tích hợp trong luồng import, không cần thao tác thêm |
+| Upload transcript từ file máy tính | Người dùng chọn file transcript từ máy tính để tạo bài học mới trong khóa học đang chọn | ✅ Hoàn thành | `POST /api/courses/upload` + `UploadModal` | Hỗ trợ `.vtt`, `.srt`, `.txt`; đọc file client-side, gửi content qua JSON; server parse từng định dạng (VTT/SRT deduplicate lines, strip timestamps); tên file (không có extension) trở thành tên bài học; upload nhiều file cùng lúc |
 
 ---
 
-## Module 4: AI Assistant
+## Module 4: Quản lý Transcript
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| AI Summary | Tóm tắt bài học theo phong cách Instructional Designer, tự động điều chỉnh độ dài (600-2500+ từ), có câu hỏi theo Bloom's taxonomy và kỹ thuật mnemonic | ✅ Hoàn thành | `POST /api/ai/summary` | Persona: Instructional Designer; auto-calibrate output length dựa trên độ dài transcript; tích hợp Bloom's taxonomy levels; mnemonic techniques cho nội dung phức tạp |
-| AI Explain | Giải thích khái niệm theo kỹ thuật Feynman, tự phân loại Format A/B/Hybrid theo phần trăm code, gom nhóm các bước khi có hơn 10 steps | ✅ Hoàn thành | `POST /api/ai/explain` | Feynman technique; auto-classify format dựa trên code%; phase grouping khi >10 steps để tránh cognitive overload |
-| AI Chat | Chat đa lượt với streaming, nhận diện 7 loại câu hỏi để trả lời phù hợp, persona tutor, quản lý history | ✅ Hoàn thành | `POST /api/ai/chat` | Multi-turn streaming via OpenAI SDK; 7 question types detection; tutor persona; conversation history management |
-| AI Model Selection | Lấy danh sách model từ bất kỳ OpenAI-compatible provider nào để hiển thị trong dropdown | ✅ Hoàn thành | `POST /api/ai/models` | Compatible với OpenAI, OpenRouter, local providers (Ollama, LM Studio); fetch models endpoint dynamically |
+| Xem transcript trong panel | Hiển thị nội dung transcript của bài học trong panel bên trái giao diện | ✅ Hoàn thành | UI component: `TranscriptPanel` | Render plain text; hỗ trợ scroll dài; hiển thị bài học không có transcript |
+| Chỉnh sửa và lưu transcript | Cho phép người dùng chỉnh sửa thủ công nội dung transcript rồi lưu lại | ✅ Hoàn thành | `PUT /api/lessons/[id]/transcript` | Textarea editable; save on button click; cập nhật state local ngay sau khi lưu |
+| Tự động import transcript từ Udemy | Transcript được kéo tự động khi import khóa học từ Udemy | ✅ Hoàn thành | `POST /api/udemy/import` | Tích hợp trong luồng import; không cần thao tác thêm |
 
 ---
 
-## Module 5: Cài đặt (Settings)
+## Module 5: AI Assistant — Bài học
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Cấu hình AI provider | Nhập base URL, API key và chọn model từ dropdown để kết nối với AI provider | ✅ Hoàn thành | Settings page / UI | Base URL cho phép dùng bất kỳ OpenAI-compatible API; model list fetch động |
-| Cấu hình Udemy cookie | Nhập `access_token` cookie từ trình duyệt để xác thực với Udemy API | ✅ Hoàn thành | Settings page / UI | Cookie được lưu client-side, gửi kèm request khi gọi Udemy API |
-| Lưu settings vào localStorage | Toàn bộ cấu hình được persist trong localStorage, không cần backend | ✅ Hoàn thành | Client-side storage | Không cần đăng nhập, settings tồn tại giữa các session |
+| AI Summary | Tóm tắt bài học theo phong cách Instructional Designer, tự động điều chỉnh độ dài (600–2500+ từ), có câu hỏi theo Bloom's Taxonomy và kỹ thuật mnemonic | ✅ Hoàn thành | `POST /api/ai/summary` | Persona: Instructional Designer; output calibrated by transcript length; Bloom's Taxonomy levels; mnemonic techniques; kết quả được persist vào `Lesson.summary` |
+| AI Explain | Giải thích khái niệm theo kỹ thuật Feynman, tự phân loại Format A/B/Hybrid theo phần trăm code, gom nhóm các bước khi có hơn 10 steps | ✅ Hoàn thành | `POST /api/ai/explain` | Feynman technique; auto-classify format dựa trên code%; phase grouping khi >10 steps; kết quả persist vào `Lesson.explanation` |
+| AI Chat (streaming) | Chat đa lượt với streaming, nhận diện 7 loại câu hỏi để trả lời phù hợp, persona tutor, quản lý history | ✅ Hoàn thành | `POST /api/ai/chat` | Multi-turn streaming via Server-Sent Events; 7 question types detection; tutor persona; conversation history gửi kèm mỗi lượt; **chat history không persist** (chỉ trong session) |
+| AI Model Selection | Lấy danh sách model từ bất kỳ OpenAI-compatible provider nào để hiển thị trong dropdown | ✅ Hoàn thành | `POST /api/ai/models` | Compatible với OpenAI, OpenRouter, Ollama, LM Studio; fetch `/models` endpoint dynamically từ base URL |
 
 ---
 
-## Module 6: Prompt Engineering
+## Module 6: AI Assistant — Luyện tập (Practice)
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| DRY prompt architecture | Các builder function dùng chung cho nhiều prompt, tránh lặp lại logic | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Shared functions: `buildASRRules`, `buildLanguageRules`; single source of truth cho prompt logic |
-| ASR degradation handling | Tự động phát hiện transcript chất lượng thấp (từ ASR) và điều chỉnh cách xử lý | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Phát hiện dấu hiệu ASR artifacts (lỗi chính tả, thiếu dấu câu); hướng dẫn AI bỏ qua noise |
-| Code-switching support | Hỗ trợ transcript có ngôn ngữ pha trộn (Tiếng Việt + English) | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Xử lý mixed-language input, không bị nhầm lẫn khi transcript có thuật ngữ tiếng Anh lẫn tiếng Việt |
-| Oracle-scored prompt quality 9.4/10 | Hệ thống prompt đạt chất lượng cao theo đánh giá Oracle | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Đánh giá độc lập từ Oracle agent; score phản ánh độ chính xác, consistency và output quality |
+| AI Quiz | Tạo bộ quiz kiểm tra kiến thức bài học: trắc nghiệm, đúng/sai, điền khuyết, trả lời ngắn, hoàn thành code (nếu có code). 8–12 câu, phân bố theo Bloom's Taxonomy 3 mức độ, có đáp án và giải thích chi tiết | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "quiz"` | Persona: Assessment Designer; Item Response Theory; distractors dựa trên hiểu lầm thực tế; phân bố Bloom's Taxonomy; kết quả persist vào `Lesson.quiz` |
+| AI Flashcard | Tạo bộ flashcard ôn tập theo Spaced Repetition System (SRS) và Minimum Information Principle: 15–25 thẻ, 5 loại thẻ (Term→Definition, Concept→Explanation, Code→Output, Scenario→Solution, Compare→Differences), có mnemonic | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "flashcards"` | Persona: Flashcard Designer (SRS + Piotr Wozniak); atomic principle (1 fact/thẻ); active recall cues; kết quả persist vào `Lesson.flashcards` |
+| AI Bài tập thực hành | Tạo bài tập luyện tập theo Deliberate Practice và Project-Based Learning: 3–5 bài, phân loại Tái hiện/Mở rộng/Sáng tạo/Debug/Mini Project, tự phân loại Lý thuyết/Thực hành/Hỗn hợp từ transcript | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "exercises"` | Persona: Practice Exercise Designer; scaffolding từng bậc; rubric đánh giá rõ ràng; lời giải tham khảo đầy đủ; kết quả persist vào `Lesson.exercises` |
 
 ---
 
-## Module 7: UI/UX
+## Module 7: AI Assistant — Lộ trình học tập
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Sidebar layout responsive | Layout với sidebar hiển thị danh sách khóa học và bài học, responsive trên nhiều màn hình | ✅ Hoàn thành | Root layout, sidebar component | Tailwind v4 responsive classes; collapsible sidebar; navigation giữa courses và lessons |
-| Split panel view | Giao diện hai panel: trái hiển thị transcript, phải là AI assistant | ✅ Hoàn thành | Main lesson view | Resizable panels hoặc fixed split; transcript và AI luôn hiển thị song song |
-| shadcn/ui component library | Sử dụng 10 primitives từ shadcn/ui để xây dựng giao diện nhất quán | ✅ Hoàn thành | Toàn bộ UI components | Components: Button, Input, Textarea, Dialog, Select, Card, Tabs, ScrollArea, Separator, Badge; Radix UI + Tailwind v4 |
-| Giao diện tiếng Việt | Toàn bộ text UI hiển thị bằng tiếng Việt | ✅ Hoàn thành | Toàn bộ UI strings | Labels, placeholders, buttons, error messages đều dùng tiếng Việt |
+| AI Roadmap toàn khóa | Phân tích TOÀN BỘ các bài học trong khóa để đề xuất lộ trình học tập cá nhân hóa: tổng quan khóa, phân giai đoạn, bản đồ kiến thức, phương pháp học tối ưu, dự án tổng hợp, kế hoạch tuần | ✅ Hoàn thành | `POST /api/ai/roadmap` | Course-level (không phụ thuộc bài học đang chọn); aggregate tất cả transcripts (truncate mỗi bài tới 4000 chars); kết quả persist vào `Course.roadmap`; Persona: Learning Consultant (Andragogy + Deliberate Practice) |
+
+---
+
+## Module 8: Persistence AI Results
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Lưu kết quả AI theo bài học | Summary, Explanation, Quiz, Flashcard, Exercises tự động lưu vào DB sau mỗi lần generate; load lại khi chọn lại bài học | ✅ Hoàn thành | `GET /api/lessons/[id]/ai` | AI results persist vào các trường tương ứng trong `Lesson`; load khi `lesson.id` thay đổi; không cần regenerate mỗi lần |
+| Lưu kết quả AI theo khóa học | Roadmap được lưu vào `Course.roadmap`; load lại khi chọn lại khóa học | ✅ Hoàn thành | `GET /api/courses/[id]/ai` | Course-level persistence trong `Course.roadmap`; load khi `courseId` thay đổi |
+
+---
+
+## Module 9: Cài đặt (Settings)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Cấu hình AI provider | Nhập base URL, API key và chọn model từ dropdown để kết nối với AI provider | ✅ Hoàn thành | `SettingsModal` | Base URL cho phép dùng bất kỳ OpenAI-compatible API; model list fetch động từ `/models` endpoint; hiển thị tên model hiện tại trong Header |
+| Cấu hình Udemy cookie | Nhập `access_token` cookie từ trình duyệt để xác thực với Udemy API | ✅ Hoàn thành | `SettingsModal` | Cookie được lưu client-side trong localStorage; gửi kèm request khi gọi Udemy API |
+| Lưu settings vào localStorage | Toàn bộ cấu hình được persist trong localStorage, không cần backend | ✅ Hoàn thành | Client-side (`SETTINGS_KEY = "udemy_ai_settings"`) | Không cần đăng nhập; settings tồn tại giữa các session; merge với `DEFAULT_SETTINGS` khi load để xử lý thiếu field |
+
+---
+
+## Module 10: Prompt Engineering
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| DRY prompt architecture | Các builder function dùng chung cho nhiều prompt, tránh lặp lại logic | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Shared functions: `buildASRRules(inferenceSource, fallback?)`, `buildLanguageRules(translationStyle)`; `getSystemPrompt(type)` dispatcher; 7 prompt types: `summary`, `explain`, `chat`, `roadmap`, `quiz`, `flashcards`, `exercises` |
+| ASR degradation handling | Tự động phát hiện transcript chất lượng thấp (từ ASR) và điều chỉnh cách xử lý | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Parameterized per-prompt: Chat có fallback đặc biệt (gợi ý xem lại video); Roadmap/Practice có context-aware inference |
+| Code-switching support | Hỗ trợ transcript có ngôn ngữ pha trộn (Tiếng Việt + English) | ✅ Hoàn thành | `src/lib/ai/prompts.ts` | Xử lý mixed-language input; giữ thuật ngữ kỹ thuật tiếng Anh trong ngoặc; `buildLanguageRules` với style khác nhau cho từng prompt type |
+| Think-tag suppression | Chặn model output thẻ `<think>` (reasoning models như DeepSeek) | ✅ Hoàn thành | Tất cả routes AI + `src/lib/ai/prompts.ts` | Mỗi system prompt có dòng `KHÔNG bao giờ xuất thẻ <think>`; server-side regex strip `/<think>[\s\S]*?<\/think>/g` trước khi trả về |
+
+---
+
+## Module 11: UI/UX
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Sidebar layout | Layout với sidebar (272px) hiển thị AddCoursePanel, CourseList, và LessonList; scrollable độc lập | ✅ Hoàn thành | `page.tsx`, sidebar `<aside>` | Tailwind v4; sidebar cố định chiều rộng; main content chiếm phần còn lại |
+| Split panel view | Giao diện hai panel: trái hiển thị transcript, phải là AI assistant; responsive về 1 cột trên màn hình nhỏ | ✅ Hoàn thành | `page.tsx` main content grid | `grid-cols-1 xl:grid-cols-2`; cả hai panel luôn hiển thị song song trên xl+ |
+| shadcn/ui component library | Sử dụng primitives từ shadcn/ui để xây dựng giao diện nhất quán | ✅ Hoàn thành | Toàn bộ UI components | Components: Button, Input, Textarea, Dialog, Select, Card, Tabs, ScrollArea, Separator, Badge; Radix UI + Tailwind v4 |
+| Giao diện tiếng Việt | Toàn bộ text UI hiển thị bằng tiếng Việt | ✅ Hoàn thành | Toàn bộ UI strings | Labels, placeholders, buttons, error messages, AI prompts output đều bằng tiếng Việt |
+
+---
+
+## API Routes (đầy đủ)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/courses` | Lấy tất cả khóa học kèm lessons | |
+| `POST` | `/api/courses` | Tạo khóa học mới | |
+| `GET` | `/api/courses/[id]` | Lấy chi tiết khóa học | |
+| `DELETE` | `/api/courses/[id]` | Xóa khóa học (cascade) | |
+| `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học (roadmap) | Dùng để load persisted roadmap |
+| `POST` | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học | |
+| `POST` | `/api/courses/upload` | Upload file transcript → tạo bài học | `.vtt`, `.srt`, `.txt`; parse + deduplicate |
+| `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
+| `PUT` | `/api/lessons/[id]/transcript` | Cập nhật transcript bài học | |
+| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | |
+| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | |
+| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist |
+| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level |
+| `POST` | `/api/ai/quiz` | Tạo Quiz/Flashcard/Exercises; persist → Lesson | Param: `mode: "quiz" \| "flashcards" \| "exercises"` |
+| `POST` | `/api/ai/models` | Lấy danh sách model từ provider | |
+| `POST` | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy | |
+| `POST` | `/api/udemy/import` | Import khóa học, lessons, transcripts từ Udemy | |
+
+---
+
+## Data Model (Prisma Schema)
+
+```prisma
+model Course {
+  id        String   @id @default(cuid())
+  url       String   @unique
+  title     String
+  roadmap   String?           // AI-generated course roadmap
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int
+  transcript  String?
+  summary     String?           // AI-generated lesson summary
+  explanation String?           // AI-generated lesson explanation
+  roadmap     String?           // Reserved (không dùng hiện tại)
+  quiz        String?           // AI-generated quiz
+  flashcards  String?           // AI-generated flashcard set
+  exercises   String?           // AI-generated practice exercises
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+```
 
 ---
 
@@ -92,10 +188,12 @@
 
 | Layer | Công nghệ |
 |-------|-----------|
-| Framework | Next.js 16 (App Router) |
+| Framework | Next.js (App Router) |
 | Frontend | React 19 |
 | Database ORM | Prisma + SQLite |
 | AI SDK | OpenAI SDK (OpenAI-compatible) |
 | Styling | Tailwind CSS v4 |
 | Components | shadcn/ui (Radix UI primitives) |
 | Language | TypeScript |
+| Validation | Zod |
+| Deploy | Docker (docker-compose) |

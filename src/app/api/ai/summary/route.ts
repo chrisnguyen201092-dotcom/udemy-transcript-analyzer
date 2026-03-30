@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
 import { z } from "zod";
 import { getSystemPrompt } from "@/lib/ai/prompts";
+import { createAIClient } from "@/lib/ai/client";
 
 const SummarySchema = z.object({
   lessonId: z.string(),
@@ -27,10 +27,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const client = new OpenAI({
-      apiKey,
-      baseURL: baseUrl.replace(/\/$/, ""),
-    });
+    const client = createAIClient(apiKey, baseUrl);
 
     const response = await client.chat.completions.create({
       model,

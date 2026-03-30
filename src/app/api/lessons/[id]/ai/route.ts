@@ -13,7 +13,9 @@ export async function GET(
       select: {
         summary: true,
         explanation: true,
-        roadmap: true,
+        quiz: true,
+        flashcards: true,
+        exercises: true,
       },
     });
 
@@ -24,7 +26,9 @@ export async function GET(
     return NextResponse.json({
       summary: lesson.summary ?? null,
       explanation: lesson.explanation ?? null,
-      roadmap: lesson.roadmap ?? null,
+      quiz: lesson.quiz ?? null,
+      flashcards: lesson.flashcards ?? null,
+      exercises: lesson.exercises ?? null,
     });
   } catch (error) {
     console.error("[lesson-ai]", error);

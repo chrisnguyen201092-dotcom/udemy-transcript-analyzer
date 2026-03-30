@@ -1,0 +1,16 @@
+services:
+  udemy-app:
+    build: .
+    container_name: udemy-app
+    ports:
+      - "3939:3000"
+    volumes:
+      - udemy-data:/app/data
+    environment:
+      - DATABASE_URL=file:/app/data/dev.db
+      - NODE_ENV=production
+    restart: always
+
+volumes:
+  udemy-data:
+    driver: local

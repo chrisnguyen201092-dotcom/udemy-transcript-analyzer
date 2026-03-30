@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getCleanHeaders } from "@/lib/ai/client";
 
 const ModelsSchema = z.object({
   baseUrl: z.string().url(),
@@ -12,10 +13,7 @@ export async function POST(req: NextRequest) {
 
     const url = `${baseUrl.replace(/\/$/, "")}/models`;
     const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getCleanHeaders(apiKey),
     });
 
     if (!res.ok) {

@@ -11,6 +11,7 @@ model Course {
   id        String   @id @default(cuid())
   url       String   @unique
   title     String
+  roadmap   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   lessons   Lesson[]
@@ -26,6 +27,9 @@ model Lesson {
   summary      String?
   explanation  String?
   roadmap      String?
+  quiz         String?
+  flashcards   String?
+  exercises    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

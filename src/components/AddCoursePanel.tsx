@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Upload, Settings2 } from "lucide-react";
+import { Plus, Upload, FileUp, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -9,6 +9,7 @@ interface AddCoursePanelProps {
   hasUdemyCookie: boolean;
   onAddManual: (title: string) => void;
   onOpenImport: () => void;
+  onOpenUpload: () => void;
   onOpenSettings: () => void;
 }
 
@@ -16,6 +17,7 @@ export function AddCoursePanel({
   hasUdemyCookie,
   onAddManual,
   onOpenImport,
+  onOpenUpload,
   onOpenSettings,
 }: AddCoursePanelProps) {
   const [title, setTitle] = useState("");
@@ -55,6 +57,16 @@ export function AddCoursePanel({
           Cấu hình Udemy Cookie
         </Button>
       )}
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
+        onClick={onOpenUpload}
+      >
+        <FileUp className="w-3.5 h-3.5" />
+        Upload từ file
+      </Button>
 
       <form onSubmit={handleSubmit} className="flex gap-1.5">
         <Input

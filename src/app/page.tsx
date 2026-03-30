@@ -9,6 +9,7 @@ import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
 import { SettingsModal } from "@/components/SettingsModal";
 import { ImportModal } from "@/components/ImportModal";
+import { UploadModal } from "@/components/UploadModal";
 
 interface Lesson {
   id: string;
@@ -68,6 +69,7 @@ export default function Home() {
   const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [udemyCourses, setUdemyCourses] = useState<UdemyCourse[]>([]);
   const [fetchingUdemy, setFetchingUdemy] = useState(false);
   const [udemyError, setUdemyError] = useState("");
@@ -230,6 +232,7 @@ export default function Home() {
                 setShowImport(true);
                 handleFetchUdemyCourses(settings.udemyCookie);
               }}
+              onOpenUpload={() => setShowUpload(true)}
               onOpenSettings={() => setShowSettings(true)}
             />
 
@@ -269,6 +272,7 @@ export default function Home() {
               />
               <AIAssistantPanel
                 lesson={selectedLesson}
+                courseId={selectedCourse!.id}
                 settings={settings}
                 isConfigured={isConfigured}
                 onOpenSettings={() => setShowSettings(true)}
@@ -316,6 +320,16 @@ export default function Home() {
         }}
         onRefresh={() => handleFetchUdemyCourses(settings.udemyCookie)}
         onImport={handleImportCourse}
+      />
+
+      <UploadModal
+        open={showUpload}
+        courseId={selectedCourse?.id ?? null}
+        onClose={() => setShowUpload(false)}
+        onUploadComplete={() => {
+          fetchCourses();
+          setShowUpload(false);
+        }}
       />
     </div>
   );

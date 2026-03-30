@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Map,
   Loader2,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,12 +35,13 @@ interface AISettings {
 
 interface AIAssistantPanelProps {
   lesson: Lesson;
+  courseId: string;
   settings: AISettings;
   isConfigured: boolean;
   onOpenSettings: () => void;
 }
 
-type TabType = "summary" | "explain" | "chat" | "roadmap";
+type TabType = "summary" | "explain" | "chat" | "roadmap" | "practice";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -51,12 +53,14 @@ const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
   { key: "explain", label: "Giải thích", icon: BookOpen },
   { key: "chat", label: "Chat", icon: MessageCircle },
   { key: "roadmap", label: "Lộ trình", icon: Map },
+  { key: "practice", label: "Luyện tập", icon: GraduationCap },
 ];
 
 // ── Component ──────────────────────────────────────────────────
 
 export function AIAssistantPanel({
   lesson,
+  courseId,
   settings,
   isConfigured,
   onOpenSettings,
@@ -79,6 +83,15 @@ export function AIAssistantPanel({
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
 
+  // Practice tab state
+  const [quizResult, setQuizResult] = useState("");
+  const [flashcardsResult, setFlashcardsResult] = useState("");
+  const [exercisesResult, setExercisesResult] = useState("");
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [flashcardsLoading, setFlashcardsLoading] = useState(false);
+  const [exercisesLoading, setExercisesLoading] = useState(false);
+  const [practiceMode, setPracticeMode] = useState<"quiz" | "flashcards" | "exercises">("quiz");
+
   // Persistence loading flag
   const [dbLoading, setDbLoading] = useState(false);
 
@@ -90,14 +103,16 @@ export function AIAssistantPanel({
   // ── Reset + load persisted data when lesson changes ──
 
   useEffect(() => {
-    // Reset all state
+    // Reset lesson-scoped state
     setSummaryResult("");
     setExplainResult("");
-    setRoadmapResult("");
     setChatMessages([]);
     setChatInput("");
+    setQuizResult("");
+    setFlashcardsResult("");
+    setExercisesResult("");
 
-    // Load saved AI data from DB
+    // Load saved AI data from DB (lesson-level: summary + explanation + practice)
     const loadSaved = async () => {
       setDbLoading(true);
       try {
@@ -106,7 +121,9 @@ export function AIAssistantPanel({
           const data = await res.json();
           if (data.summary) setSummaryResult(data.summary);
           if (data.explanation) setExplainResult(data.explanation);
-          if (data.roadmap) setRoadmapResult(data.roadmap);
+          if (data.quiz) setQuizResult(data.quiz);
+          if (data.flashcards) setFlashcardsResult(data.flashcards);
+          if (data.exercises) setExercisesResult(data.exercises);
         }
       } catch {
         // Silently fail — user can regenerate
@@ -117,6 +134,26 @@ export function AIAssistantPanel({
 
     loadSaved();
   }, [lesson.id]);
+
+  // ── Load course-level roadmap when courseId changes ──
+
+  useEffect(() => {
+    setRoadmapResult("");
+
+    const loadCourseAI = async () => {
+      try {
+        const res = await fetch(`/api/courses/${courseId}/ai`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.roadmap) setRoadmapResult(data.roadmap);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+
+    loadCourseAI();
+  }, [courseId]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -172,14 +209,19 @@ export function AIAssistantPanel({
   };
 
   const handleRoadmap = async () => {
-    if (!hasTranscript || !isConfigured || roadmapLoading) return;
+    if (!isConfigured || roadmapLoading) return;
     setRoadmapLoading(true);
-    setRoadmapResult("Đang tạo lộ trình...");
+    setRoadmapResult("Đang tạo lộ trình cho toàn khóa học...");
     try {
       const res = await fetch("/api/ai/roadmap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiBody()),
+        body: JSON.stringify({
+          courseId,
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl,
+          model: settings.model,
+        }),
       });
       const data = await res.json();
       setRoadmapResult(data.roadmap || data.error || "Không có kết quả.");
@@ -187,6 +229,53 @@ export function AIAssistantPanel({
       setRoadmapResult("Lỗi khi tạo lộ trình.");
     }
     setRoadmapLoading(false);
+  };
+
+  const handlePractice = async () => {
+    if (!hasTranscript || !isConfigured) return;
+
+    const setLoading =
+      practiceMode === "quiz"
+        ? setQuizLoading
+        : practiceMode === "flashcards"
+          ? setFlashcardsLoading
+          : setExercisesLoading;
+    const setResult =
+      practiceMode === "quiz"
+        ? setQuizResult
+        : practiceMode === "flashcards"
+          ? setFlashcardsResult
+          : setExercisesResult;
+
+    const isCurrentlyLoading =
+      practiceMode === "quiz"
+        ? quizLoading
+        : practiceMode === "flashcards"
+          ? flashcardsLoading
+          : exercisesLoading;
+
+    if (isCurrentlyLoading) return;
+
+    setLoading(true);
+    setResult(
+      practiceMode === "quiz"
+        ? "Đang tạo quiz..."
+        : practiceMode === "flashcards"
+          ? "Đang tạo flashcard..."
+          : "Đang tạo bài tập..."
+    );
+    try {
+      const res = await fetch("/api/ai/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...apiBody(), mode: practiceMode }),
+      });
+      const data = await res.json();
+      setResult(data.result || data.error || "Không có kết quả.");
+    } catch {
+      setResult("Lỗi khi tạo nội dung luyện tập.");
+    }
+    setLoading(false);
   };
 
   const handleChat = async (e: React.FormEvent) => {
@@ -273,11 +362,12 @@ export function AIAssistantPanel({
     existingLabel: string,
     hasResult: boolean,
     isLoading: boolean,
-    onClick: () => void
+    onClick: () => void,
+    skipTranscriptCheck = false,
   ) => (
     <Button
       onClick={onClick}
-      disabled={!hasTranscript || !isConfigured || isLoading}
+      disabled={(!skipTranscriptCheck && !hasTranscript) || !isConfigured || isLoading}
       variant="outline"
       size="sm"
       className="cursor-pointer w-full text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs"
@@ -402,21 +492,95 @@ export function AIAssistantPanel({
           </>
         )}
 
-        {/* Tab: Roadmap */}
+        {/* Tab: Roadmap (course-level — không cần transcript của bài hiện tại) */}
         {activeTab === "roadmap" && (
           <>
             {renderActionButton(
-              "Tạo lộ trình học tập",
+              "Tạo lộ trình toàn khóa",
               "Tạo lại lộ trình",
               !!roadmapResult,
               roadmapLoading,
-              handleRoadmap
+              handleRoadmap,
+              true, // course-level: no transcript required
             )}
             {renderResult(
               roadmapResult,
-              "Nhấn nút để AI đề xuất lộ trình học tập...",
+              "Nhấn nút để AI phân tích toàn khóa và đề xuất lộ trình học tập...",
               roadmapLoading
             )}
+          </>
+        )}
+
+        {/* Tab: Practice */}
+        {activeTab === "practice" && (
+          <>
+            {/* Sub-mode selector */}
+            <div className="flex gap-1.5 p-1 bg-gray-50 rounded-lg border border-gray-100">
+              {([
+                { key: "quiz" as const, label: "Quiz", icon: "📝" },
+                { key: "flashcards" as const, label: "Flashcard", icon: "🃏" },
+                { key: "exercises" as const, label: "Bài tập", icon: "🏋️" },
+              ]).map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setPracticeMode(mode.key)}
+                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    practiceMode === mode.key
+                      ? "bg-[#A435F0] text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="text-xs">{mode.icon}</span>
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Action button */}
+            {practiceMode === "quiz" &&
+              renderActionButton(
+                "Tạo Quiz",
+                "Tạo lại Quiz",
+                !!quizResult,
+                quizLoading,
+                handlePractice
+              )}
+            {practiceMode === "flashcards" &&
+              renderActionButton(
+                "Tạo Flashcard",
+                "Tạo lại Flashcard",
+                !!flashcardsResult,
+                flashcardsLoading,
+                handlePractice
+              )}
+            {practiceMode === "exercises" &&
+              renderActionButton(
+                "Tạo bài tập",
+                "Tạo lại bài tập",
+                !!exercisesResult,
+                exercisesLoading,
+                handlePractice
+              )}
+
+            {/* Result display */}
+            {practiceMode === "quiz" &&
+              renderResult(
+                quizResult,
+                "Nhấn nút để AI tạo quiz kiểm tra kiến thức...",
+                quizLoading
+              )}
+            {practiceMode === "flashcards" &&
+              renderResult(
+                flashcardsResult,
+                "Nhấn nút để AI tạo flashcard ôn tập...",
+                flashcardsLoading
+              )}
+            {practiceMode === "exercises" &&
+              renderResult(
+                exercisesResult,
+                "Nhấn nút để AI tạo bài tập thực hành...",
+                exercisesLoading
+              )}
           </>
         )}
 

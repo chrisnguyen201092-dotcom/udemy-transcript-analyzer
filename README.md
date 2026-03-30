@@ -5,12 +5,16 @@ Trợ lý học tập AI cho khóa học Udemy. Ứng dụng giúp bạn tóm t�
 ## Tính năng chính
 
 - **Import khóa học** từ Udemy thông qua cookie xác thực
+- **Upload transcript từ máy tính** — hỗ trợ file `.vtt`, `.srt`, `.txt` (không cần Udemy)
 - **Xem transcript** của từng bài học trực tiếp trong ứng dụng
 - **Tóm tắt tự động** nội dung bài học bằng AI
 - **Giải thích khái niệm** khi bạn không hiểu một đoạn nào đó
 - **Chat với AI** về nội dung bài học theo ngữ cảnh transcript
+- **Lộ trình học tập** — AI phân tích toàn bộ khóa học và đề xuất lộ trình tối ưu
+- **Quiz, Flashcard, Bài tập** — luyện tập với nội dung AI tạo từ transcript
 - **Lưu trữ cục bộ** toàn bộ dữ liệu bằng SQLite, không cần server ngoài
 - **Tùy chỉnh AI**: chọn base URL, model, và API key theo ý muốn (tương thích OpenAI-compatible APIs)
+- **Docker support** — tự động khởi động, deploy dễ dàng
 
 ## Tech Stack
 
@@ -28,6 +32,39 @@ Trợ lý học tập AI cho khóa học Udemy. Ứng dụng giúp bạn tóm t�
 - npm
 
 ## Cài đặt & Chạy
+
+### Cách 1: Docker (Khuyến nghị)
+
+Chỉ cần Docker — không cần cài Node.js, npm hay bất kỳ thứ gì khác.
+
+```bash
+git clone https://github.com/chrisnguyen201092-dotcom/udemy-transcript-analyzer.git
+cd udemy-transcript-analyzer
+docker compose up -d
+```
+
+Ứng dụng sẽ:
+- **Tự động khởi động** khi máy tính bật (restart: always)
+- **Tự động tạo database** khi chạy lần đầu
+- **Lưu dữ liệu** vào Docker volume (không mất khi rebuild)
+
+Các lệnh hữu ích:
+
+```bash
+# Xem logs
+docker compose logs -f
+
+# Dừng ứng dụng
+docker compose down
+
+# Rebuild sau khi cập nhật code
+docker compose up -d --build
+
+# Xem trạng thái
+docker compose ps
+```
+
+### Cách 2: Chạy trực tiếp (Development)
 
 ```bash
 git clone https://github.com/chrisnguyen201092-dotcom/udemy-transcript-analyzer.git
