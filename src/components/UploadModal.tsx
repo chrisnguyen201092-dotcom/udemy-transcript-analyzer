@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { FileUp, X, CheckCircle2, AlertCircle, Loader2, FolderOpen } from "lucide-react";
+import { FileUp, X, CheckCircle2, AlertCircle, Loader2, FolderOpen, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,6 +40,13 @@ function getFileExtension(name: string): string {
   return dot >= 0 ? name.slice(dot).toLowerCase() : "";
 }
 
+const ACCEPTED_EXTENSIONS = [".vtt", ".srt", ".txt"];
+
+function isAcceptedFile(file: File): boolean {
+  const ext = getFileExtension(file.name);
+  return ACCEPTED_EXTENSIONS.includes(ext);
+}
+
 export function UploadModal({
   open,
   courseId,
@@ -49,14 +57,69 @@ export function UploadModal({
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [courseTitle, setCourseTitle] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   const handleReset = useCallback(() => {
     setFiles([]);
     setUploading(false);
     setResult(null);
     setCourseTitle("");
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current === 1) setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const droppedFiles = e.dataTransfer.files;
+    if (!droppedFiles || droppedFiles.length === 0) return;
+
+    const accepted: SelectedFile[] = [];
+    let rejectedCount = 0;
+
+    Array.from(droppedFiles).forEach((file) => {
+      if (isAcceptedFile(file)) {
+        accepted.push({ file, status: "pending" as FileStatus });
+      } else {
+        rejectedCount++;
+      }
+    });
+
+    if (accepted.length > 0) {
+      setFiles((prev) => [...prev, ...accepted]);
+      setResult(null);
+    }
+
+    if (rejectedCount > 0) {
+      toast.warning(
+        `${rejectedCount} file bị bỏ qua (chỉ hỗ trợ .vtt, .srt, .txt)`
+      );
+    }
   }, []);
 
   // Set webkitdirectory attribute - this property is not in React types but is supported in all modern browsers
@@ -134,18 +197,21 @@ export function UploadModal({
         const errMsg = typeof data.error === "string" ? data.error : "Upload thất bại";
         setFiles((prev) => prev.map((f) => ({ ...f, status: "error" as FileStatus, error: errMsg })));
         setResult(`Lỗi: ${errMsg}`);
+        toast.error(errMsg);
         return;
       }
 
       // Mark all as success
       setFiles((prev) => prev.map((f) => ({ ...f, status: "success" as FileStatus })));
       setResult(`Đã upload thành công ${data.created.length} file`);
+      toast.success(`Đã upload thành công ${data.created.length} file`);
       onUploadComplete(data.courseId as string);
     } catch {
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: "error" as FileStatus, error: "Lỗi kết nối" }))
       );
       setResult("Lỗi kết nối khi upload.");
+      toast.error("Lỗi kết nối khi upload");
     } finally {
       setUploading(false);
     }
@@ -244,6 +310,27 @@ export function UploadModal({
               className="hidden"
               onChange={handleFileChange}
             />
+          </div>
+
+          {/* Dropzone */}
+          <div
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 px-4 transition-colors duration-150 ${
+              isDragging
+                ? "border-[#A435F0] bg-[#A435F0]/5 dark:bg-[#A435F0]/10"
+                : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+            }`}
+          >
+            <Upload className={`w-6 h-6 ${isDragging ? "text-[#A435F0]" : "text-gray-300 dark:text-gray-600"}`} />
+            <p className={`text-xs text-center ${isDragging ? "text-[#A435F0] font-medium" : "text-gray-400 dark:text-gray-500"}`}>
+              {isDragging ? "Thả file vào đây" : "Kéo thả file vào đây"}
+            </p>
+            <p className="text-[10px] text-gray-300 dark:text-gray-600">
+              .vtt, .srt, .txt
+            </p>
           </div>
 
           {/* File list */}

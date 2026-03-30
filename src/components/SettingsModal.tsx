@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Plus, Trash2, Check, Pencil, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -239,6 +240,7 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
   const handleSave = () => {
     // Active profile = the one currently selected in the sidebar
     onSave({ ...draft, activeId: selectedId });
+    toast.success("Đã lưu cài đặt");
   };
 
   if (!selectedProfile) return null;

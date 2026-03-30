@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Trash2, BookOpen, Search, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,13 +34,14 @@ interface Course {
 
 interface CourseListProps {
   courses: Course[];
+  loading?: boolean;
   selectedCourseId: string | null;
   onSelect: (course: Course) => void;
   onDelete: (id: string) => void;
   onRename?: (id: string, newTitle: string) => void;
 }
 
-export function CourseList({ courses, selectedCourseId, onSelect, onDelete, onRename }: CourseListProps) {
+export function CourseList({ courses, loading, selectedCourseId, onSelect, onDelete, onRename }: CourseListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -55,7 +57,16 @@ export function CourseList({ courses, selectedCourseId, onSelect, onDelete, onRe
         Courses {courses.length > 0 && <span className="font-normal normal-case tracking-normal">({filtered.length}/{courses.length})</span>}
       </p>
 
-      {courses.length === 0 ? (
+      {loading ? (
+        <div className="flex flex-col gap-2 px-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-1.5 px-2.5 py-2">
+              <Skeleton className="h-3.5 w-[85%]" />
+              <Skeleton className="h-2.5 w-12" />
+            </div>
+          ))}
+        </div>
+      ) : courses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-6 gap-1.5 text-gray-400 dark:text-gray-500">
           <BookOpen className="w-6 h-6 opacity-30" />
           <p className="text-xs">Chưa có course nào</p>
