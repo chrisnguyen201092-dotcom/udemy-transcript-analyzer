@@ -80,7 +80,7 @@ npx prisma db push
 npm run dev
 ```
 
-Mở trình duyệt và truy cập [http://localhost:3000](http://localhost:3000).
+Mở trình duyệt và truy cập [http://localhost:3939](http://localhost:3939).
 
 ## Cấu hình (Multi-Profile)
 

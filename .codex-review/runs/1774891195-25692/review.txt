@@ -1,0 +1,10 @@
+### ISSUE-1: Closing the modal during preview still leaks the uncommitted book stub
+- Category: bug
+- Severity: high
+- Problem: The new cleanup logic only deletes `pendingStubIdRef` stubs from the analyze phase. Once analysis succeeds, ownership moves to `splitBookId`, but `handleClose` still goes through `handleReset`, which does not delete `splitBookId`. Closing the dialog from the preview/confirm screen therefore still leaves an orphan `Course` row.
+- Evidence: [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L402) clears `pendingStubIdRef` on successful analyze and stores the stub in component state via `setSplitBookId`. [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L152) `handleReset` only aborts and deletes `pendingStubIdRef`, not `splitBookId`. The dialog close path still calls [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L512) `handleClose`, and only the explicit back button path at [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L469) deletes `splitBookId`.
+- Suggested fix: Make `handleClose`/`handleReset` also clean up `splitBookId` when the preview has not been confirmed yet, or route all preview close/cancel paths through the same stub-deletion helper.
+
+### VERDICT
+- Status: REVISE
+- Reason: The main parsing/OCR fixes look much better, but the preview-close orphan leak is still a correctness issue in the 2-step import flow.

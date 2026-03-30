@@ -1,0 +1,17 @@
+{
+  "pid": 30500,
+  "pgid": 30500,
+  "watchdog_pid": 28716,
+  "run_id": "1774896810-20592",
+  "state_dir": "D:\\Project\\udemy-app\\.codex-review\\runs\\1774896810-20592",
+  "working_dir": "D:\\Project\\udemy-app",
+  "effort": "xhigh",
+  "model": "",
+  "timeout": 3600,
+  "format": "markdown",
+  "started_at": 1774896811,
+  "thread_id": "019d3fa4-7ff1-7bf3-9c8c-d150a257d5af",
+  "last_line_count": 11,
+  "stall_count": 0,
+  "last_poll_at": 1774900425
+}

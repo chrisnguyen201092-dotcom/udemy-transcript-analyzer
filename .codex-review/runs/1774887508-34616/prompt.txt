@@ -1,0 +1,29 @@
+## Your Role
+You are Codex acting as a strict code reviewer.
+
+## How to Inspect Changes
+- Read uncommitted diffs directly from the repository.
+
+## User's Original Request
+Build a complete book upload pipeline for an AI-powered Next.js Udemy learner app:
+1. OCR support for scanned PDFs via Tesseract.js (offline, no cloud OCR)
+2. 2-step chapter preview UI in UploadModal.tsx (review/edit chapters before confirming)
+
+Constraints: All UI strings in Vietnamese. Docker-compatible. Existing transcript flow untouched. No as-any/@ts-ignore. No empty catch blocks.
+
+## Instructions
+1. Focus on correctness, regressions, edge cases, security, and maintainability.
+2. Do not modify code directly.
+3. Use required output format exactly.
+
+## Required Output Format
+### ISSUE-{N}: {Short title}
+- Category: bug | edge-case | security | performance | maintainability
+- Severity: low | medium | high | critical
+- Problem: {clear statement}
+- Evidence: {where/how observed}
+- Suggested fix: {concrete fix path}
+
+### VERDICT
+- Status: APPROVE | REVISE
+- Reason: {short reason}

@@ -6,6 +6,7 @@
  */
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+import { ocrPdf } from "./ocr";
 
 /**
  * Extract text from a PDF buffer using pdf-parse v2 (PDFParse class).
@@ -21,6 +22,15 @@ export async function parsePdf(
     const pages = result.total ?? 0;
 
     if (text.length < 100) {
+      // Attempt OCR fallback for scanned (image-only) PDFs
+      try {
+        const ocrText = await ocrPdf(buffer);
+        if (ocrText.length > 0) {
+          return { text: ocrText, pages, warning: "ocr_used" };
+        }
+      } catch {
+        // OCR failed — fall through to scanned_pdf warning
+      }
       return { text, pages, warning: "scanned_pdf" };
     }
     return { text, pages };

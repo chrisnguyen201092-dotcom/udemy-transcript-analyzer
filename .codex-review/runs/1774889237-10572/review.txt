@@ -1,0 +1,38 @@
+### ISSUE-1: 2-step flow never parses PDF/DOCX content, so OCR path is unreachable
+- Category: bug
+- Severity: critical
+- Problem: The new preview/import flow sends raw base64 for `.pdf/.docx` into `/api/books/split`, but that route only runs chapter heuristics on the received string. For binary files, it will split gibberish/base64 instead of extracted text, and the new OCR fallback is never used in the 2-step flow.
+- Evidence: [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L69) converts binary files to base64, then [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L351) posts that payload to `/api/books/split`. [split/route.ts](D:/Project/udemy-app/src/app/api/books/split/route.ts#L51) only calls `detectChapters(parsed.content)`. The only place that actually calls [parse-book.ts](D:/Project/udemy-app/src/lib/parse-book.ts#L15) is [upload/route.ts](D:/Project/udemy-app/src/app/api/books/upload/route.ts#L101), which the rewritten modal no longer uses.
+- Suggested fix: Move file decoding/parsing into `/api/books/split` (or a shared server-side helper used by both routes), and run `parsePdf`/`parseDocx` before `detectChapters`. Add PDF/DOCX preview tests that assert real extracted text is shown.
+
+### ISSUE-2: OCR is not actually offline/local
+- Category: bug
+- Severity: high
+- Problem: The Tesseract worker is created without a local `langPath`/`corePath`, so it still depends on downloading language data at runtime. That violates the “must work offline/local” requirement and will fail in an air-gapped/local-only environment.
+- Evidence: [ocr.ts](D:/Project/udemy-app/src/lib/ocr.ts#L24) calls `createWorker("eng+vie", 1, { logger: ... })` with no local asset paths. Tesseract’s own docs say `langs` are traineddata to download and `langPath` controls where that download comes from in [api.md](D:/Project/udemy-app/node_modules/tesseract.js/docs/api.md#L34). The Docker/runtime changes in [Dockerfile](D:/Project/udemy-app/Dockerfile#L51) and [next.config.ts](D:/Project/udemy-app/next.config.ts#L7) only cover packages/WASM; they do not bundle `eng`/`vie` traineddata files.
+- Suggested fix: Bundle the language data locally and configure `langPath`, `corePath`, and `workerPath` to local traced assets. Verify OCR inside a network-disabled Docker container before approval.
+
+### ISSUE-3: Closing or switching the modal can leave orphan book stubs and stale async state
+- Category: bug
+- Severity: high
+- Problem: The cleanup route is only called from the preview cancel path and the analyze error path. Closing the dialog, clicking the backdrop, or switching modes during analysis resets UI state without deleting the stub or aborting the in-flight request, so orphan `Course` rows can remain and async completion can repopulate stale preview state after the modal is closed.
+- Evidence: [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L152) `handleClose` only resets state, and [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L157) `switchMode` does the same. The dialog close path is wired at [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L465). Analysis creates the stub asynchronously in [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L323), while deletion only happens in [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L422). Also, tabs stay visible during `analyzing` because `isInPreview` excludes that state at [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L461).
+- Suggested fix: Track the active stub id and an `AbortController` in refs, abort/cleanup on close, mode switch, and unmount, and either disable closing/tab switching during analyze/confirm or await cleanup before resetting state.
+
+### ISSUE-4: The new flow bypasses the existing file-size guard
+- Category: performance
+- Severity: high
+- Problem: The old single-step upload route enforced a 50 MB limit, but the new 2-step flow posts the full file content to `/api/books/split` first, and that route has no size cap. Large PDFs/DOCX files can now blow up request parsing, memory use, and OCR/rendering cost.
+- Evidence: [upload/route.ts](D:/Project/udemy-app/src/app/api/books/upload/route.ts#L17) defines `MAX_CONTENT_LENGTH`, enforced at [upload/route.ts](D:/Project/udemy-app/src/app/api/books/upload/route.ts#L48). The new modal sends the full payload to split at [UploadModal.tsx](D:/Project/udemy-app/src/components/UploadModal.tsx#L357), while [split/route.ts](D:/Project/udemy-app/src/app/api/books/split/route.ts#L15) only validates `content` as a non-empty string.
+- Suggested fix: Apply the same server-side size limit to `/api/books/split` via a shared constant/helper, and reject oversized payloads before decoding/rendering. Prefer a file upload transport over huge JSON/base64 bodies.
+
+### ISSUE-5: `DELETE /api/books` can delete non-book courses
+- Category: security
+- Severity: medium
+- Problem: The cleanup endpoint deletes any `Course` with zero lessons, not specifically an uncommitted book stub. A wrong id can remove unrelated course records.
+- Evidence: [route.ts](D:/Project/udemy-app/src/app/api/books/route.ts#L59) only checks `lesson.count`, and [route.ts](D:/Project/udemy-app/src/app/api/books/route.ts#L67) then deletes the course by id without verifying `contentType === "book"` or any “stub/pending import” marker.
+- Suggested fix: Load the course first and require `contentType: "book"` plus an explicit draft/stub flag before deletion. If this endpoint is only for temporary imports, model that state explicitly instead of inferring it from `lessonCount === 0`.
+
+### VERDICT
+- Status: REVISE
+- Reason: The requested PDF/OCR preview pipeline is not actually wired into the new 2-step flow, offline OCR is not satisfied, and the stub/size-limit regressions are serious enough to block approval.

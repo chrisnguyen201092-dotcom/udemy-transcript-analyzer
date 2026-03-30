@@ -61,6 +61,7 @@ interface AISettings {
 interface AIAssistantPanelProps {
   lesson: Lesson;
   courseId: string;
+  contentType?: string;
   settings: AISettings;
   isConfigured: boolean;
   onOpenSettings: () => void;
@@ -92,6 +93,7 @@ const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
 export function AIAssistantPanel({
   lesson,
   courseId,
+  contentType,
   settings,
   isConfigured,
   onOpenSettings,
@@ -372,8 +374,9 @@ export function AIAssistantPanel({
       apiKey: settings.apiKey,
       baseUrl: settings.baseUrl,
       model: settings.model,
+      ...(contentType ? { contentType } : {}),
     }),
-    [lesson.id, settings.apiKey, settings.baseUrl, settings.model]
+    [lesson.id, settings.apiKey, settings.baseUrl, settings.model, contentType]
   );
 
   /**

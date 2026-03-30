@@ -1,0 +1,20 @@
+Reading prompt from stdin...
+2026-03-30T17:20:28.798569Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 1.6 seconds
+Output:
+[31;1mSet-PSReadLineOption: [0mC:\Users\ADMIN\OneDrive\Documents\PowerShell\Microsoft.PowerShell_profile.ps1:13[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m  13 | [0m [36;1mSet-PSReadLineOption -PredictionSource History[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe predictive suggestion feature cannot be enabled because the console output doesn't support virtual terminal[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mprocessing or it's redirected.[0m
+[31;1mSet-PSReadLineOption: [0mC:\Users\ADMIN\OneDrive\Documents\PowerShell\Microsoft.PowerShell_profile.ps1:14[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m  14 | [0m [36;1mSet-PSReadLineOption -PredictionViewStyle ListView[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe handle is invalid.[0m
+rg: regex parse error:
+    (?:parseMarkdownChapters|detectChapters\(|warning === \)
+    ^
+error: unclosed group
+

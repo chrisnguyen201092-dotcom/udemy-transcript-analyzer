@@ -48,6 +48,14 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
+# Copy tesseract.js (WASM-based OCR — not bundled by Next.js standalone)
+COPY --from=builder /app/node_modules/tesseract.js ./node_modules/tesseract.js
+COPY --from=builder /app/node_modules/@tesseract.js ./node_modules/@tesseract.js
+
+# Copy pdf-to-png-converter + its native canvas addon (not bundled by Next.js standalone)
+COPY --from=builder /app/node_modules/pdf-to-png-converter ./node_modules/pdf-to-png-converter
+COPY --from=builder /app/node_modules/@napi-rs ./node_modules/@napi-rs
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh

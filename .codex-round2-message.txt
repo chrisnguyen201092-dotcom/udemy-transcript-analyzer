@@ -1,0 +1,30 @@
+## Round 2 — All Issues Fixed
+
+### ISSUE-1 (critical) — FIXED
+`/api/books/split` now calls `parsePdf`/`parseDocx`/etc. before `detectChapters`. The raw base64 string is no longer passed directly; the full parse pipeline (including OCR fallback) runs first.
+File: `src/app/api/books/split/route.ts`
+
+### ISSUE-2 (high) — FIXED
+`eng.traineddata` and `vie.traineddata` have been downloaded from `tessdata_fast` and bundled into `src/lib/tessdata/`.
+`createWorker` now receives `cachePath: path.resolve(__dirname, "tessdata")` and `cacheMethod: "readOnly"` — Tesseract reads local files directly, no network download at runtime.
+`outputFileTracingIncludes` in `next.config.ts` now includes `./src/lib/tessdata/*.traineddata` to ensure files are copied into the standalone build.
+Files: `src/lib/ocr.ts`, `next.config.ts`
+
+### ISSUE-3 (high) — FIXED
+`UploadModal.tsx` now has:
+- `abortControllerRef` — `AbortController` attached to every `/api/books` + `/api/books/split` fetch pair
+- `pendingStubIdRef` — tracks the created stub id from first creation until the preview step claims ownership
+- `handleReset` — now aborts the controller and fire-and-forget deletes the pending stub before resetting state
+- `useEffect` unmount cleanup — same abort + delete logic runs when the component unmounts mid-request
+- `handleAnalyzeBook` — passes `signal: controller.signal` to both fetches, ignores `AbortError`, clears `pendingStubIdRef` on success, clears it and deletes stub on error
+File: `src/components/UploadModal.tsx`
+
+### ISSUE-4 (high) — FIXED (Round 1)
+Shared `MAX_BOOK_CONTENT_LENGTH` and `SUPPORTED_BOOK_EXTENSIONS` constants in `src/lib/book-constants.ts`. Both `/api/books/upload` and `/api/books/split` import from there.
+
+### ISSUE-5 (medium) — FIXED
+`DELETE /api/books` now fetches the record first, checks `contentType === "book"` (returns 403 if not), then checks lesson count. Non-book courses with zero lessons are no longer accidentally deletable.
+File: `src/app/api/books/route.ts`
+
+## Your Turn
+Re-review using the same output format from Round 1. Keep already-closed issues closed. Identify any new issues introduced by the fixes, or confirm APPROVE if the implementation is now acceptable.

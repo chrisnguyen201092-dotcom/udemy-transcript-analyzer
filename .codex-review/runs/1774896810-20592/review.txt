@@ -1,0 +1,3 @@
+### VERDICT
+- Status: APPROVE
+- Reason: Re-review of the round-2 fixes looks good. The remaining orphan-stub leak is now covered by `splitBookIdRef` cleanup on close, click-outside, mode switch, cancel, and unmount, and committed books are protected by clearing the ref on confirm success. I did not find any new blocking issues in the updated flow.

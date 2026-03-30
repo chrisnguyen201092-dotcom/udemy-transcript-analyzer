@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { FileUp, X, CheckCircle2, AlertCircle, Loader2, FolderOpen, Upload } from "lucide-react";
+import {
+  FileUp, X, CheckCircle2, AlertCircle, Loader2,
+  FolderOpen, Upload, BookOpen, FileText,
+  GripVertical, ChevronLeft, TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,11 +26,20 @@ interface UploadModalProps {
 }
 
 type FileStatus = "pending" | "processing" | "success" | "error";
+type UploadMode = "transcript" | "book";
+type SplitStep = "form" | "analyzing" | "preview" | "confirming";
 
 interface SelectedFile {
   file: File;
   status: FileStatus;
   error?: string;
+}
+
+interface SplitChapter {
+  index: number;
+  title: string;
+  wordCount: number;
+  content: string;
 }
 
 function formatFileSize(bytes: number): string {
@@ -40,11 +53,35 @@ function getFileExtension(name: string): string {
   return dot >= 0 ? name.slice(dot).toLowerCase() : "";
 }
 
-const ACCEPTED_EXTENSIONS = [".vtt", ".srt", ".txt"];
+const TRANSCRIPT_EXTENSIONS = [".vtt", ".srt", ".txt"];
+const BOOK_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
+const BINARY_EXTENSIONS = new Set([".pdf", ".docx"]);
 
-function isAcceptedFile(file: File): boolean {
+function isAcceptedTranscript(file: File): boolean {
+  return TRANSCRIPT_EXTENSIONS.includes(getFileExtension(file.name));
+}
+
+function isAcceptedBook(file: File): boolean {
+  return BOOK_EXTENSIONS.includes(getFileExtension(file.name));
+}
+
+/** Read a file as base64 (for binary) or plain text (for text files). */
+async function readFileContent(file: File): Promise<string> {
   const ext = getFileExtension(file.name);
-  return ACCEPTED_EXTENSIONS.includes(ext);
+  if (BINARY_EXTENSIONS.has(ext)) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip the data URL prefix: "data:...;base64,"
+        const base64 = result.split(",")[1] ?? result;
+        resolve(base64);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+  return file.text();
 }
 
 export function UploadModal({
@@ -53,24 +90,119 @@ export function UploadModal({
   onClose,
   onUploadComplete,
 }: UploadModalProps) {
+  const [mode, setMode] = useState<UploadMode>("transcript");
+
+  // ── Transcript state ──────────────────────────────────────────────────
   const [files, setFiles] = useState<SelectedFile[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
   const [courseTitle, setCourseTitle] = useState("");
+
+  // ── Book state ────────────────────────────────────────────────────────
+  const [bookFile, setBookFile] = useState<SelectedFile | null>(null);
+  const [bookTitle, setBookTitle] = useState("");
+  const [bookAuthor, setBookAuthor] = useState("");
+  const [bookIsbn, setBookIsbn] = useState("");
+  const [bookPublisher, setBookPublisher] = useState("");
+
+  // ── Book split/confirm state ──────────────────────────────────────────
+  const [splitStep, setSplitStep] = useState<SplitStep>("form");
+  const [splitChapters, setSplitChapters] = useState<SplitChapter[]>([]);
+  const [splitWarnings, setSplitWarnings] = useState<string[]>([]);
+  const [splitBookId, setSplitBookId] = useState<string | null>(null);
+  const [splitMethod, setSplitMethod] = useState<"heuristic" | "fallback" | null>(null);
+
+  // ── Shared state ──────────────────────────────────────────────────────
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<{ message: string; isError: boolean } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const bookInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  // Track in-flight book stub id so we can clean it up on close/abort
+  const pendingStubIdRef = useRef<string | null>(null);
+  // Mirror splitBookId state so handleReset / unmount can read it without stale closure
+  const splitBookIdRef = useRef<string | null>(null);
+  // AbortController for the active /api/books + /api/books/split fetch pair
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Set webkitdirectory attribute — not in React types but supported in all modern browsers
+  useEffect(() => {
+    if (folderInputRef.current) {
+      Object.defineProperty(folderInputRef.current, "webkitdirectory", {
+        value: true,
+        writable: true,
+      });
+    }
+  }, []);
+
+  // Cleanup on unmount: abort in-flight requests and delete any orphan stubs
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (pendingStubIdRef.current) {
+        const stubId = pendingStubIdRef.current;
+        pendingStubIdRef.current = null;
+        fetch(`/api/books?id=${stubId}`, { method: "DELETE" }).catch(() => undefined);
+      }
+      if (splitBookIdRef.current) {
+        const stubId = splitBookIdRef.current;
+        splitBookIdRef.current = null;
+        fetch(`/api/books?id=${stubId}`, { method: "DELETE" }).catch(() => undefined);
+      }
+    };
+  }, []);
 
   const handleReset = useCallback(() => {
+    // Abort any in-flight book analysis fetch
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Clean up uncommitted stub created during analysis (fire-and-forget)
+    if (pendingStubIdRef.current) {
+      const stubId = pendingStubIdRef.current;
+      pendingStubIdRef.current = null;
+      fetch(`/api/books?id=${stubId}`, { method: "DELETE" }).catch(() => undefined);
+    }
+    // Clean up stub at the preview/confirming step (ownership moved from pendingStubIdRef)
+    if (splitBookIdRef.current) {
+      const stubId = splitBookIdRef.current;
+      splitBookIdRef.current = null;
+      fetch(`/api/books?id=${stubId}`, { method: "DELETE" }).catch(() => undefined);
+    }
     setFiles([]);
+    setCourseTitle("");
+    setBookFile(null);
+    setBookTitle("");
+    setBookAuthor("");
+    setBookIsbn("");
+    setBookPublisher("");
+    setSplitStep("form");
+    setSplitChapters([]);
+    setSplitWarnings([]);
+    setSplitBookId(null);
+    setSplitMethod(null);
     setUploading(false);
     setResult(null);
-    setCourseTitle("");
     setIsDragging(false);
     dragCounterRef.current = 0;
   }, []);
 
+  const handleClose = useCallback(() => {
+    handleReset();
+    onClose();
+  }, [handleReset, onClose]);
+
+  const switchMode = useCallback((next: UploadMode) => {
+    handleReset();
+    setMode(next);
+  }, [handleReset]);
+
+  // ── Drag & drop ───────────────────────────────────────────────────────
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -90,7 +222,7 @@ export function UploadModal({
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDropTranscript = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -103,8 +235,8 @@ export function UploadModal({
     let rejectedCount = 0;
 
     Array.from(droppedFiles).forEach((file) => {
-      if (isAcceptedFile(file)) {
-        accepted.push({ file, status: "pending" as FileStatus });
+      if (isAcceptedTranscript(file)) {
+        accepted.push({ file, status: "pending" });
       } else {
         rejectedCount++;
       }
@@ -114,30 +246,36 @@ export function UploadModal({
       setFiles((prev) => [...prev, ...accepted]);
       setResult(null);
     }
-
     if (rejectedCount > 0) {
-      toast.warning(
-        `${rejectedCount} file bị bỏ qua (chỉ hỗ trợ .vtt, .srt, .txt)`
-      );
+      toast.warning(`${rejectedCount} file bị bỏ qua (chỉ hỗ trợ .vtt, .srt, .txt)`);
     }
   }, []);
 
-  // Set webkitdirectory attribute - this property is not in React types but is supported in all modern browsers
-  useEffect(() => {
-    if (folderInputRef.current) {
-      Object.defineProperty(folderInputRef.current, 'webkitdirectory', {
-        value: true,
-        writable: true,
-      });
+  const handleDropBook = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const droppedFiles = e.dataTransfer.files;
+    if (!droppedFiles || droppedFiles.length === 0) return;
+
+    const file = droppedFiles[0];
+    if (!isAcceptedBook(file)) {
+      toast.warning("Định dạng không hỗ trợ. Chấp nhận: .pdf, .docx, .txt, .md");
+      return;
     }
-  }, []);
+    setBookFile({ file, status: "pending" });
+    setResult(null);
+    if (!bookTitle.trim()) {
+      // Auto-fill title from filename
+      const dot = file.name.lastIndexOf(".");
+      setBookTitle(dot >= 0 ? file.name.slice(0, dot) : file.name);
+    }
+  }, [bookTitle]);
 
-  const handleClose = useCallback(() => {
-    handleReset();
-    onClose();
-  }, [handleReset, onClose]);
-
-  const handleFileChange = useCallback(
+  // ── File pickers ──────────────────────────────────────────────────────
+  const handleTranscriptFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selected = e.target.files;
       if (!selected) return;
@@ -147,38 +285,46 @@ export function UploadModal({
       }));
       setFiles((prev) => [...prev, ...newFiles]);
       setResult(null);
-      // Reset input so same files can be re-selected
       if (inputRef.current) inputRef.current.value = "";
       if (folderInputRef.current) folderInputRef.current.value = "";
     },
     []
   );
 
-  const handleRemoveFile = useCallback((index: number) => {
+  const handleBookFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files;
+      if (!selected || selected.length === 0) return;
+      const file = selected[0];
+      setBookFile({ file, status: "pending" });
+      setResult(null);
+      if (!bookTitle.trim()) {
+        const dot = file.name.lastIndexOf(".");
+        setBookTitle(dot >= 0 ? file.name.slice(0, dot) : file.name);
+      }
+      if (bookInputRef.current) bookInputRef.current.value = "";
+    },
+    [bookTitle]
+  );
+
+  const handleRemoveTranscriptFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleUpload = useCallback(async () => {
-    // Need either an existing courseId or a new title
+  // ── Upload: transcript ────────────────────────────────────────────────
+  const handleUploadTranscript = useCallback(async () => {
     if (!courseId && !courseTitle.trim()) return;
     if (files.length === 0) return;
 
     setUploading(true);
     setResult(null);
-
-    // Mark all as processing
     setFiles((prev) => prev.map((f) => ({ ...f, status: "processing" as FileStatus })));
 
     try {
-      // Read all files client-side
       const fileContents: Array<{ name: string; content: string; type: string }> = [];
       for (const { file } of files) {
         const content = await file.text();
-        fileContents.push({
-          name: file.name,
-          content,
-          type: getFileExtension(file.name),
-        });
+        fileContents.push({ name: file.name, content, type: getFileExtension(file.name) });
       }
 
       const body = courseId
@@ -196,27 +342,171 @@ export function UploadModal({
       if (!res.ok) {
         const errMsg = typeof data.error === "string" ? data.error : "Upload thất bại";
         setFiles((prev) => prev.map((f) => ({ ...f, status: "error" as FileStatus, error: errMsg })));
-        setResult(`Lỗi: ${errMsg}`);
+        setResult({ message: `Lỗi: ${errMsg}`, isError: true });
         toast.error(errMsg);
         return;
       }
 
-      // Mark all as success
       setFiles((prev) => prev.map((f) => ({ ...f, status: "success" as FileStatus })));
-      setResult(`Đã upload thành công ${data.created.length} file`);
+      setResult({ message: `Đã upload thành công ${data.created.length} file`, isError: false });
       toast.success(`Đã upload thành công ${data.created.length} file`);
       onUploadComplete(data.courseId as string);
     } catch {
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: "error" as FileStatus, error: "Lỗi kết nối" }))
       );
-      setResult("Lỗi kết nối khi upload.");
+      setResult({ message: "Lỗi kết nối khi upload.", isError: true });
       toast.error("Lỗi kết nối khi upload");
     } finally {
       setUploading(false);
     }
   }, [courseId, courseTitle, files, onUploadComplete]);
 
+  // ── Book: step 1 — analyze chapters ───────────────────────────────────
+  const handleAnalyzeBook = useCallback(async () => {
+    if (!bookFile || !bookTitle.trim()) return;
+
+    setSplitStep("analyzing");
+    setUploading(true);
+    setResult(null);
+
+    // Create a fresh AbortController for this request pair
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let createdBookId: string | null = null;
+
+    try {
+      // 1. Create book stub
+      const stubRes = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: bookTitle.trim(),
+          ...(bookAuthor.trim() ? { author: bookAuthor.trim() } : {}),
+          ...(bookIsbn.trim() ? { isbn: bookIsbn.trim() } : {}),
+          ...(bookPublisher.trim() ? { publisher: bookPublisher.trim() } : {}),
+        }),
+        signal: controller.signal,
+      });
+      const stubData = await stubRes.json();
+      if (!stubRes.ok) {
+        throw new Error(typeof stubData.error === "string" ? stubData.error : "Không thể tạo sách");
+      }
+      createdBookId = stubData.bookId as string;
+      // Register so handleReset / unmount can clean it up if cancelled
+      pendingStubIdRef.current = createdBookId;
+
+      // 2. Read file + call split
+      const content = await readFileContent(bookFile.file);
+      const format = getFileExtension(bookFile.file.name).slice(1); // strip leading dot
+
+      const splitRes = await fetch("/api/books/split", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: createdBookId, format, content }),
+        signal: controller.signal,
+      });
+      const splitData = await splitRes.json();
+      if (!splitRes.ok) {
+        throw new Error(typeof splitData.error === "string" ? splitData.error : "Phân tích chương thất bại");
+      }
+
+      // Success — hand off stub ownership to the preview step
+      pendingStubIdRef.current = null;
+      abortControllerRef.current = null;
+
+      splitBookIdRef.current = createdBookId;
+      setSplitBookId(createdBookId);
+      setSplitChapters(splitData.chapters as SplitChapter[]);
+      setSplitWarnings(splitData.warnings as string[]);
+      setSplitMethod(splitData.method as "heuristic" | "fallback");
+      setSplitStep("preview");
+    } catch (err) {
+      // Ignore AbortError — component is unmounting or user cancelled
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
+      const msg = err instanceof Error ? err.message : "Lỗi kết nối";
+      toast.error(msg);
+      // Clean up stub if it was created and we still own it
+      if (createdBookId && pendingStubIdRef.current === createdBookId) {
+        pendingStubIdRef.current = null;
+        fetch(`/api/books?id=${createdBookId}`, { method: "DELETE" }).catch(() => undefined);
+      }
+      abortControllerRef.current = null;
+      setSplitStep("form");
+    } finally {
+      setUploading(false);
+    }
+  }, [bookFile, bookTitle, bookAuthor, bookIsbn, bookPublisher]);
+
+  // ── Book: step 2 — confirm and create lessons ─────────────────────────
+  const handleConfirmBook = useCallback(async () => {
+    if (!splitBookId || splitChapters.length === 0) return;
+
+    setSplitStep("confirming");
+    setUploading(true);
+
+    try {
+      const res = await fetch("/api/books/split/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId: splitBookId,
+          chapters: splitChapters.map((ch) => ({
+            index: ch.index,
+            title: ch.title,
+            content: ch.content,
+            chapterNumber: ch.index,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = typeof data.error === "string" ? data.error : "Xác nhận thất bại";
+        toast.error(errMsg);
+        setSplitStep("preview");
+        return;
+      }
+
+      toast.success(`Đã tạo sách với ${(data.created as unknown[]).length} chương`);
+      // Book is now fully committed — clear ref so handleReset won't delete it
+      splitBookIdRef.current = null;
+      onUploadComplete(data.courseId as string);
+    } catch {
+      toast.error("Lỗi kết nối khi xác nhận");
+      setSplitStep("preview");
+    } finally {
+      setUploading(false);
+    }
+  }, [splitBookId, splitChapters, onUploadComplete]);
+
+  // ── Book: cancel preview → back to form ───────────────────────────────
+  const handleCancelPreview = useCallback(() => {
+    if (splitBookId) {
+      // Fire-and-forget cleanup of the uncommitted stub
+      splitBookIdRef.current = null;
+      fetch(`/api/books?id=${splitBookId}`, { method: "DELETE" }).catch(() => undefined);
+    }
+    setSplitBookId(null);
+    setSplitChapters([]);
+    setSplitWarnings([]);
+    setSplitMethod(null);
+    setSplitStep("form");
+  }, [splitBookId]);
+
+  // ── Chapter editing ───────────────────────────────────────────────────
+  const handleChapterTitleChange = useCallback((index: number, newTitle: string) => {
+    setSplitChapters((prev) =>
+      prev.map((ch, i) => (i === index ? { ...ch, title: newTitle } : ch))
+    );
+  }, []);
+
+  const handleDeleteChapter = useCallback((index: number) => {
+    setSplitChapters((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // ── Helpers ───────────────────────────────────────────────────────────
   const statusIcon = (status: FileStatus) => {
     switch (status) {
       case "processing":
@@ -230,145 +520,390 @@ export function UploadModal({
     }
   };
 
-  const canUpload = files.length > 0 && (!!courseId || !!courseTitle.trim());
+  const canUploadTranscript = files.length > 0 && (!!courseId || !!courseTitle.trim());
+  const canAnalyzeBook = !!bookFile && !!bookTitle.trim();
+  const isInPreview = splitStep === "preview" || splitStep === "confirming";
 
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileUp className="w-4 h-4" />
-            Upload từ file
+            Upload tài liệu
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 py-1">
-          {/* Course name input — only when no course pre-selected */}
-          {!courseId && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                Tên course
-              </label>
-              <Input
-                value={courseTitle}
-                onChange={(e) => setCourseTitle(e.target.value)}
-                placeholder="Ví dụ: React Advanced 2024..."
-                className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
-                disabled={uploading}
-              />
-            </div>
-          )}
-
-          {/* Result message */}
-          {result && (
-            <p
-              className={`text-sm rounded-lg px-3 py-2 border ${
-                result.startsWith("Đã upload")
-                  ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-100 dark:border-green-800"
-                  : "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
+        {/* Mode tabs — hidden during chapter preview */}
+        {!isInPreview && (
+          <div className="flex gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 p-1">
+            <button
+              type="button"
+              onClick={() => switchMode("transcript")}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                mode === "transcript"
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
-              {result}
-            </p>
-          )}
-
-          {/* File input */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 cursor-pointer text-xs"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
+              <FileText className="w-3.5 h-3.5" />
+              Transcript
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode("book")}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                mode === "book"
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
             >
-              <FileUp className="w-3.5 h-3.5" />
-              Chọn file
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 cursor-pointer text-xs"
-              onClick={() => folderInputRef.current?.click()}
-              disabled={uploading}
+              <BookOpen className="w-3.5 h-3.5" />
+              Sách / Giáo trình
+            </button>
+          </div>
+        )}
+
+        {/* ── TRANSCRIPT MODE ─────────────────────────────────────── */}
+        {mode === "transcript" && (
+          <div className="flex flex-col gap-3 py-1">
+            {!courseId && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Tên course
+                </label>
+                <Input
+                  value={courseTitle}
+                  onChange={(e) => setCourseTitle(e.target.value)}
+                  placeholder="Ví dụ: React Advanced 2024..."
+                  className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
+                  disabled={uploading}
+                />
+              </div>
+            )}
+
+            {result && (
+              <p
+                className={`text-sm rounded-lg px-3 py-2 border ${
+                  !result.isError
+                    ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-100 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
+                }`}
+              >
+                {result.message}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 cursor-pointer text-xs"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+              >
+                <FileUp className="w-3.5 h-3.5" />
+                Chọn file
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 cursor-pointer text-xs"
+                onClick={() => folderInputRef.current?.click()}
+                disabled={uploading}
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                Tải lên thư mục
+              </Button>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".vtt,.srt,.txt"
+                multiple
+                className="hidden"
+                onChange={handleTranscriptFileChange}
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                accept=".vtt,.srt,.txt"
+                multiple
+                className="hidden"
+                onChange={handleTranscriptFileChange}
+              />
+            </div>
+
+            <div
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDropTranscript}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 px-4 transition-colors duration-150 ${
+                isDragging
+                  ? "border-[#A435F0] bg-[#A435F0]/5 dark:bg-[#A435F0]/10"
+                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              Tải lên thư mục
-            </Button>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".vtt,.srt,.txt"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <input
-              ref={folderInputRef}
-              type="file"
-              accept=".vtt,.srt,.txt"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </div>
+              <Upload className={`w-6 h-6 ${isDragging ? "text-[#A435F0]" : "text-gray-300 dark:text-gray-600"}`} />
+              <p className={`text-xs text-center ${isDragging ? "text-[#A435F0] font-medium" : "text-gray-400 dark:text-gray-500"}`}>
+                {isDragging ? "Thả file vào đây" : "Kéo thả file vào đây"}
+              </p>
+              <p className="text-[10px] text-gray-300 dark:text-gray-600">.vtt, .srt, .txt</p>
+            </div>
 
-          {/* Dropzone */}
-          <div
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 px-4 transition-colors duration-150 ${
-              isDragging
-                ? "border-[#A435F0] bg-[#A435F0]/5 dark:bg-[#A435F0]/10"
-                : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-            }`}
-          >
-            <Upload className={`w-6 h-6 ${isDragging ? "text-[#A435F0]" : "text-gray-300 dark:text-gray-600"}`} />
-            <p className={`text-xs text-center ${isDragging ? "text-[#A435F0] font-medium" : "text-gray-400 dark:text-gray-500"}`}>
-              {isDragging ? "Thả file vào đây" : "Kéo thả file vào đây"}
-            </p>
-            <p className="text-[10px] text-gray-300 dark:text-gray-600">
-              .vtt, .srt, .txt
-            </p>
+            {files.length > 0 && (
+              <ScrollArea className="max-h-[300px]">
+                <ul className="flex flex-col gap-1.5">
+                  {files.map((f, i) => (
+                    <li
+                      key={`${f.file.name}-${i}`}
+                      className="flex items-center gap-2 p-2 border border-slate-100 dark:border-slate-800 rounded-lg text-sm"
+                    >
+                      {statusIcon(f.status)}
+                      <span className="flex-1 truncate text-xs">{f.file.name}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                        {formatFileSize(f.file.size)}
+                      </span>
+                      {f.status === "pending" && !uploading && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTranscriptFile(i)}
+                          className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer"
+                        >
+                          <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            )}
           </div>
+        )}
 
-          {/* File list */}
-          {files.length > 0 && (
-            <ScrollArea className="max-h-[300px]">
-              <ul className="flex flex-col gap-1.5">
-                {files.map((f, i) => (
+        {/* ── BOOK MODE: FORM ─────────────────────────────────────── */}
+        {mode === "book" && (splitStep === "form" || splitStep === "analyzing") && (
+          <div className="flex flex-col gap-3 py-1">
+            {/* Book metadata */}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Tên sách <span className="text-red-400">*</span>
+                </label>
+                <Input
+                  value={bookTitle}
+                  onChange={(e) => setBookTitle(e.target.value)}
+                  placeholder="Ví dụ: Clean Code, Lập trình Python cơ bản..."
+                  className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
+                  disabled={uploading}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Tác giả
+                  </label>
+                  <Input
+                    value={bookAuthor}
+                    onChange={(e) => setBookAuthor(e.target.value)}
+                    placeholder="Robert C. Martin..."
+                    className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
+                    disabled={uploading}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Nhà xuất bản
+                  </label>
+                  <Input
+                    value={bookPublisher}
+                    onChange={(e) => setBookPublisher(e.target.value)}
+                    placeholder="NXB Khoa học kỹ thuật..."
+                    className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
+                    disabled={uploading}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  ISBN
+                </label>
+                <Input
+                  value={bookIsbn}
+                  onChange={(e) => setBookIsbn(e.target.value)}
+                  placeholder="978-0-13-468599-1"
+                  className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
+                  disabled={uploading}
+                />
+              </div>
+            </div>
+
+            {result && (
+              <p
+                className={`text-sm rounded-lg px-3 py-2 border ${
+                  !result.isError
+                    ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-100 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
+                }`}
+              >
+                {result.message}
+              </p>
+            )}
+
+            {/* File picker button */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 cursor-pointer text-xs"
+                onClick={() => bookInputRef.current?.click()}
+                disabled={uploading}
+              >
+                <FileUp className="w-3.5 h-3.5" />
+                Chọn file sách
+              </Button>
+              <input
+                ref={bookInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                className="hidden"
+                onChange={handleBookFileChange}
+              />
+              {bookFile && (
+                <span className="text-xs text-slate-500 truncate max-w-[200px]">
+                  {bookFile.file.name}
+                </span>
+              )}
+            </div>
+
+            {/* Dropzone */}
+            <div
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDropBook}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 px-4 transition-colors duration-150 ${
+                isDragging
+                  ? "border-[#A435F0] bg-[#A435F0]/5 dark:bg-[#A435F0]/10"
+                  : bookFile
+                  ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30"
+                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}
+            >
+              {bookFile ? (
+                <>
+                  {statusIcon(bookFile.status)}
+                  <p className="text-xs text-center text-slate-600 dark:text-slate-400 font-medium">
+                    {bookFile.file.name}
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    {formatFileSize(bookFile.file.size)}
+                  </p>
+                  {bookFile.status === "pending" && !uploading && (
+                    <button
+                      type="button"
+                      onClick={() => { setBookFile(null); setResult(null); }}
+                      className="text-[10px] text-slate-400 hover:text-red-400 cursor-pointer underline"
+                    >
+                      Xóa
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <BookOpen className={`w-6 h-6 ${isDragging ? "text-[#A435F0]" : "text-gray-300 dark:text-gray-600"}`} />
+                  <p className={`text-xs text-center ${isDragging ? "text-[#A435F0] font-medium" : "text-gray-400 dark:text-gray-500"}`}>
+                    {isDragging ? "Thả file vào đây" : "Kéo thả file sách vào đây"}
+                  </p>
+                  <p className="text-[10px] text-gray-300 dark:text-gray-600">.pdf, .docx, .txt, .md</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── BOOK MODE: CHAPTER PREVIEW ──────────────────────────── */}
+        {mode === "book" && isInPreview && (
+          <div className="flex flex-col gap-3 py-1">
+            {/* Header info */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate max-w-[280px]">
+                  {bookTitle}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {splitChapters.length} chương được phát hiện
+                </p>
+              </div>
+              <span
+                className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  splitMethod === "heuristic"
+                    ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400"
+                    : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
+                }`}
+              >
+                {splitMethod === "heuristic" ? "Tự động phát hiện" : "1 phần"}
+              </span>
+            </div>
+
+            {/* Warnings */}
+            {splitWarnings.length > 0 && (
+              <div className="flex flex-col gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                {splitWarnings.map((w, i) => (
+                  <div key={i} className="flex items-start gap-1.5">
+                    <TriangleAlert className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">{w}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Chapter list */}
+            <ScrollArea className="max-h-[320px]">
+              <ul className="flex flex-col gap-1.5 pr-1">
+                {splitChapters.map((ch, i) => (
                   <li
-                    key={`${f.file.name}-${i}`}
-                    className="flex items-center gap-2 p-2 border border-slate-100 dark:border-slate-800 rounded-lg text-sm"
+                    key={`${ch.index}-${i}`}
+                    className="flex items-center gap-2 p-2 border border-slate-100 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
                   >
-                    {statusIcon(f.status)}
-                    <span className="flex-1 truncate text-xs">{f.file.name}</span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
-                      {formatFileSize(f.file.size)}
+                    <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-8 shrink-0 tabular-nums">
+                      Ch.{ch.index}
                     </span>
-                    {f.status === "pending" && !uploading && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(i)}
-                        className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer"
-                      >
-                        <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                      </button>
-                    )}
+                    <Input
+                      value={ch.title}
+                      onChange={(e) => handleChapterTitleChange(i, e.target.value)}
+                      className="flex-1 h-7 text-xs border-slate-200 dark:border-slate-700 focus-visible:ring-[#A435F0]/30"
+                      disabled={splitStep === "confirming"}
+                    />
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 w-14 text-right tabular-nums">
+                      {ch.wordCount.toLocaleString()} từ
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteChapter(i)}
+                      disabled={splitChapters.length <= 1 || splitStep === "confirming"}
+                      className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                    </button>
                   </li>
                 ))}
               </ul>
             </ScrollArea>
-          )}
-        </div>
+          </div>
+        )}
 
         <DialogFooter>
-          {canUpload && (
+          {/* Transcript upload button */}
+          {mode === "transcript" && canUploadTranscript && (
             <Button
               size="sm"
               className="gap-2 cursor-pointer mr-auto bg-[#A435F0] hover:bg-[#8710D8]"
-              onClick={handleUpload}
+              onClick={handleUploadTranscript}
               disabled={uploading || files.every((f) => f.status === "success")}
             >
               {uploading ? (
@@ -381,6 +916,57 @@ export function UploadModal({
               )}
             </Button>
           )}
+
+          {/* Book: analyze button (form step) */}
+          {mode === "book" && (splitStep === "form" || splitStep === "analyzing") && canAnalyzeBook && (
+            <Button
+              size="sm"
+              className="gap-2 cursor-pointer mr-auto bg-[#A435F0] hover:bg-[#8710D8]"
+              onClick={handleAnalyzeBook}
+              disabled={uploading}
+            >
+              {splitStep === "analyzing" ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Đang phân tích...
+                </>
+              ) : (
+                "Phân tích chương"
+              )}
+            </Button>
+          )}
+
+          {/* Book: back + confirm buttons (preview step) */}
+          {mode === "book" && isInPreview && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 cursor-pointer mr-auto"
+                onClick={handleCancelPreview}
+                disabled={splitStep === "confirming"}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Quay lại
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2 cursor-pointer bg-[#A435F0] hover:bg-[#8710D8]"
+                onClick={handleConfirmBook}
+                disabled={uploading || splitChapters.length === 0}
+              >
+                {splitStep === "confirming" ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Đang tạo...
+                  </>
+                ) : (
+                  "Xác nhận tạo sách"
+                )}
+              </Button>
+            </>
+          )}
+
           <Button variant="outline" onClick={handleClose} className="cursor-pointer">
             Đóng
           </Button>

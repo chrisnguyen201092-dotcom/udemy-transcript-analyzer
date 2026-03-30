@@ -28,6 +28,10 @@ interface Course {
   id: string;
   url: string;
   title: string;
+  contentType: string;
+  author?: string | null;
+  isbn?: string | null;
+  publisher?: string | null;
   lessons: Lesson[];
   createdAt: string;
 }
@@ -70,7 +74,7 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
       ) : courses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-6 gap-1.5 text-gray-400 dark:text-gray-500">
           <BookOpen className="w-6 h-6 opacity-30" />
-          <p className="text-xs">Chưa có course nào</p>
+          <p className="text-xs">Chưa có khóa học / sách nào</p>
         </div>
       ) : (
         <>
@@ -133,11 +137,17 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
                         ) : (
                           <p className={`text-xs font-medium truncate ${isSelected ? "text-[#A435F0]" : "text-gray-800 dark:text-gray-200"}`}>
                             {course.title}
+                            {course.contentType === "book" && (
+                              <span className="inline-flex items-center ml-1 px-1 py-0.5 rounded text-[9px] font-medium bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">📖</span>
+                            )}
                           </p>
                         )}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                          {course.lessons.length} bài học
+                          {course.lessons.length} {course.contentType === "book" ? "chương" : "bài học"}
                         </p>
+                        {course.contentType === "book" && course.author && (
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500">{course.author}</p>
+                        )}
                         {(() => {
                           const progressPct = courseProgressMap?.[course.id];
                           if (progressPct === undefined || progressPct === null) return null;

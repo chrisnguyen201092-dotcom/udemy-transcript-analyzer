@@ -9,12 +9,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { parsePdf, parseDocx, parseMarkdownChapters } from "@/lib/parse-book";
+import { MAX_BOOK_CONTENT_LENGTH, SUPPORTED_BOOK_EXTENSIONS } from "@/lib/book-constants";
 import { z } from "zod";
 
-const SUPPORTED_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md"]);
-
-/** Maximum allowed content size: 50 MB (base64 encoded → ~37 MB raw) */
-const MAX_CONTENT_LENGTH = 50 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = SUPPORTED_BOOK_EXTENSIONS;
+const MAX_CONTENT_LENGTH = MAX_BOOK_CONTENT_LENGTH;
 
 const BookUploadSchema = z.object({
   title: z.string().min(1, "Tên sách (title) là bắt buộc"),
