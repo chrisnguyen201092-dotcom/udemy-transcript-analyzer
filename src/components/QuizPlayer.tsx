@@ -6,6 +6,7 @@ import { CheckCircle, XCircle, Eye } from "lucide-react";
 
 interface QuizPlayerProps {
   markdown: string;
+  onComplete?: (score: number) => void;
 }
 
 interface Question {
@@ -23,7 +24,7 @@ interface Answer {
   explanations: { type: "correct" | "incorrect"; option: string; text: string }[];
 }
 
-export function QuizPlayer({ markdown }: QuizPlayerProps) {
+export function QuizPlayer({ markdown, onComplete }: QuizPlayerProps) {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
   const [showAllAnswers, setShowAllAnswers] = useState(false);
   const [score, setScore] = useState<number | null>(null);
@@ -44,9 +45,10 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
           return acc + (newAnswers[q.id] === answer?.correct ? 1 : 0);
         }, 0);
         setScore(correctCount);
+        onComplete?.(correctCount);
       }
     },
-    [selectedAnswers, parsed.questions, parsed.answers]
+    [selectedAnswers, parsed.questions, parsed.answers, onComplete]
   );
 
   if (!parsed.questions.length) {

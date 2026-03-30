@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, FileText, Trash2, Search, GripVertical } from "lucide-react";
+import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -48,6 +48,8 @@ interface LessonListProps {
   onAddLesson: (title: string) => void;
   onDelete?: (lessonId: string) => void;
   onReorder?: (lessonIds: string[]) => void;
+  progressMap?: Record<string, { completed: boolean }>;
+  onToggleComplete?: (lessonId: string, completed: boolean) => void;
 }
 
 function SortableLessonItem({
@@ -55,11 +57,15 @@ function SortableLessonItem({
   isSelected,
   onSelect,
   onDelete,
+  progressMap,
+  onToggleComplete,
 }: {
   lesson: Lesson;
   isSelected: boolean;
   onSelect: (lesson: Lesson) => void;
   onDelete?: (lessonId: string) => void;
+  progressMap?: Record<string, { completed: boolean }>;
+  onToggleComplete?: (lessonId: string, completed: boolean) => void;
 }) {
   const {
     attributes,
@@ -97,6 +103,24 @@ function SortableLessonItem({
       >
         <GripVertical className="w-3 h-3" />
       </button>
+
+      {onToggleComplete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleComplete(lesson.id, !progressMap?.[lesson.id]?.completed);
+          }}
+          className="shrink-0 mt-0.5 cursor-pointer"
+          title={progressMap?.[lesson.id]?.completed ? "Đánh dấu chưa hoàn thành" : "Đánh dấu hoàn thành"}
+        >
+          {progressMap?.[lesson.id]?.completed ? (
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+          ) : (
+            <Circle className="w-4 h-4 text-gray-300 dark:text-gray-600" />
+          )}
+        </button>
+      )}
 
       <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 w-4 shrink-0 font-mono tabular-nums">
         {lesson.order}
@@ -141,7 +165,7 @@ function SortableLessonItem({
   );
 }
 
-export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder }: LessonListProps) {
+export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder, progressMap, onToggleComplete }: LessonListProps) {
   const [newLessonTitle, setNewLessonTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -213,6 +237,8 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
                     isSelected={selectedLessonId === lesson.id}
                     onSelect={onSelect}
                     onDelete={onDelete}
+                    progressMap={progressMap}
+                    onToggleComplete={onToggleComplete}
                   />
                 ))}
               </ul>
@@ -230,6 +256,8 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
                         isSelected={selectedLessonId === lesson.id}
                         onSelect={onSelect}
                         onDelete={onDelete}
+                        progressMap={progressMap}
+                        onToggleComplete={onToggleComplete}
                       />
                     ))}
                   </ul>

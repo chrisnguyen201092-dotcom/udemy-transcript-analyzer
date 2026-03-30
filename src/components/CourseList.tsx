@@ -39,9 +39,10 @@ interface CourseListProps {
   onSelect: (course: Course) => void;
   onDelete: (id: string) => void;
   onRename?: (id: string, newTitle: string) => void;
+  courseProgressMap?: Record<string, number>;
 }
 
-export function CourseList({ courses, loading, selectedCourseId, onSelect, onDelete, onRename }: CourseListProps) {
+export function CourseList({ courses, loading, selectedCourseId, onSelect, onDelete, onRename, courseProgressMap }: CourseListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -137,6 +138,23 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
                           {course.lessons.length} bài học
                         </p>
+                        {(() => {
+                          const progressPct = courseProgressMap?.[course.id];
+                          if (progressPct === undefined || progressPct === null) return null;
+                          return (
+                            <div className="mt-1.5">
+                              <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${progressPct >= 100 ? "bg-green-500" : "bg-[#A435F0]"}`}
+                                  style={{ width: `${Math.min(progressPct, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-gray-400 mt-0.5">
+                                {progressPct.toFixed(0)}% hoàn thành
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="flex items-center gap-0.5 shrink-0 ml-1">
