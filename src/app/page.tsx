@@ -577,6 +577,33 @@ export default function Home() {
             {selectedCourse && (
               <>
                 <div className="h-px bg-gray-100 dark:bg-gray-800" />
+                {courseProgress && courseProgress.currentStreak > 0 && (
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      <span>🔥</span>
+                      <span className="font-medium">{courseProgress.currentStreak} ngày liên tiếp</span>
+                    </div>
+                    {courseProgress.longestStreak > courseProgress.currentStreak && (
+                      <span className="text-[10px] text-gray-400">
+                        Kỷ lục: {courseProgress.longestStreak}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {courseProgress && courseProgress.completionPct > 0 && (
+                  <div className="px-3 pb-1">
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                      <span>Tiến độ</span>
+                      <span>{Math.round(courseProgress.completionPct)}%</span>
+                    </div>
+                    <div className="w-full h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#A435F0] rounded-full transition-all duration-500"
+                        style={{ width: `${courseProgress.completionPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <LessonList
                   lessons={selectedCourse.lessons}
                   selectedLessonId={selectedLesson?.id ?? null}

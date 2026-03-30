@@ -14,6 +14,7 @@ import {
   StickyNote,
   Trash2,
   X,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ import { ExerciseList } from "@/components/ExerciseList";
 import { NotesEditor } from "@/components/NotesEditor";
 import { LearnerProfileModal } from "@/components/LearnerProfileModal";
 import { ExportDropdown } from "@/components/ExportDropdown";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { AnalyticsCourseDetail } from "@/components/AnalyticsCourseDetail";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -67,7 +70,7 @@ interface AIAssistantPanelProps {
   onQuizComplete?: (lessonId: string, score: number) => void;
 }
 
-type TabType = "summary" | "explain" | "chat" | "roadmap" | "notes" | "practice";
+type TabType = "summary" | "explain" | "chat" | "roadmap" | "notes" | "practice" | "analytics";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -81,6 +84,7 @@ const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
   { key: "roadmap", label: "Lộ trình", icon: Map },
   { key: "notes", label: "Ghi chú", icon: StickyNote },
   { key: "practice", label: "Luyện tập", icon: GraduationCap },
+  { key: "analytics", label: "Thống kê", icon: BarChart3 },
 ];
 
 // ── Component ──────────────────────────────────────────────────

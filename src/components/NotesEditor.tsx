@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Check, Loader2, AlertCircle } from "lucide-react";
+import { Check, Loader2, AlertCircle, Search, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NotesEditorProps {
@@ -19,6 +20,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function NotesEditor({
   lessonId,
+  courseId,
   insertText,
   onInsertHandled,
 }: NotesEditorProps) {
@@ -29,6 +31,18 @@ export function NotesEditor({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipAutoSaveRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Cross-lesson notes search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{
+    lessonId: string;
+    lessonTitle: string;
+    lessonOrder: number;
+    snippet: string;
+  }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch notes when lesson changes
   useEffect(() => {
@@ -120,6 +134,34 @@ export function NotesEditor({
     };
   }, [content, saveNotes]);
 
+  // Cross-lesson search with debounce
+  useEffect(() => {
+    if (!courseId || !searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(
+          `/api/courses/${courseId}/notes/search?q=${encodeURIComponent(searchQuery.trim())}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results ?? []);
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchQuery, courseId]);
+
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const charCount = content.length;
 
@@ -166,10 +208,85 @@ export function NotesEditor({
             </span>
           )}
         </div>
-        <div className="text-xs text-gray-400 dark:text-gray-500">
-          {wordCount} từ · {charCount} ký tự
+        <div className="flex items-center gap-2">
+          {courseId && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowSearch(!showSearch);
+                if (showSearch) {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }
+              }}
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                showSearch
+                  ? "text-[#A435F0] bg-purple-50 dark:bg-purple-900/20"
+                  : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              }`}
+              title="Tìm trong ghi chú các bài"
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <div className="text-xs text-gray-400 dark:text-gray-500">
+            {wordCount} từ · {charCount} ký tự
+          </div>
         </div>
       </div>
+
+      {/* Cross-lesson notes search */}
+      {showSearch && (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm trong ghi chú các bài..."
+              className="pl-8 pr-8 text-xs h-8 border-gray-200 dark:border-gray-700"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(""); setSearchResults([]); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {searchLoading && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400 px-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Đang tìm...
+            </div>
+          )}
+          {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
+            <div className="text-xs text-gray-400 px-1">
+              Không tìm thấy ghi chú nào.
+            </div>
+          )}
+          {searchResults.length > 0 && (
+            <div className="max-h-[200px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+              {searchResults.map((r) => (
+                <div
+                  key={r.lessonId}
+                  className="px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  title={`Bài ${r.lessonOrder}: ${r.lessonTitle}`}
+                >
+                  <div className="font-medium text-gray-700 dark:text-gray-300 truncate">
+                    {r.lessonOrder}. {r.lessonTitle}
+                  </div>
+                  <div className="text-gray-400 mt-0.5 line-clamp-2">
+                    {r.snippet}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Editor */}
       <Textarea
