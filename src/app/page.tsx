@@ -225,7 +225,6 @@ export default function Home() {
           <div className="flex flex-col gap-5 p-4 pb-8">
             <AddCoursePanel
               hasUdemyCookie={!!settings.udemyCookie}
-              selectedCourseId={selectedCourse?.id ?? null}
               onAddManual={handleAddManualCourse}
               onOpenImport={() => {
                 setShowImport(true);
@@ -325,9 +324,16 @@ export default function Home() {
         open={showUpload}
         courseId={selectedCourse?.id ?? null}
         onClose={() => setShowUpload(false)}
-        onUploadComplete={() => {
-          fetchCourses();
+        onUploadComplete={async (newCourseId: string) => {
+          await fetchCourses();
           setShowUpload(false);
+          // Auto-select the course that was just uploaded to
+          const res = await fetch(`/api/courses/${newCourseId}`);
+          if (res.ok) {
+            const course = await res.json();
+            setSelectedCourse(course);
+            setSelectedLesson(null);
+          }
         }}
       />
     </div>
