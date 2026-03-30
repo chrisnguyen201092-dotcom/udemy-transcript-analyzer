@@ -1,0 +1,249 @@
+/**
+ * Integration tests for POST/GET/PUT /api/courses/[id]/profile.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+
+const { mockPrisma } = vi.hoisted(() => ({
+  mockPrisma: {
+    course: {
+      findUnique: vi.fn(),
+    },
+    learnerProfile: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      findFirst: vi.fn(),
+    },
+  },
+}));
+
+vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+
+import { POST, GET, PUT } from "@/app/api/courses/[id]/profile/route";
+
+const COURSE_ID = "course-1";
+const PROFILE_ID = "profile-1";
+
+const validBody = {
+  level: "beginner",
+  goal: "career_change",
+  dailyTimeMin: 60,
+  knownTopics: ["HTML Basics", "CSS Intro"],
+  learningStyle: "hands_on",
+};
+
+const mockProfile = {
+  id: PROFILE_ID,
+  courseId: COURSE_ID,
+  level: "beginner",
+  goal: "career_change",
+  dailyTimeMin: 60,
+  knownTopics: '["HTML Basics","CSS Intro"]',
+  learningStyle: "hands_on",
+  createdAt: new Date("2026-03-30T00:00:00.000Z"),
+  updatedAt: new Date("2026-03-30T00:00:00.000Z"),
+};
+
+function makeRequest(courseId: string, method: string, body?: unknown): NextRequest {
+  const options: { method: string; headers: Record<string, string>; body?: string } = {
+    method,
+    headers: { "Content-Type": "application/json" },
+  };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  return new NextRequest(`http://localhost/api/courses/${courseId}/profile`, options);
+}
+
+function makeParams(courseId: string) {
+  return { params: Promise.resolve({ id: courseId }) };
+}
+
+describe("POST /api/courses/[id]/profile", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("creates profile successfully (201)", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.create.mockResolvedValue(mockProfile);
+
+    const req = makeRequest(COURSE_ID, "POST", validBody);
+    const res = await POST(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.id).toBe(PROFILE_ID);
+    expect(json.courseId).toBe(COURSE_ID);
+    expect(json.level).toBe("beginner");
+    expect(json.knownTopics).toEqual(["HTML Basics", "CSS Intro"]);
+  });
+
+  it("returns 404 when course not found", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest("nonexistent", "POST", validBody);
+    const res = await POST(req, makeParams("nonexistent"));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.error).toBe("Course not found");
+  });
+
+  it("returns 409 when profile already exists", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+
+    const req = makeRequest(COURSE_ID, "POST", validBody);
+    const res = await POST(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toBeDefined();
+  });
+
+  it("returns 400 for invalid level value", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "POST", { ...validBody, level: "expert" });
+    const res = await POST(req, makeParams(COURSE_ID));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("handles null knownTopics", async () => {
+    const profileWithNull = { ...mockProfile, knownTopics: null };
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.create.mockResolvedValue(profileWithNull);
+
+    const bodyWithNull = { ...validBody, knownTopics: undefined };
+    const req = makeRequest(COURSE_ID, "POST", bodyWithNull);
+    const res = await POST(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.knownTopics).toEqual([]);
+  });
+
+  it("handles empty knownTopics array", async () => {
+    const profileWithEmpty = { ...mockProfile, knownTopics: "[]" };
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.create.mockResolvedValue(profileWithEmpty);
+
+    const req = makeRequest(COURSE_ID, "POST", { ...validBody, knownTopics: [] });
+    const res = await POST(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.knownTopics).toEqual([]);
+  });
+});
+
+describe("GET /api/courses/[id]/profile", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("returns profile successfully (200)", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+
+    const req = makeRequest(COURSE_ID, "GET");
+    const res = await GET(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.id).toBe(PROFILE_ID);
+    expect(json.level).toBe("beginner");
+  });
+
+  it("returns 404 when course not found", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest("nonexistent", "GET");
+    const res = await GET(req, makeParams("nonexistent"));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.error).toBe("Course not found");
+  });
+
+  it("returns 404 when profile not found", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "GET");
+    const res = await GET(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.error).toBe("Profile not found");
+  });
+
+  it("parses knownTopics from JSON string to array", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+
+    const req = makeRequest(COURSE_ID, "GET");
+    const res = await GET(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(json.knownTopics).toEqual(["HTML Basics", "CSS Intro"]);
+    expect(Array.isArray(json.knownTopics)).toBe(true);
+  });
+});
+
+describe("PUT /api/courses/[id]/profile", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("updates profile successfully (200)", async () => {
+    const updatedProfile = { ...mockProfile, level: "advanced", knownTopics: '["React"]' };
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.learnerProfile.update.mockResolvedValue(updatedProfile);
+
+    const updateBody = { ...validBody, level: "advanced", knownTopics: ["React"] };
+    const req = makeRequest(COURSE_ID, "PUT", updateBody);
+    const res = await PUT(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.level).toBe("advanced");
+    expect(json.knownTopics).toEqual(["React"]);
+  });
+
+  it("returns 404 when course not found", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest("nonexistent", "PUT", validBody);
+    const res = await PUT(req, makeParams("nonexistent"));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.error).toBe("Course not found");
+  });
+
+  it("returns 404 when profile not found", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "PUT", validBody);
+    const res = await PUT(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json.error).toBe("Profile not found");
+  });
+
+  it("validates body with Zod (400 on invalid)", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+
+    const invalidBody = { ...validBody, dailyTimeMin: 45 };
+    const req = makeRequest(COURSE_ID, "PUT", invalidBody);
+    const res = await PUT(req, makeParams(COURSE_ID));
+
+    expect(res.status).toBe(400);
+  });
+});

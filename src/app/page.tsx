@@ -83,6 +83,7 @@ export default function Home() {
   const [udemyError, setUdemyError] = useState("");
   const [importingId, setImportingId] = useState<number | null>(null);
   const [importProgress, setImportProgress] = useState("");
+  const [explainSelectedText, setExplainSelectedText] = useState<string | null>(null);
 
   useEffect(() => {
     const s = loadStore();
@@ -455,6 +456,7 @@ export default function Home() {
                 lesson={selectedLesson}
                 onSaveTranscript={handleSaveTranscript}
                 onDirtyChange={setTranscriptDirty}
+                onExplainSelection={(text) => setExplainSelectedText(text)}
               />
               <AIAssistantPanel
                 lesson={selectedLesson}
@@ -463,6 +465,8 @@ export default function Home() {
                 isConfigured={isConfigured}
                 onOpenSettings={() => setShowSettings(true)}
                 onChatCountChange={setChatMessageCount}
+                externalExplainText={explainSelectedText}
+                onExternalExplainHandled={() => setExplainSelectedText(null)}
               />
             </div>
           ) : (

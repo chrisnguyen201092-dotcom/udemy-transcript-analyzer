@@ -19,8 +19,15 @@ export async function GET(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
+    const [profile, courseProgress] = await Promise.all([
+      prisma.learnerProfile.findUnique({ where: { courseId: id } }),
+      prisma.courseProgress.findUnique({ where: { courseId: id } }),
+    ]);
+
     return NextResponse.json({
       roadmap: course.roadmap ?? null,
+      hasProfile: profile !== null,
+      progressPercent: courseProgress?.completionPct ?? 0,
     });
   } catch (error) {
     console.error("[course-ai]", error);

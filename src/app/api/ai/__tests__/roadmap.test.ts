@@ -15,6 +15,8 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(), update: vi.fn(), create: vi.fn(),
       findFirst: vi.fn(), count: vi.fn(), deleteMany: vi.fn(),
     },
+    learnerProfile: { findUnique: vi.fn() },
+    lessonProgress: { findMany: vi.fn() },
   },
 }));
 
@@ -44,7 +46,12 @@ function makeRequest(body: unknown): NextRequest {
 }
 
 describe("POST /api/ai/roadmap", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default mocks for profile/progress (added with profile integration)
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
+  });
 
   it("returns 404 when course does not exist", async () => {
     mockPrisma.course.findUnique.mockResolvedValue(null);

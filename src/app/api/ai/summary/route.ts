@@ -10,13 +10,14 @@ const SummarySchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
   force: z.boolean().optional(),
+  mode: z.enum(["quick", "detailed"]).optional().default("detailed"),
   lessonIndex: z.number().int().min(0).optional(),
   totalLessons: z.number().int().min(1).optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const { lessonId, apiKey, baseUrl, model, force, lessonIndex, totalLessons } = SummarySchema.parse(await req.json());
+    const { lessonId, apiKey, baseUrl, model, force, mode, lessonIndex, totalLessons } = SummarySchema.parse(await req.json());
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: getSystemPrompt("summary"),
+          content: getSystemPrompt(mode === "quick" ? "summary-quick" : "summary"),
         },
         {
           role: "user",

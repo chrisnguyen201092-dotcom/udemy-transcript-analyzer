@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getSystemPrompt } from "@/lib/ai/prompts";
+import { getSystemPrompt, SOCRATIC_INSTRUCTION } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 
 const MessageSchema = z.object({
@@ -17,6 +17,7 @@ const ChatSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
   model: z.string().min(1),
+  socraticMode: z.boolean().optional().default(false),
 }).refine(
   (d) => d.message || (d.messages && d.messages.length > 0),
   { message: "Either 'message' or 'messages' must be provided" }
@@ -41,11 +42,17 @@ export async function POST(req: NextRequest) {
 
     const client = createAIClient(apiKey, baseUrl);
 
+    // Build system prompt — optionally inject Socratic instruction
+    let systemPromptContent = getSystemPrompt("chat");
+    if (parsed.socraticMode) {
+      systemPromptContent += "\n\n" + SOCRATIC_INSTRUCTION;
+    }
+
     const transcriptContext = `Dựa trên bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung: ${lesson.transcript}`;
 
     // Build messages: system + transcript context + conversation history
     const chatMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-      { role: "system", content: getSystemPrompt("chat") },
+      { role: "system", content: systemPromptContent },
       { role: "user", content: transcriptContext },
       { role: "assistant", content: "Đã nhận nội dung bài học. Bạn muốn hỏi gì về bài này?" },
     ];
@@ -66,11 +73,26 @@ export async function POST(req: NextRequest) {
       stream: true,
     });
 
+    // Determine the user message content for DB persistence
+    let userContent = "";
+    if (parsed.messages && parsed.messages.length > 0) {
+      // Find last user message from the messages array
+      for (let idx = parsed.messages.length - 1; idx >= 0; idx--) {
+        if (parsed.messages[idx].role === "user") {
+          userContent = parsed.messages[idx].content;
+          break;
+        }
+      }
+    } else if (parsed.message) {
+      userContent = parsed.message;
+    }
+
     const encoder = new TextEncoder();
     const streamData = new ReadableStream({
       async start(controller) {
         let inThink = false;
         let buffer = "";
+        let fullAssistantResponse = "";
         // Length of the longest opening tag we need to guard against splitting
         const OPEN_TAG = "<think>";
         const CLOSE_TAG = "</think>";
@@ -122,16 +144,32 @@ export async function POST(req: NextRequest) {
           }
 
           if (output) {
+            fullAssistantResponse += output;
             controller.enqueue(encoder.encode(output));
           }
         }
 
         // Flush any remaining non-think buffer content
         if (buffer && !inThink) {
+          fullAssistantResponse += buffer;
           controller.enqueue(encoder.encode(buffer));
         }
 
         controller.close();
+
+        // Best-effort DB persistence — don't crash if it fails
+        if (userContent && fullAssistantResponse) {
+          try {
+            await prisma.chatMessage.createMany({
+              data: [
+                { lessonId, role: "user", content: userContent },
+                { lessonId, role: "assistant", content: fullAssistantResponse },
+              ],
+            });
+          } catch (dbError) {
+            console.error("[chat] DB persistence failed:", dbError);
+          }
+        }
       },
     });
 

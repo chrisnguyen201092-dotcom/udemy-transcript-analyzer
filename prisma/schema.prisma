@@ -8,27 +8,105 @@ datasource db {
 }
 
 model Course {
-  id        String   @id @default(cuid())
-  url       String?  @unique
-  title     String
-  roadmap   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lessons   Lesson[]
+  id             String           @id @default(cuid())
+  url            String?          @unique
+  title          String
+  roadmap        String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  lessons        Lesson[]
+  progress       CourseProgress?
+  learnerProfile LearnerProfile?
 }
 
 model Lesson {
-  id           String   @id @default(cuid())
-  courseId     String
-  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title        String
-  order        Int
-  transcript   String?
-  summary      String?
-  explanation  String?
-  quiz         String?
-  flashcards   String?
-  exercises    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String             @id @default(cuid())
+  courseId          String
+  course           Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title            String
+  order            Int
+  transcript       String?
+  summary          String?
+  explanation      String?
+  quiz             String?
+  flashcards       String?
+  exercises        String?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  progress         LessonProgress?
+  flashcardReviews FlashcardReview[]
+  chatMessages     ChatMessage[]
+}
+
+model LessonProgress {
+  id                 String    @id @default(cuid())
+  lessonId           String
+  lesson             Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed          Boolean   @default(false)
+  completedAt        DateTime?
+  timeSpentMs        Int       @default(0)
+  quizScore          Float?
+  flashcardsMastered Int       @default(0)
+  flashcardsTotal    Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([lessonId])
+}
+
+model CourseProgress {
+  id               String    @id @default(cuid())
+  courseId          String
+  course           Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completionPct    Float     @default(0)
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastStudiedAt    DateTime?
+  totalTimeSpentMs Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([courseId])
+}
+
+model FlashcardReview {
+  id             String   @id @default(cuid())
+  lessonId       String
+  lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  cardIndex      Int
+  easinessFactor Float    @default(2.5)
+  interval       Int      @default(0)
+  repetitions    Int      @default(0)
+  nextReviewAt   DateTime @default(now())
+  lastQuality    Int      @default(0)
+  totalReviews   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([lessonId, cardIndex])
+}
+
+model LearnerProfile {
+  id            String   @id @default(cuid())
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  level          String
+  goal           String
+  dailyTimeMin   Int
+  knownTopics    String?
+  learningStyle  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([courseId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime @default(now())
 }

@@ -76,6 +76,9 @@ QUAN TRỌNG: Trả lời trực tiếp nội dung, KHÔNG bao giờ xuất th�
 
 ## ĐỊNH DẠNG BẮT BUỘC
 
+### 🔑 Key Takeaways
+Bắt đầu bằng 3 điểm quan trọng nhất (Key Takeaways) dưới dạng danh sách đánh số, mỗi điểm tối đa 2 câu, trước khi vào nội dung chính.
+
 ### 🎯 Ý chính trong 1 câu
 [Tóm gọn toàn bộ bài học trong MỘT câu duy nhất — đây là "câu neo" giúp người học gắn kết mọi chi tiết]
 
@@ -768,15 +771,166 @@ ${EXERCISE_ASR}
 
 ${EXERCISE_LANG}`;
 
+export const SUMMARY_QUICK_SYSTEM_PROMPT = `Bạn là một chuyên gia thiết kế học liệu (Instructional Designer) chuyên biến nội dung bài giảng thành tài liệu tóm tắt ngắn gọn, dễ đọc nhanh.
+
+QUAN TRỌNG: Trả lời trực tiếp nội dung, KHÔNG bao giờ xuất thẻ <think> hoặc bất kỳ thẻ XML nào.
+
+## NGUYÊN TẮC CỐT LÕI
+- Tóm tắt ngắn gọn, tập trung vào facts và concepts cốt lõi
+- Luôn trả lời bằng tiếng Việt, dùng thuật ngữ chuyên ngành kèm giải thích khi cần
+- Bám sát transcript cho thông tin factual. KHÔNG đưa ra thông tin factual mới ngoài transcript
+- KHÔNG cần cấu trúc Bloom's Taxonomy phức tạp
+- KHÔNG cần phân tích sâu hay ứng dụng thực tế
+
+## QUY TẮC ĐỘ DÀI (BẮT BUỘC)
+- Output 300-500 từ tổng cộng, KHÔNG viết dài hơn
+- Ngắn gọn, xúc tích — mỗi bullet point tối đa 1-2 câu
+
+## ĐỊNH DẠNG BẮT BUỘC
+
+### 🔑 Key Takeaways
+Bắt đầu bằng 3 điểm quan trọng nhất (Key Takeaways) dưới dạng danh sách đánh số, mỗi điểm tối đa 2 câu, trước khi vào nội dung chính.
+
+### 📋 Các điểm chính
+- Trình bày bằng bullet points ngắn gọn
+- Mỗi bullet point là một ý chính từ bài học
+- Giữ nguyên thuật ngữ kỹ thuật tiếng Anh trong ngoặc
+
+## QUY TẮC XỬ LÝ TRANSCRIPT
+- Transcript có thể lộn xộn, lặp lại, có tiếng ồn — hãy trích xuất ý nghĩa, KHÔNG sao chép nguyên văn
+- Nếu transcript chứa code/công thức: nêu tên khái niệm, không cần code block chi tiết
+- Nếu nội dung quá ngắn hoặc không rõ ràng, ghi chú: "⚠️ Transcript ngắn/không rõ, tóm tắt dựa trên nội dung hiện có"
+
+${SUMMARY_ASR}
+
+${SUMMARY_LANG}`;
+
+// ============================================================
+// EXPLAIN DEPTH PROMPT BUILDER
+// ============================================================
+
+export type ExplainDepth = "simple" | "standard" | "deep";
+export type CodeRatio = "code-heavy" | "theory-heavy" | "hybrid";
+
+const DEPTH_INSTRUCTIONS: Record<ExplainDepth, string> = {
+  simple: `## MỨC ĐỘ: ĐƠN GIẢN (ELI5)
+- Viết như giải thích cho người chưa biết gì về lĩnh vực này
+- Dùng analogy từ cuộc sống thường ngày
+- Tránh thuật ngữ kỹ thuật; nếu bắt buộc phải dùng thì giải thích ngay tại chỗ
+- Ưu tiên câu ngắn, ví dụ cụ thể, không liệt kê dài
+- Độ dài mục tiêu: 500-800 từ`,
+
+  standard: `## MỨC ĐỘ: CHUẨN (Feynman Technique)
+- Áp dụng đầy đủ Feynman Technique: giải thích, xác định chỗ chưa rõ, đơn giản hóa, dùng analogy
+- Cân bằng lý thuyết và ví dụ thực tế
+- Độ dài mục tiêu: 800-3500 từ`,
+
+  deep: `## MỨC ĐỘ: CHUYÊN SÂU
+- Bao gồm tất cả của mức chuẩn (Feynman Technique)
+- Thêm: edge cases, performance implications, cơ chế nội tại (how it works under the hood)
+- Thêm: so sánh các hướng tiếp cận thay thế với trade-offs
+- Phù hợp cho người đã có nền tảng, muốn hiểu sâu để áp dụng và mở rộng
+- Độ dài mục tiêu: 1500-5000 từ`,
+};
+
+const FORMAT_INSTRUCTIONS: Record<CodeRatio, string> = {
+  "code-heavy": `## FORMAT: CODE WALKTHROUGH (code-heavy)
+- Walkthrough code step-by-step, nhiều code example minh họa
+- Giải thích từng dòng quan trọng: TẠI SAO viết như vậy, không chỉ nó làm gì
+- Nhóm các bước thành phases nếu > 10 bước`,
+
+  "theory-heavy": `## FORMAT: GIẢI THÍCH KHÁI NIỆM (theory-heavy)
+- Dùng analogy, mental model, real-world example
+- Xây dựng kiến thức TỪNG LỚP: nền tảng → khái niệm → ứng dụng
+- Mỗi khái niệm trừu tượng PHẢI đi kèm ít nhất 1 ví dụ cụ thể VÀ 1 phép so sánh đời thường`,
+
+  hybrid: `## FORMAT: HYBRID (lý thuyết + code)
+- Kết hợp cả hai: giải thích lý thuyết trước, rồi walkthrough code sau
+- LUÔN theo thứ tự: lý thuyết → code
+- Mỗi khái niệm có ví dụ + code minh họa`,
+};
+
+/**
+ * Builds the system prompt for the Explain feature based on depth, code-ratio,
+ * optional learner level, and optional selectedText focus.
+ */
+export function getExplainPrompt(
+  depth: ExplainDepth,
+  codeRatio: CodeRatio,
+  learnerLevel?: string,
+  selectedText?: string,
+): string {
+  const parts: string[] = [];
+
+  // Base role
+  parts.push(
+    `Bạn là một giảng viên đại học xuất sắc, nổi tiếng vì khả năng giải thích mọi khái niệm phức tạp một cách dễ hiểu.
+
+QUAN TRỌNG: Trả lời trực tiếp nội dung, KHÔNG bao giờ xuất thẻ <think> hoặc bất kỳ thẻ XML nào.`
+  );
+
+  // Depth
+  parts.push(DEPTH_INSTRUCTIONS[depth]);
+
+  // Format by code-ratio
+  parts.push(FORMAT_INSTRUCTIONS[codeRatio]);
+
+  // LearnerProfile injection
+  if (learnerLevel) {
+    parts.push(
+      `## TRÌNH ĐỘ NGƯỜI HỌC\nNgười học có trình độ: ${learnerLevel}. Điều chỉnh ngôn ngữ và độ sâu phù hợp với trình độ đó.`
+    );
+  }
+
+  // selectedText focus
+  if (selectedText) {
+    parts.push(
+      `## CHẾ ĐỘ GIẢI THÍCH ĐOẠN ĐƯỢC CHỌN\nTập trung giải thích đoạn sau: "${selectedText}".\nDùng toàn bộ transcript làm context nền nhưng KHÔNG giải thích lại toàn bộ transcript.`
+    );
+  }
+
+  // Shared rules
+  parts.push(EXPLAIN_ASR);
+  parts.push(EXPLAIN_LANG);
+
+  return parts.join("\n\n");
+}
+
+// ============================================================
+// SOCRATIC MODE INSTRUCTION
+// ============================================================
+
+export const SOCRATIC_INSTRUCTION = `
+## Chế độ Dẫn dắt Tư duy (Socratic Mode)
+
+Thay vì trả lời thẳng, hãy dẫn dắt người học tự tìm ra câu trả lời theo quy trình:
+
+1. **Phân tích lỗ hổng:** Xác định người học đang thiếu hiểu biết ở điểm nào dựa trên câu hỏi của họ.
+2. **Đặt câu hỏi dẫn dắt:** Hỏi 1 câu hỏi ngắn, cụ thể để kích thích suy nghĩ. KHÔNG cho đáp án.
+3. **Dựa trên phản hồi:** Nếu người học trả lời đúng hướng → khen ngắn + hỏi câu tiếp theo. Nếu lạc hướng → gợi ý thêm mà không lộ đáp án.
+4. **Sau 3 vòng hỏi-đáp mà người học vẫn chưa hiểu:** Chuyển sang giải thích trực tiếp, đầy đủ.
+
+Ví dụ:
+- Người học hỏi: "Promise là gì?"
+- AI KHÔNG trả lời: "Promise là đối tượng đại diện cho kết quả của một tác vụ bất đồng bộ..."
+- AI NÊN hỏi: "Bạn đã gặp tình huống nào trong JavaScript mà code chạy xong trước khi kết quả trả về chưa?"
+`.trim();
+
+// ============================================================
+// GENERIC PROMPT GETTER (backward-compatible)
+// ============================================================
+
 /**
  * Helper to get the appropriate system prompt by type
  */
-export type PromptType = "summary" | "explain" | "chat" | "roadmap" | "quiz" | "flashcards" | "exercises";
+export type PromptType = "summary" | "summary-quick" | "explain" | "chat" | "roadmap" | "quiz" | "flashcards" | "exercises";
 
 export function getSystemPrompt(type: PromptType): string {
   switch (type) {
     case "summary":
       return SUMMARY_SYSTEM_PROMPT;
+    case "summary-quick":
+      return SUMMARY_QUICK_SYSTEM_PROMPT;
     case "explain":
       return EXPLAIN_SYSTEM_PROMPT;
     case "chat":

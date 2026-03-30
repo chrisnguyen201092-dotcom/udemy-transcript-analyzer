@@ -57,6 +57,8 @@ interface AIAssistantPanelProps {
   isConfigured: boolean;
   onOpenSettings: () => void;
   onChatCountChange?: (count: number) => void;
+  externalExplainText?: string | null;
+  onExternalExplainHandled?: () => void;
 }
 
 type TabType = "summary" | "explain" | "chat" | "roadmap" | "practice";
@@ -83,6 +85,8 @@ export function AIAssistantPanel({
   isConfigured,
   onOpenSettings,
   onChatCountChange,
+  externalExplainText,
+  onExternalExplainHandled,
 }: AIAssistantPanelProps) {
   // Tab
   const [activeTab, setActiveTab] = useState<TabType>("summary");
@@ -222,6 +226,34 @@ export function AIAssistantPanel({
   useEffect(() => {
     onChatCountChange?.(chatMessages.length);
   }, [chatMessages.length, onChatCountChange]);
+
+  // ── Handle external explain request (from TranscriptPanel highlight-to-explain) ──
+  useEffect(() => {
+    if (!externalExplainText || !isConfigured || explainLoading) return;
+    setActiveTab("explain");
+    setExplainLoading(true);
+    setExplainResult("Đang giải thích đoạn đã chọn...");
+    const doExplain = async () => {
+      try {
+        const res = await fetch("/api/ai/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...apiBody(),
+            selectedText: externalExplainText,
+            force: true,
+          }),
+        });
+        const data = await res.json();
+        setExplainResult(data.explanation || data.error || "Không có kết quả.");
+      } catch {
+        setExplainResult("Lỗi khi giải thích.");
+      }
+      setExplainLoading(false);
+      onExternalExplainHandled?.();
+    };
+    doExplain();
+  }, [externalExplainText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── API helpers ──
 

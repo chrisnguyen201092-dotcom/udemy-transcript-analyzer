@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+interface FlashcardData {
+  front: string;
+  back: string;
+  type: string;
+  mnemonic: string | null;
+}
+
+interface FlashcardsJSON {
+  cards: FlashcardData[];
+}
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const lesson = await prisma.lesson.findUnique({
+      where: { id },
+      select: { id: true, flashcards: true },
+    });
+
+    if (!lesson) {
+      return NextResponse.json(
+        { error: "Bài học không tồn tại" },
+        { status: 404 }
+      );
+    }
+
+    if (!lesson.flashcards) {
+      return NextResponse.json(
+        { error: "Bài học này chưa có flashcard. Hãy tạo flashcard trước." },
+        { status: 422 }
+      );
+    }
+
+    const parsed: FlashcardsJSON = JSON.parse(lesson.flashcards);
+
+    if (!parsed.cards || parsed.cards.length === 0) {
+      return NextResponse.json(
+        { error: "Bài học này chưa có flashcard. Hãy tạo flashcard trước." },
+        { status: 422 }
+      );
+    }
+
+    // Find existing card indices to skip (idempotent)
+    const existing = await prisma.flashcardReview.findMany({
+      where: { lessonId: id },
+      select: { cardIndex: true },
+    });
+
+    const existingIndices = new Set(existing.map((r) => r.cardIndex));
+    const newCards = parsed.cards
+      .map((_card, index) => index)
+      .filter((index) => !existingIndices.has(index));
+
+    const skipped = existingIndices.size;
+
+    if (newCards.length > 0) {
+      await prisma.flashcardReview.createMany({
+        data: newCards.map((cardIndex) => ({
+          lessonId: id,
+          cardIndex,
+          easinessFactor: 2.5,
+          interval: 0,
+          repetitions: 0,
+          nextReviewAt: new Date(),
+          lastQuality: 0,
+          totalReviews: 0,
+        })),
+      });
+    }
+
+    const created = newCards.length;
+
+    return NextResponse.json({
+      created,
+      skipped,
+      message: `Khởi tạo SRS thành công cho ${created} thẻ`,
+    });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Failed to initialize SRS" },
+      { status: 500 }
+    );
+  }
+}

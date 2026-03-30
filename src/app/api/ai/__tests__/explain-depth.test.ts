@@ -1,0 +1,277 @@
+/**
+ * Tests for depth selector, selectedText mode, and LearnerProfile integration
+ * in POST /api/ai/explain.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+
+const mockCreate = vi.fn();
+const { mockPrisma } = vi.hoisted(() => ({
+  mockPrisma: {
+    lesson: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    learnerProfile: { findUnique: vi.fn() },
+    course: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      delete: vi.fn(),
+      update: vi.fn(),
+    },
+  },
+}));
+
+vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+vi.mock("@/lib/ai/client", () => ({
+  createAIClient: vi.fn(() => ({
+    chat: { completions: { create: mockCreate } },
+  })),
+  getCleanHeaders: vi.fn(() => ({
+    Authorization: "Bearer test",
+    "Content-Type": "application/json",
+    "User-Agent": "udemy-learner/1.0",
+  })),
+}));
+
+import { POST as explainPost } from "@/app/api/ai/explain/route";
+
+const VALID_BODY = {
+  lessonId: "l1",
+  apiKey: "sk-test",
+  baseUrl: "https://api.openai.com/v1",
+  model: "gpt-4o",
+};
+
+// Helper: generate a transcript with N words
+function generateTranscript(wordCount: number): string {
+  return Array.from({ length: wordCount }, (_, i) => `word${i}`).join(" ");
+}
+
+function makeRequest(body: unknown): NextRequest {
+  return new NextRequest("http://localhost/api/ai/explain", {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function setupLessonMock(overrides: Record<string, unknown> = {}) {
+  const lesson = {
+    id: "l1",
+    title: "Lesson Title",
+    transcript: generateTranscript(300),
+    explanation: null,
+    courseId: "c1",
+    course: { id: "c1", title: "Course Title" },
+    ...overrides,
+  };
+  mockPrisma.lesson.findUnique.mockResolvedValue(lesson);
+  return lesson;
+}
+
+function setupAIMock(content: string = "AI explanation content") {
+  mockCreate.mockResolvedValue({
+    choices: [{ message: { content } }],
+  });
+  mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+}
+
+describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+  });
+
+  // ─── Depth selector ───────────────────────────────────────────
+
+  describe("depth selector", () => {
+    it("default depth (standard) returns 200 with depthActual=standard", async () => {
+      setupLessonMock();
+      setupAIMock();
+
+      const res = await explainPost(makeRequest(VALID_BODY));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.depthActual).toBe("standard");
+      expect(json.explanation).toBeDefined();
+    });
+
+    it('depth="simple" uses simple prompt and returns depthActual=simple', async () => {
+      setupLessonMock();
+      setupAIMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, depth: "simple" })
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.depthActual).toBe("simple");
+      // Verify the system prompt passed to AI contains simple-specific text
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).toContain("ELI5");
+    });
+
+    it('depth="deep" uses deep prompt and returns depthActual=deep', async () => {
+      setupLessonMock();
+      setupAIMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, depth: "deep" })
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.depthActual).toBe("deep");
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).toContain("edge cases");
+    });
+
+    it('depth="deep" with short transcript (<200 words) auto-downgrades to standard', async () => {
+      setupLessonMock({ transcript: generateTranscript(100) });
+      setupAIMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, depth: "deep" })
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.depthActual).toBe("standard");
+      // System prompt should NOT contain deep-specific markers
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).not.toContain("edge cases");
+    });
+  });
+
+  // ─── selectedText mode ────────────────────────────────────────
+
+  describe("selectedText mode", () => {
+    it("returns explanation without persisting to DB when selectedText provided", async () => {
+      setupLessonMock();
+      setupAIMock("Focused explanation");
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, selectedText: "some selected text" })
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.explanation).toBe("Focused explanation");
+      expect(json.depthActual).toBe("standard");
+      // Should NOT persist to DB
+      expect(mockPrisma.lesson.update).not.toHaveBeenCalled();
+    });
+
+    it("selectedText empty string returns 400", async () => {
+      setupLessonMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, selectedText: "" })
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("selectedText injects focus instruction into prompt", async () => {
+      setupLessonMock();
+      setupAIMock();
+
+      await explainPost(
+        makeRequest({ ...VALID_BODY, selectedText: "specific concept" })
+      );
+
+      const userMsg = mockCreate.mock.calls[0][0].messages[1].content;
+      expect(userMsg).toContain("specific concept");
+    });
+  });
+
+  // ─── LearnerProfile integration ──────────────────────────────
+
+  describe("LearnerProfile integration", () => {
+    it("LearnerProfile found → injected into system prompt", async () => {
+      setupLessonMock();
+      setupAIMock();
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+        id: "lp1",
+        courseId: "c1",
+        level: "beginner",
+        goal: "learn basics",
+        dailyTimeMin: 30,
+        learningStyle: "visual",
+      });
+
+      const res = await explainPost(makeRequest(VALID_BODY));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).toContain("beginner");
+      expect(systemMsg).toContain("Người học có trình độ");
+    });
+
+    it("LearnerProfile not found → no error, proceeds normally", async () => {
+      setupLessonMock();
+      setupAIMock();
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+      const res = await explainPost(makeRequest(VALID_BODY));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.explanation).toBeDefined();
+      // System prompt should NOT contain learner level line
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).not.toContain("Người học có trình độ");
+    });
+  });
+
+  // ─── Cache guard ──────────────────────────────────────────────
+
+  describe("cache guard", () => {
+    it("returns cached explanation when not force (with depthActual)", async () => {
+      setupLessonMock({ explanation: "cached result" });
+
+      const res = await explainPost(makeRequest(VALID_BODY));
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.explanation).toBe("cached result");
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("force=true regenerates even when cached", async () => {
+      setupLessonMock({ explanation: "cached result" });
+      setupAIMock("fresh result");
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, force: true })
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.explanation).toBe("fresh result");
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  // ─── Think tag stripping still works ──────────────────────────
+
+  it("strips <think> tags from AI response", async () => {
+    setupLessonMock();
+    setupAIMock("<think>reasoning</think>Clean output");
+
+    const res = await explainPost(makeRequest(VALID_BODY));
+    const json = await res.json();
+
+    expect(json.explanation).toBe("Clean output");
+  });
+});

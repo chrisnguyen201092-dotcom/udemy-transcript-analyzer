@@ -24,6 +24,12 @@ const { mockPrisma } = vi.hoisted(() => ({
       delete: vi.fn(),
       update: vi.fn(),
     },
+    learnerProfile: {
+      findUnique: vi.fn(),
+    },
+    courseProgress: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -132,6 +138,8 @@ describe("GET /api/courses/[id]/ai", () => {
 
   it("returns roadmap as null when course has no roadmap", async () => {
     mockPrisma.course.findUnique.mockResolvedValue({ roadmap: null });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.courseProgress.findUnique.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     const res = await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
@@ -139,10 +147,14 @@ describe("GET /api/courses/[id]/ai", () => {
 
     expect(res.status).toBe(200);
     expect(json.roadmap).toBeNull();
+    expect(json.hasProfile).toBe(false);
+    expect(json.progressPercent).toBe(0);
   });
 
   it("returns saved roadmap when it exists", async () => {
     mockPrisma.course.findUnique.mockResolvedValue({ roadmap: "## Learning Roadmap\n..." });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue({ id: "lp1", courseId: "c1" });
+    mockPrisma.courseProgress.findUnique.mockResolvedValue({ completionPct: 42 });
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     const res = await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
@@ -150,6 +162,8 @@ describe("GET /api/courses/[id]/ai", () => {
 
     expect(res.status).toBe(200);
     expect(json.roadmap).toBe("## Learning Roadmap\n...");
+    expect(json.hasProfile).toBe(true);
+    expect(json.progressPercent).toBe(42);
   });
 
   it("returns 404 when course does not exist", async () => {
@@ -163,6 +177,8 @@ describe("GET /api/courses/[id]/ai", () => {
 
   it("queries only the roadmap field", async () => {
     mockPrisma.course.findUnique.mockResolvedValue({ roadmap: null });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.courseProgress.findUnique.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
