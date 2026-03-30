@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { parseVtt, parseSrt, parseTxt, removeExtension } from "@/lib/parse-transcript";
 import { z } from "zod";
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     } else {
       // courseTitle is guaranteed by the refine above
       const newCourse = await prisma.course.create({
-        data: { title: parsed.courseTitle!, url: "" },
+        data: { title: parsed.courseTitle!, url: `manual:${randomUUID()}` },
       });
       resolvedCourseId = newCourse.id;
     }

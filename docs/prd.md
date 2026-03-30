@@ -1,21 +1,25 @@
 # PRD: Udemy Learner
 
 > **Loại tài liệu:** Product Requirements Document  
-> **Phiên bản:** 1.1  
+> **Phiên bản:** 2.0  
 > **Ngày:** 2026-03-30  
-> **Trạng thái:** Đã triển khai (documenting what exists)
+> **Trạng thái:** v1.1 đã triển khai · v2.0 đang thiết kế (Book/Textbook support)
 
 ---
 
 ## 1. Tổng quan sản phẩm
 
-**Udemy Learner** là một ứng dụng web hỗ trợ học viên Udemy học hiệu quả hơn nhờ AI. Ứng dụng cho phép import khóa học từ tài khoản Udemy hoặc tạo khóa học mới từ file transcript cục bộ, xem và chỉnh sửa transcript của từng bài học, rồi dùng AI để tóm tắt, giải thích sâu, chat trực tiếp, luyện tập tương tác (quiz/flashcard/bài tập), và tạo lộ trình học tập cá nhân hóa cho toàn khóa.
+**Udemy Learner** là một ứng dụng web hỗ trợ học tập hiệu quả hơn nhờ AI. Ứng dụng cho phép import khóa học từ tài khoản Udemy, tạo khóa học từ file transcript cục bộ, hoặc **upload sách/giáo trình (PDF, EPUB, DOCX)** — sau đó dùng AI để tóm tắt, giải thích sâu, chat trực tiếp, luyện tập tương tác (quiz/flashcard/bài tập), và tạo lộ trình học tập cá nhân hóa.
 
-Mục tiêu cốt lõi: **biến transcript thô thành kiến thức có cấu trúc**, giúp học viên nắm bài nhanh hơn và sâu hơn.
+Mục tiêu cốt lõi: **biến nội dung học tập thô (transcript, sách, tài liệu) thành kiến thức có cấu trúc**, giúp người học nắm bài nhanh hơn và sâu hơn.
+
+> **v2.0 Note:** Từ phiên bản 2.0, app mở rộng từ "Udemy transcript analyzer" thành **"AI Learning Assistant đa nguồn"** — hỗ trợ cả sách, giáo trình, tài liệu bên cạnh video courses.
 
 ---
 
 ## 2. Vấn đề cần giải quyết
+
+### 2.1 Vấn đề với khóa học video (v1.x)
 
 Học viên Udemy gặp một số rào cản phổ biến:
 
@@ -26,7 +30,18 @@ Học viên Udemy gặp một số rào cản phổ biến:
 - Không có cách luyện tập kiến thức vừa học một cách có hệ thống
 - Khó định hướng học toàn khóa khi chưa biết tầm quan trọng của từng bài
 
-**Udemy Learner** giải quyết tất cả vấn đề này trong một giao diện duy nhất.
+### 2.2 Vấn đề với sách/giáo trình (v2.0)
+
+Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản riêng:
+
+- Sách dày hàng trăm trang, khó nắm được cấu trúc tổng thể và trọng tâm từng chương
+- Không có công cụ AI tóm tắt hay giải thích từng chương sách một cách tương tác
+- Không thể tự kiểm tra kiến thức đã đọc bằng quiz/flashcard tự động
+- Thiếu lộ trình đọc: không biết nên đọc chương nào trước, chương nào có thể bỏ qua
+- File sách (PDF, EPUB, DOCX) cần được parse và chia chương tự động — thao tác thủ công mất thời gian
+- Thuật ngữ chuyên ngành rải rác khắp sách, khó tổng hợp thành glossary
+
+**Udemy Learner** giải quyết tất cả vấn đề này trong một giao diện duy nhất — cho cả video courses lẫn sách/giáo trình.
 
 ---
 
@@ -37,6 +52,7 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | **Học viên kỹ thuật** | Lập trình viên, data scientist học khóa Udemy để nâng kỹ năng |
 | **Self-learner** | Người tự học có tài khoản Udemy, muốn học có hệ thống hơn |
 | **Người học từ file cục bộ** | Không cần Udemy — upload transcript từ máy tính để học với AI |
+| **Người đọc sách/giáo trình** | Upload PDF/EPUB/DOCX sách → AI tóm tắt, giải thích, quiz theo chương **(v2.0)** |
 | **Developer tự dùng** | Người cài ứng dụng local để dùng riêng với API key của mình |
 
 **Điều kiện tiên quyết:** Người dùng phải có API key từ một nhà cung cấp tương thích OpenAI. Tài khoản Udemy chỉ cần thiết khi dùng tính năng import từ Udemy; không cần khi upload file transcript thủ công.
@@ -51,6 +67,7 @@ Học viên Udemy gặp một số rào cản phổ biến:
 4. Lưu trữ và cache kết quả AI vào database để tái sử dụng, hỗ trợ force-regenerate
 5. Chạy hoàn toàn local, không phụ thuộc backend bên ngoài ngoài AI provider
 6. Hỗ trợ nhiều profile AI — chuyển đổi giữa nhiều provider/model dễ dàng
+7. **Upload sách/giáo trình (PDF, EPUB, DOCX)** và áp dụng toàn bộ AI features cho nội dung sách — tóm tắt chương, giải thích, quiz, flashcard, lộ trình đọc **(v2.0)**
 
 ---
 
@@ -60,6 +77,9 @@ Học viên Udemy gặp một số rào cản phổ biến:
 
 - Import khóa học và transcript qua Udemy access token
 - Tạo khóa học từ file `.vtt`, `.srt`, `.txt` hoặc thư mục — tự động tạo course + lessons
+- **Upload sách/giáo trình từ file `.pdf`, `.epub`, `.docx`, `.txt`, `.md`** — tự động tạo course (contentType="book") + lessons (chương) **(v2.0)**
+- **Auto chapter splitting** — phát hiện chương tự động từ heading/page break + AI-assisted detection + xác nhận thủ công **(v2.0)**
+- **Book metadata** — lưu tác giả, ISBN, nhà xuất bản cho sách **(v2.0)**
 - Quản lý khóa học và bài học thủ công (CRUD)
 - Xem và chỉnh sửa transcript từng bài học
 - AI Summary: tóm tắt bài học theo chuẩn giáo học pháp (Bloom's Taxonomy)
@@ -67,6 +87,8 @@ Học viên Udemy gặp một số rào cản phổ biến:
 - AI Chat: chat nhiều lượt có streaming với context bài học
 - AI Practice: Quiz tương tác (clickable MCQ), Flashcard lật thẻ (SRS), Bài tập accordion (Deliberate Practice)
 - AI Roadmap: phân tích toàn khóa, đề xuất lộ trình học tập cá nhân hóa
+- **AI Prompt Adaptation cho sách** — prompt thay đổi theo contentType: bỏ ASR rules, đổi label "bài học"→"chương", thêm academic framing **(v2.0)**
+- **UI Adaptation cho sách** — label, icon, badge phân biệt sách vs khóa học **(v2.0)**
 - AI Cache: kết quả được lưu vào DB, trả về ngay khi đã có; hỗ trợ force-regenerate
 - Multi-profile AI settings (base URL, API key, model, Udemy cookie per profile)
 - Giao diện hoàn toàn bằng tiếng Việt
@@ -202,6 +224,70 @@ Học viên Udemy gặp một số rào cản phổ biến:
 | F-55 | Toàn bộ profiles lưu trong localStorage với key `udemy_ai_profiles` (shape: `{ profiles: AIProfile[], activeId: string }`). Auto-migrate từ key cũ `udemy_ai_settings` |
 | F-56 | Header hiển thị "Tên profile / model" khi đã cấu hình |
 
+### 6.12 Module: Schema & Content Type cho Sách (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-00 | **[Bug fix]** Upload route `POST /api/courses/upload` set `url: ""` khi tạo course mới → vi phạm unique constraint khi tạo 2+ course. Đổi thành `url: "manual:{uuid}"` |
+| B-01 | Thêm field `contentType String @default("course")` vào model Course để phân biệt "course" vs "book"; migration non-breaking, backward compatible |
+| B-02 | Thêm fields `author`, `isbn`, `publisher` (nullable) vào Course cho metadata sách; chỉ hiển thị khi `contentType === "book"` |
+| B-03 | Thêm fields `chapterNumber Int?`, `pageRange String?` vào Lesson cho metadata chương sách |
+
+### 6.13 Module: Upload Sách (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-04 | Upload file `.pdf`, server extract text từ từng trang bằng `pdf-parse` hoặc `pdfjs-dist` |
+| B-05 | Upload file `.epub`, server extract text từ từng chapter bằng `epub2`; mỗi chapter tạo ra một Lesson riêng |
+| B-06 | Upload file `.docx`, server extract text có cấu trúc heading bằng `mammoth`; tạo Lesson theo heading H1/H2 nếu có |
+| B-07 | Upload `.txt` / `.md` chứa nội dung sách; markdown có heading `#` thì split theo heading thành các Lesson |
+| B-08 | `UploadModal` thêm mode "Sách/Giáo trình" với dropzone mở rộng (`.pdf`, `.epub`, `.docx`, `.txt`, `.md`) và form metadata (tên sách bắt buộc, tác giả/ISBN/NXB tùy chọn) |
+
+### 6.14 Module: AI Prompt Adaptation cho Sách (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-09 | Mở rộng `getSystemPrompt(type)` thành `getSystemPrompt(type, contentType?)` — khi `contentType === "book"` trả về prompt variant dành cho sách; bỏ hoàn toàn `buildASRRules()` cho sách |
+| B-10 | Prompt tóm tắt chương sách: academic structure, luận điểm chính, lập luận, trích dẫn; giữ Bloom's Taxonomy |
+| B-11 | Prompt giải thích chương sách: Feynman Technique nhưng không giả định ASR noise; thay "video" → "chương/trang" |
+| B-12 | Prompt luyện tập từ sách (quiz/flashcard/exercise): tham chiếu "trang/phần" thay vì "bài học", dùng "văn bản đã viết" thay vì "transcript" |
+
+### 6.15 Module: UI Adaptation cho Sách (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-13 | Sidebar hiển thị "Sách" thay vì "Khóa học", "Chương" thay vì "Bài học" khi `contentType === "book"` |
+| B-14 | Icon/badge phân biệt sách vs khóa học trong CourseList (shadcn Badge hoặc Lucide icon) |
+| B-15 | Hiển thị tác giả, ISBN (nếu có) trong sidebar khi chọn sách |
+| B-16 | TranscriptPanel hiển thị "Nội dung chương" thay vì "Transcript" khi content type là book |
+
+### 6.16 Module: Auto Chapter Splitting & Key Concepts (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-17 | Upload 1 file PDF → hệ thống detect headings/chapter breaks bằng heuristic (regex, font size, page breaks) → tự tạo Lesson[] cho mỗi chương |
+| B-18 | Nếu heuristic thất bại → AI phân tích TOC/tiêu đề trang đầu → đề xuất chapter boundaries; hiển thị cảnh báo "AI đề xuất, cần xác nhận" |
+| B-19 | Sau auto-split → hiển thị preview chapters (modal bước 2), user có thể gộp/tách/đổi tên trước khi confirm tạo Lessons |
+| B-20 | AI extract thuật ngữ, định nghĩa, concepts quan trọng từ mỗi chương; persist vào `Lesson.keyConcepts` (field mới, nullable JSON string) |
+| B-21 | Aggregate key concepts từ tất cả chapters → glossary toàn sách; persist vào `Course.glossary` (field mới) |
+| B-22 | AI Reading Plan cho sách: thứ tự đọc tối ưu, chương quan trọng, chương có thể skip; reuse `/api/ai/roadmap` với prompt adapted |
+| B-23 | AI đánh giá độ khó mỗi chương (beginner/intermediate/advanced) kèm trong Reading Plan output |
+
+### 6.17 Module: Tính năng nâng cao cho Sách (v2.0)
+
+| ID | Yêu cầu |
+|----|---------|
+| B-24 | Concept cross-reference: AI detect khi concept X ở chương này liên quan đến concept Y ở chương khác → liên kết |
+| B-25 | UI hiển thị links "Xem thêm ở chương..." trong AI output hoặc sidebar panel |
+| B-26 | Generate knowledge graph data: AI phân tích toàn sách → nodes (concepts) + edges (relationships); persist JSON vào Course level |
+| B-27 | Visual knowledge graph: render interactive graph, click node → jump to relevant chapter |
+| B-28 | Difficulty-based quiz generation: quiz khó hơn/dễ hơn dựa trên SRS performance history |
+| B-29 | Spaced repetition across chapters: ôn concept từ chương cũ dựa trên SRS cross-chapter |
+| B-30 | Link chapter ↔ Udemy lesson: liên kết 1 chương sách với 1 bài Udemy cùng chủ đề (manual linking) |
+| B-31 | Combined study view: xem nội dung sách + video transcript cùng lúc cho 1 topic |
+| B-32 | Time-based study plan: "Tôi có 2 tuần" → AI tạo kế hoạch đọc theo ngày dựa trên chapters + difficulty |
+| B-33 | Progress-aware replanning: cập nhật plan dựa trên progress thực tế (chapters đã đọc, quiz scores) |
+
 ---
 
 ## 7. Yêu cầu phi chức năng
@@ -265,32 +351,42 @@ Học viên Udemy gặp một số rào cản phổ biến:
 
 ```prisma
 model Course {
-  id        String   @id @default(cuid())
-  url       String   @unique        // "" khi tạo thủ công
-  title     String
-  roadmap   String?                 // AI-generated course roadmap
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lessons   Lesson[]
+  id          String   @id @default(cuid())
+  url         String   @unique        // "manual:{uuid}" khi tạo thủ công/upload
+  title       String
+  roadmap     String?                 // AI-generated course roadmap / reading plan
+  contentType String   @default("course")  // v2.0: "course" | "book"
+  author      String?                 // v2.0: tác giả sách (nullable)
+  isbn        String?                 // v2.0: mã ISBN (nullable)
+  publisher   String?                 // v2.0: nhà xuất bản (nullable)
+  glossary    String?                 // v2.0: Tier 2 — glossary toàn sách (JSON string)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lessons     Lesson[]
 }
 
 model Lesson {
-  id          String   @id @default(cuid())
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title       String
-  order       Int
-  transcript  String?
-  summary     String?               // AI-generated lesson summary
-  explanation String?               // AI-generated lesson explanation
-  roadmap     String?               // Reserved (không dùng hiện tại)
-  quiz        String?               // AI-generated quiz
-  flashcards  String?               // AI-generated flashcard set
-  exercises   String?               // AI-generated practice exercises
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title          String
+  order          Int
+  transcript     String?
+  summary        String?               // AI-generated lesson summary
+  explanation    String?               // AI-generated lesson explanation
+  roadmap        String?               // Reserved (không dùng hiện tại)
+  quiz           String?               // AI-generated quiz
+  flashcards     String?               // AI-generated flashcard set
+  exercises      String?               // AI-generated practice exercises
+  chapterNumber  Int?                  // v2.0: số thứ tự chương sách (nullable)
+  pageRange      String?               // v2.0: "12-34" — phạm vi trang (nullable)
+  keyConcepts    String?               // v2.0: Tier 2 — key concepts JSON (nullable)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 ```
+
+> **v2.0 Migration**: Tất cả fields mới đều nullable hoặc có `@default` → non-breaking migration. Dữ liệu v1.x không bị ảnh hưởng.
 
 ### 8.3 API Routes
 
@@ -303,13 +399,16 @@ model Lesson {
 | `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học | Trả về `roadmap` |
 | `POST` | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học | |
 | `POST` | `/api/courses/upload` | Upload file transcript → tạo khóa học hoặc thêm bài học | Nhận `courseId` hoặc `courseTitle`; Zod validation |
+| `POST` | `/api/books/upload` | v2.0: Upload sách (PDF/EPUB/DOCX/TXT/MD) → tạo khóa học kiểu book | multipart/form-data; metadata sách; B-04→B-08 |
+| `POST` | `/api/books/split` | v2.0: Tier 2 — Auto chapter splitting (heuristic + AI) | B-17, B-18; trả về preview chapters |
+| `POST` | `/api/books/split/confirm` | v2.0: Tier 2 — Xác nhận chapters đã duyệt → tạo Lessons | B-19 |
 | `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
 | `PUT` | `/api/lessons/[id]/transcript` | Cập nhật transcript bài học | |
-| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | Cache guard + `force` flag |
-| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | Cache guard + `force` flag |
-| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist; không cache |
-| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level; Cache guard + `force` flag |
-| `POST` | `/api/ai/quiz` | Tạo Quiz / Flashcard / Exercises | Param: `mode: "quiz" \| "flashcards" \| "exercises"`; Cache guard + `force` flag |
+| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | Cache guard + `force` flag; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | Cache guard + `force` flag; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist; không cache; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa / reading plan; persist → `Course.roadmap` | Course-level; Cache guard + `force` flag; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/quiz` | Tạo Quiz / Flashcard / Exercises | Param: `mode: "quiz" \| "flashcards" \| "exercises"`; Cache guard + `force` flag; v2.0: nhận `contentType` |
 | `POST` | `/api/ai/models` | Lấy danh sách model từ provider | |
 | `POST` | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy | |
 | `POST` | `/api/udemy/import` | Import khóa học, lessons, transcripts từ Udemy | |
@@ -448,6 +547,53 @@ model Lesson {
 6. Header cập nhật hiển thị "Tên profile / model"
 ```
 
+### Flow 8: Upload sách/giáo trình (v2.0)
+
+```
+1. Người dùng click "Upload từ file" → UploadModal mở ra
+2. Chuyển sang mode "Sách/Giáo trình" (tab/button switcher)
+3. Nhập tên sách (bắt buộc); tùy chọn: tác giả, ISBN, nhà xuất bản
+4. Chọn file .pdf / .epub / .docx / .txt / .md
+5. Client gửi file lên POST /api/books/upload (multipart/form-data)
+6. Server extract text:
+   - PDF: pdf-parse → text toàn bộ → tạo 1 Lesson (Tier 1) hoặc auto-split (Tier 2)
+   - EPUB: epub2 → mỗi chapter → 1 Lesson
+   - DOCX: mammoth → split theo heading H1/H2
+   - TXT/MD: parseTxt() mở rộng; MD split theo heading #
+7. Course tạo với contentType = "book", metadata sách được lưu
+8. Modal đóng, sách xuất hiện trong sidebar với icon/badge phân biệt
+9. Các chương (Lessons) có thể dùng AI ngay (summary, explain, quiz...)
+```
+
+### Flow 9: Auto chapter splitting (v2.0 — Tier 2)
+
+```
+1. Sau upload file sách (Flow 8 bước 6), nếu file là PDF/DOCX lớn:
+2. Server chạy heuristic detection: regex "Chapter X", font size, page breaks
+3. Nếu tìm được ≥2 chương → trả về splitPreview
+4. Nếu heuristic thất bại → AI phân tích TOC/tiêu đề → đề xuất boundaries
+5. Client hiển thị modal bước 2 "Xem lại chương" (ChapterPreviewModal):
+   - Danh sách chapters với tên, số trang, số từ
+   - Badge "AI đề xuất" nếu dùng AI detection
+   - Nút Đổi tên / Gộp / Xóa cho mỗi chapter
+6. Người dùng điều chỉnh nếu cần → click "Xác nhận"
+7. Client gửi POST /api/books/split/confirm → tạo Lesson records
+8. Sidebar cập nhật danh sách chương mới
+```
+
+### Flow 10: Dùng AI cho chương sách (v2.0)
+
+```
+1. Người dùng chọn sách → chọn chương trong sidebar
+2. Hệ thống load AI results đã lưu qua GET /api/lessons/[id]/ai
+3. TranscriptPanel hiển thị "Nội dung chương" (không gọi "Transcript")
+4. AIAssistantPanel hoạt động giống video course nhưng:
+   - Prompt AI dùng book variant (không có ASR rules)
+   - Nhãn UI: "chương" thay vì "bài học", "sách" thay vì "khóa học"
+   - Tab Roadmap hiển thị "Kế hoạch đọc" thay vì "Lộ trình"
+5. Tất cả AI features (summary, explain, chat, quiz, flashcard, exercise) hoạt động bình thường
+```
+
 ---
 
 ## 10. Rủi ro và giải pháp
@@ -462,6 +608,12 @@ model Lesson {
 | Context window vượt quá giới hạn model | Trung bình | Transcript truncate trước khi gửi; Roadmap giới hạn 4000 chars/bài |
 | Reasoning model output thẻ `<think>` | Thấp | Think-tag suppression ở cả prompt-level và server-side regex |
 | File transcript định dạng lạ | Thấp | Validate extension; fallback plain text nếu parse fail |
+| v2.0: PDF dạng scan/ảnh không extract được text | Cao | Hiển thị warning "PDF scan"; cho phép edit transcript thủ công; hỗ trợ OCR trong tương lai |
+| v2.0: EPUB structure không chuẩn | Trung bình | Fallback tạo 1 Lesson duy nhất; cho phép manual split (B-19) |
+| v2.0: Auto chapter splitting sai boundaries | Trung bình | Manual confirmation UI (B-19); luôn cho phép re-split |
+| v2.0: Sách quá dài vượt AI context window | Trung bình | Chapter splitting chia nhỏ nội dung; truncate strategy đã có (4000 chars/lesson) |
+| v2.0: File binary lớn (>50MB) | Thấp | Client-side size check trước upload; server reject 413 |
+| v2.0: Knowledge graph AI hallucination | Trung bình | User review/edit graph; base on extracted key concepts (B-20) |
 
 ---
 
@@ -505,6 +657,31 @@ model Lesson {
 - PostgreSQL thay thế SQLite cho multi-user
 - Tìm kiếm toàn văn qua transcripts
 
+### v2.0 — Hỗ trợ Sách/Giáo trình (kế hoạch)
+
+> Mở rộng từ "trợ lý học từ khóa Udemy" thành **"trợ lý học tập đa nguồn"**.
+
+**Tier 0 — Prerequisite:**
+- B-00: Fix upload URL unique constraint bug
+
+**Tier 1 — Nền tảng (~2-3 ngày):**
+- B-01 → B-03: Schema changes (contentType, metadata sách, metadata chương)
+- B-04 → B-08: Upload sách (PDF, EPUB, DOCX, TXT/MD, UI mở rộng)
+- B-09 → B-12: AI prompt adaptation (book-aware prompts, bỏ ASR rules)
+- B-13 → B-16: UI adaptation (conditional labels, icons, metadata display)
+
+**Tier 2 — Trải nghiệm nâng cao (~3-5 ngày):**
+- B-17 → B-19: Auto chapter splitting (heuristic + AI + manual confirm)
+- B-20 → B-21: Key concepts extraction + glossary
+- B-22 → B-23: Reading plan + difficulty estimation
+
+**Tier 3 — Tính năng nâng cao (~5-10 ngày):**
+- B-24 → B-25: Cross-reference giữa chapters
+- B-26 → B-27: Knowledge graph
+- B-28 → B-29: Adaptive quizzing
+- B-30 → B-31: Multi-source learning (sách ↔ Udemy)
+- B-32 → B-33: Study plan generator
+
 ---
 
 ## 12. Tài liệu liên quan
@@ -515,4 +692,9 @@ model Lesson {
 | Prompt Engineering Guide | `docs/educational-prompt-engineering.md` |
 | Prompts Design | `docs/PROMPTS_DESIGN.md` |
 | Implementation Order | `docs/implementation-order.md` |
+| Feature List: Sách/Giáo trình (v2.0) | `docs/features-book.md` |
+| Spec: Schema & Content Type cho Sách | `docs/specs/book-schema.md` |
+| Spec: Upload Sách/Giáo trình | `docs/specs/book-upload.md` |
+| Spec: Book-Aware AI Prompt Adaptation | `docs/specs/book-ai.md` |
+| Spec: Tự động chia chương sách | `docs/specs/book-chapter-splitting.md` |
 | Source code | https://github.com/chrisnguyen201092-dotcom/udemy-transcript-analyzer |
