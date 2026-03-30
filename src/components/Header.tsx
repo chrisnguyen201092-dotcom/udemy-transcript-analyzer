@@ -6,11 +6,12 @@ import { ModeToggle } from "@/components/ModeToggle";
 
 interface HeaderProps {
   isConfigured: boolean;
+  profileName: string;
   currentModel: string;
   onOpenSettings: () => void;
 }
 
-export function Header({ isConfigured, currentModel, onOpenSettings }: HeaderProps) {
+export function Header({ isConfigured, profileName, currentModel, onOpenSettings }: HeaderProps) {
   return (
     <header className="h-14 shrink-0 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between px-5 bg-white dark:bg-gray-900">
       <div className="flex items-center gap-2.5">
@@ -23,26 +24,28 @@ export function Header({ isConfigured, currentModel, onOpenSettings }: HeaderPro
       </div>
 
       <div className="flex items-center gap-2">
-      <ModeToggle />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onOpenSettings}
-        className="gap-2 cursor-pointer border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 h-8 text-xs"
-      >
-        <Settings className="w-3.5 h-3.5" />
-        {isConfigured ? (
-          <>
-            <span className="max-w-[160px] truncate">{currentModel}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-          </>
-        ) : (
-          <>
-            <span>Configure AI</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-          </>
-        )}
-      </Button>
+        <ModeToggle />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenSettings}
+          className="gap-2 cursor-pointer border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 h-8 text-xs"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          {isConfigured ? (
+            <>
+              <span className="text-gray-400 dark:text-gray-500 font-normal">{profileName}</span>
+              <span className="text-gray-200 dark:text-gray-700">/</span>
+              <span className="max-w-[140px] truncate">{currentModel}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            </>
+          ) : (
+            <>
+              <span>Configure AI</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+            </>
+          )}
+        </Button>
       </div>
     </header>
   );

@@ -7,7 +7,14 @@ import { CourseList } from "@/components/CourseList";
 import { LessonList } from "@/components/LessonList";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
-import { SettingsModal } from "@/components/SettingsModal";
+import {
+  SettingsModal,
+  type SettingsStore,
+  type AIProfile,
+  activeProfile,
+  loadStore,
+  saveStore,
+} from "@/components/SettingsModal";
 import { ImportModal } from "@/components/ImportModal";
 import { UploadModal } from "@/components/UploadModal";
 
@@ -40,33 +47,14 @@ interface UdemyCourse {
   num_lectures: number;
 }
 
-const SETTINGS_KEY = "udemy_ai_settings";
-const DEFAULT_SETTINGS: AISettings = {
-  baseUrl: "https://api.openai.com/v1",
-  apiKey: "",
-  model: "",
-  udemyCookie: "",
-};
-
-function loadSettings(): AISettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-function saveSettings(s: AISettings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-}
-
 export default function Home() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
+
+  // Multi-profile store
+  const [store, setStore] = useState<SettingsStore>(() => loadStore());
+
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -77,10 +65,19 @@ export default function Home() {
   const [importProgress, setImportProgress] = useState("");
 
   useEffect(() => {
-    const s = loadSettings();
-    setSettings(s);
+    const s = loadStore();
+    setStore(s);
     fetchCourses();
   }, []);
+
+  // Derive current active profile for downstream consumers
+  const profile: AIProfile = activeProfile(store);
+  const settings: AISettings = {
+    baseUrl: profile.baseUrl,
+    apiKey: profile.apiKey,
+    model: profile.model,
+    udemyCookie: profile.udemyCookie,
+  };
 
   const fetchCourses = async () => {
     const res = await fetch("/api/courses");
@@ -88,9 +85,9 @@ export default function Home() {
     setCourses(data);
   };
 
-  const handleSaveSettings = (draft: AISettings) => {
-    saveSettings(draft);
-    setSettings(draft);
+  const handleSaveSettings = (newStore: SettingsStore) => {
+    saveStore(newStore);
+    setStore(newStore);
     setShowSettings(false);
   };
 
@@ -216,6 +213,7 @@ export default function Home() {
       {/* Topbar */}
       <Header
         isConfigured={isConfigured}
+        profileName={profile.name}
         currentModel={settings.model}
         onOpenSettings={() => setShowSettings(true)}
       />
@@ -300,7 +298,7 @@ export default function Home() {
 
       <SettingsModal
         open={showSettings}
-        initialSettings={settings}
+        store={store}
         onSave={handleSaveSettings}
         onClose={() => setShowSettings(false)}
       />
