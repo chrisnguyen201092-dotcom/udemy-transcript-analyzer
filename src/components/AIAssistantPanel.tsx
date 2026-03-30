@@ -11,12 +11,27 @@ import {
   Map,
   Loader2,
   GraduationCap,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { QuizPlayer } from "@/components/QuizPlayer";
 import { FlashcardDeck } from "@/components/FlashcardDeck";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { ExerciseList } from "@/components/ExerciseList";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -41,6 +56,7 @@ interface AIAssistantPanelProps {
   settings: AISettings;
   isConfigured: boolean;
   onOpenSettings: () => void;
+  onChatCountChange?: (count: number) => void;
 }
 
 type TabType = "summary" | "explain" | "chat" | "roadmap" | "practice";
@@ -66,6 +82,7 @@ export function AIAssistantPanel({
   settings,
   isConfigured,
   onOpenSettings,
+  onChatCountChange,
 }: AIAssistantPanelProps) {
   // Tab
   const [activeTab, setActiveTab] = useState<TabType>("summary");
@@ -97,10 +114,49 @@ export function AIAssistantPanel({
   // Persistence loading flag
   const [dbLoading, setDbLoading] = useState(false);
 
+  // AI generation progress
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Ref for auto-scroll in chat
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const hasTranscript = !!lesson.transcript;
+
+  // ── Generation timer helpers ──
+
+  const startGenTimer = () => {
+    setElapsedSeconds(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+  };
+
+  const stopGenTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setElapsedSeconds(0);
+  };
+
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    stopGenTimer();
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
 
   // ── Reset + load persisted data when lesson changes ──
 
@@ -162,6 +218,11 @@ export function AIAssistantPanel({
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  // Report chat message count to parent (for leave-warning)
+  useEffect(() => {
+    onChatCountChange?.(chatMessages.length);
+  }, [chatMessages.length, onChatCountChange]);
+
   // ── API helpers ──
 
   const apiBody = useCallback(
@@ -176,44 +237,71 @@ export function AIAssistantPanel({
 
   const handleSummary = async () => {
     if (!hasTranscript || !isConfigured || summaryLoading) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setSummaryLoading(true);
-    setSummaryResult("Đang tạo tóm tắt...");
+    setSummaryResult("");
+    startGenTimer();
     try {
       const res = await fetch("/api/ai/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiBody()),
+        signal: controller.signal,
       });
       const data = await res.json();
       setSummaryResult(data.summary || data.error || "Không có kết quả.");
-    } catch {
-      setSummaryResult("Lỗi khi tạo tóm tắt.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setSummaryResult("");
+        toast.info("Đã hủy tạo tóm tắt");
+      } else {
+        setSummaryResult("Lỗi khi tạo tóm tắt.");
+        toast.error("Lỗi khi tạo tóm tắt");
+      }
     }
+    abortControllerRef.current = null;
+    stopGenTimer();
     setSummaryLoading(false);
   };
 
   const handleExplain = async () => {
     if (!hasTranscript || !isConfigured || explainLoading) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setExplainLoading(true);
-    setExplainResult("Đang giải thích...");
+    setExplainResult("");
+    startGenTimer();
     try {
       const res = await fetch("/api/ai/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiBody()),
+        signal: controller.signal,
       });
       const data = await res.json();
       setExplainResult(data.explanation || data.error || "Không có kết quả.");
-    } catch {
-      setExplainResult("Lỗi khi giải thích.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setExplainResult("");
+        toast.info("Đã hủy giải thích");
+      } else {
+        setExplainResult("Lỗi khi giải thích.");
+        toast.error("Lỗi khi giải thích");
+      }
     }
+    abortControllerRef.current = null;
+    stopGenTimer();
     setExplainLoading(false);
   };
 
   const handleRoadmap = async () => {
     if (!isConfigured || roadmapLoading) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setRoadmapLoading(true);
-    setRoadmapResult("Đang tạo lộ trình cho toàn khóa học...");
+    setRoadmapResult("");
+    startGenTimer();
     try {
       const res = await fetch("/api/ai/roadmap", {
         method: "POST",
@@ -224,12 +312,21 @@ export function AIAssistantPanel({
           baseUrl: settings.baseUrl,
           model: settings.model,
         }),
+        signal: controller.signal,
       });
       const data = await res.json();
       setRoadmapResult(data.roadmap || data.error || "Không có kết quả.");
-    } catch {
-      setRoadmapResult("Lỗi khi tạo lộ trình.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setRoadmapResult("");
+        toast.info("Đã hủy tạo lộ trình");
+      } else {
+        setRoadmapResult("Lỗi khi tạo lộ trình.");
+        toast.error("Lỗi khi tạo lộ trình");
+      }
     }
+    abortControllerRef.current = null;
+    stopGenTimer();
     setRoadmapLoading(false);
   };
 
@@ -258,25 +355,31 @@ export function AIAssistantPanel({
 
     if (isCurrentlyLoading) return;
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setLoading(true);
-    setResult(
-      practiceMode === "quiz"
-        ? "Đang tạo quiz..."
-        : practiceMode === "flashcards"
-          ? "Đang tạo flashcard..."
-          : "Đang tạo bài tập..."
-    );
+    setResult("");
+    startGenTimer();
     try {
       const res = await fetch("/api/ai/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...apiBody(), mode: practiceMode }),
+        signal: controller.signal,
       });
       const data = await res.json();
       setResult(data.result || data.error || "Không có kết quả.");
-    } catch {
-      setResult("Lỗi khi tạo nội dung luyện tập.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setResult("");
+        toast.info("Đã hủy tạo nội dung");
+      } else {
+        setResult("Lỗi khi tạo nội dung luyện tập.");
+        toast.error("Lỗi khi tạo nội dung luyện tập");
+      }
     }
+    abortControllerRef.current = null;
+    stopGenTimer();
     setLoading(false);
   };
 
@@ -331,6 +434,7 @@ export function AIAssistantPanel({
         };
         return copy;
       });
+      toast.error("Lỗi khi chat");
     }
 
     setChatLoading(false);
@@ -338,22 +442,46 @@ export function AIAssistantPanel({
 
   // ── Render helpers ──
 
+  const renderSkeleton = () => (
+    <div className="flex flex-col gap-3 p-3.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 min-h-[160px]">
+      <Skeleton className="h-4 w-[70%]" />
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-[90%]" />
+      <Skeleton className="h-3 w-[60%]" />
+      <div className="mt-2 flex flex-col gap-2">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-[80%]" />
+      </div>
+    </div>
+  );
+
   const renderResult = (
     content: string,
     placeholder: string,
     isLoading: boolean
   ) => (
     <ScrollArea className="flex-1 min-h-[160px]">
-      <div className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 p-3.5 min-h-[160px]">
-        {isLoading && !content ? (
-          <span className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Đang xử lý...
-          </span>
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 p-3.5 min-h-[160px]">
+        {dbLoading && !content && !isLoading ? (
+          renderSkeleton()
+        ) : isLoading && !content ? (
+          <div className="flex flex-col gap-2.5">
+            <span className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-xs">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Đang tạo...{elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
+            </span>
+            <button
+              onClick={cancelGeneration}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors w-fit cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+              Hủy
+            </button>
+          </div>
         ) : content ? (
-          content
+          <MarkdownRenderer content={content} />
         ) : (
-          <span className="text-gray-400 dark:text-gray-500">{placeholder}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">{placeholder}</span>
         )}
       </div>
     </ScrollArea>
@@ -366,26 +494,87 @@ export function AIAssistantPanel({
     isLoading: boolean,
     onClick: () => void,
     skipTranscriptCheck = false,
-  ) => (
-    <Button
-      onClick={onClick}
-      disabled={(!skipTranscriptCheck && !hasTranscript) || !isConfigured || isLoading}
-      variant="outline"
-      size="sm"
-      className="cursor-pointer w-full text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs"
-    >
-      {isLoading ? (
-        <span className="flex items-center gap-1.5">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          Đang xử lý...
-        </span>
-      ) : hasResult ? (
-        existingLabel
-      ) : (
-        label
-      )}
-    </Button>
-  );
+  ) => {
+    const isDisabled = (!skipTranscriptCheck && !hasTranscript) || !isConfigured || isLoading;
+    const buttonContent = isLoading ? (
+      <span className="flex items-center gap-1.5">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        Đang tạo...{elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
+      </span>
+    ) : hasResult ? (
+      existingLabel
+    ) : (
+      label
+    );
+
+    // When loading, show cancel button alongside
+    if (isLoading) {
+      return (
+        <div className="flex gap-1.5">
+          <Button
+            disabled
+            variant="outline"
+            size="sm"
+            className="flex-1 text-[#A435F0] border-[#A435F0]/20 rounded-lg h-8 text-xs"
+          >
+            {buttonContent}
+          </Button>
+          <Button
+            onClick={cancelGeneration}
+            variant="outline"
+            size="sm"
+            className="cursor-pointer h-8 px-2.5 text-xs text-gray-400 hover:text-red-500 hover:border-red-200 rounded-lg"
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      );
+    }
+
+    // When cached content exists, wrap with confirmation dialog
+    if (hasResult && !isLoading) {
+      return (
+        <AlertDialog>
+          <AlertDialogTrigger
+            disabled={isDisabled}
+            className="cursor-pointer w-full text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors border bg-background shadow-xs"
+          >
+            {buttonContent}
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tạo lại nội dung?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Nội dung hiện tại sẽ bị thay thế bằng kết quả mới từ AI.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">Huỷ</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onClick}
+                className="bg-[#A435F0] hover:bg-[#8710D8] cursor-pointer"
+              >
+                Tạo lại
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      );
+    }
+
+    // First generation — no dialog needed
+    return (
+      <Button
+        onClick={onClick}
+        disabled={isDisabled}
+        variant="outline"
+        size="sm"
+        className="cursor-pointer w-full text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5 hover:border-[#A435F0]/40 rounded-lg h-8 text-xs"
+      >
+        {buttonContent}
+      </Button>
+    );
+  };
 
   // ── Main render ──
 
@@ -566,7 +755,9 @@ export function AIAssistantPanel({
 
             {/* Result display */}
             {practiceMode === "quiz" &&
-              (quizLoading ? (
+              (dbLoading && !quizResult && !quizLoading ? (
+                renderSkeleton()
+              ) : quizLoading ? (
                 renderResult(
                   "",
                   "Nhấn nút để AI tạo quiz kiểm tra kiến thức...",
@@ -584,7 +775,9 @@ export function AIAssistantPanel({
                 )
               ))}
             {practiceMode === "flashcards" &&
-              (flashcardsLoading ? (
+              (dbLoading && !flashcardsResult && !flashcardsLoading ? (
+                renderSkeleton()
+              ) : flashcardsLoading ? (
                 renderResult(
                   "",
                   "Nhấn nút để AI tạo flashcard ôn tập...",
@@ -602,7 +795,9 @@ export function AIAssistantPanel({
                 )
               ))}
             {practiceMode === "exercises" &&
-              (exercisesLoading ? (
+              (dbLoading && !exercisesResult && !exercisesLoading ? (
+                renderSkeleton()
+              ) : exercisesLoading ? (
                 renderResult(
                   "",
                   "Nhấn nút để AI tạo bài tập thực hành...",
@@ -639,19 +834,26 @@ export function AIAssistantPanel({
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
                         msg.role === "user"
-                          ? "bg-[#A435F0] text-white"
+                          ? "bg-[#A435F0] text-white whitespace-pre-wrap"
                           : "bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 text-gray-700 dark:text-gray-300"
                       }`}
                     >
-                      {msg.content ||
-                        (chatLoading && i === chatMessages.length - 1 ? (
+                      {msg.content ? (
+                        msg.role === "assistant" ? (
+                          <MarkdownRenderer content={msg.content} />
+                        ) : (
+                          msg.content
+                        )
+                      ) : (
+                        chatLoading && i === chatMessages.length - 1 ? (
                           <span className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
                             <Loader2 className="w-3 h-3 animate-spin" />
                             Đang trả lời...
                           </span>
-                        ) : null)}
+                        ) : null
+                      )}
                     </div>
                   </div>
                 ))}

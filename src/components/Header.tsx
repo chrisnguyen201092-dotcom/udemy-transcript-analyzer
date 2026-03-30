@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings, Zap } from "lucide-react";
+import { Settings, Zap, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/ModeToggle";
 
@@ -24,6 +24,13 @@ export function Header({ isConfigured, profileName, currentModel, onOpenSettings
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Keyboard shortcut hints */}
+        <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-gray-300 dark:text-gray-600 mr-1">
+          <Keyboard className="w-3 h-3" />
+          <span>Alt+↑↓ chuyển bài</span>
+          <span className="text-gray-200 dark:text-gray-700">·</span>
+          <span>Ctrl+, cài đặt</span>
+        </div>
         <ModeToggle />
         <Button
           variant="outline"

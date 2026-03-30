@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Header } from "@/components/Header";
 import { AddCoursePanel } from "@/components/AddCoursePanel";
 import { CourseList } from "@/components/CourseList";
 import { LessonList } from "@/components/LessonList";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
   SettingsModal,
   type SettingsStore,
@@ -17,6 +19,17 @@ import {
 } from "@/components/SettingsModal";
 import { ImportModal } from "@/components/ImportModal";
 import { UploadModal } from "@/components/UploadModal";
+import { OnboardingCard } from "@/components/OnboardingCard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Lesson {
   id: string;
@@ -49,11 +62,18 @@ interface UdemyCourse {
 
 export default function Home() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
   // Multi-profile store
   const [store, setStore] = useState<SettingsStore>(() => loadStore());
+
+  // Chat leave warning state
+  const [chatMessageCount, setChatMessageCount] = useState(0);
+  const [transcriptDirty, setTranscriptDirty] = useState(false);
+  const [pendingLesson, setPendingLesson] = useState<Lesson | null>(null);
+  const [showLessonWarning, setShowLessonWarning] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -80,9 +100,16 @@ export default function Home() {
   };
 
   const fetchCourses = async () => {
-    const res = await fetch("/api/courses");
-    const data = await res.json();
-    setCourses(data);
+    setCoursesLoading(true);
+    try {
+      const res = await fetch("/api/courses");
+      const data = await res.json();
+      setCourses(data);
+    } catch {
+      toast.error("Lỗi khi tải danh sách courses");
+    } finally {
+      setCoursesLoading(false);
+    }
   };
 
   const handleSaveSettings = (newStore: SettingsStore) => {
@@ -105,11 +132,36 @@ export default function Home() {
   };
 
   const handleDeleteCourse = async (id: string) => {
-    await fetch(`/api/courses/${id}`, { method: "DELETE" });
-    fetchCourses();
-    if (selectedCourse?.id === id) {
-      setSelectedCourse(null);
-      setSelectedLesson(null);
+    try {
+      await fetch(`/api/courses/${id}`, { method: "DELETE" });
+      toast.success("Đã xóa course");
+      fetchCourses();
+      if (selectedCourse?.id === id) {
+        setSelectedCourse(null);
+        setSelectedLesson(null);
+      }
+    } catch {
+      toast.error("Lỗi khi xóa course");
+    }
+  };
+
+  const handleRenameCourse = async (id: string, newTitle: string) => {
+    try {
+      const res = await fetch(`/api/courses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCourses((prev) => prev.map((c) => (c.id === id ? updated : c)));
+        if (selectedCourse?.id === id) {
+          setSelectedCourse(updated);
+        }
+        toast.success("Đã đổi tên course");
+      }
+    } catch {
+      toast.error("Lỗi khi đổi tên course");
     }
   };
 
@@ -129,21 +181,98 @@ export default function Home() {
     }
   };
 
-  const handleSaveTranscript = async (lessonId: string, transcript: string) => {
-    await fetch(`/api/lessons/${lessonId}/transcript`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript }),
-    });
-    const updatedLesson = { ...selectedLesson!, transcript };
-    setSelectedLesson(updatedLesson);
-    if (selectedCourse) {
-      setSelectedCourse({
-        ...selectedCourse,
-        lessons: selectedCourse.lessons.map((l) =>
-          l.id === lessonId ? updatedLesson : l
-        ),
+  const handleDeleteLesson = async (lessonId: string) => {
+    try {
+      await fetch(`/api/lessons/${lessonId}`, { method: "DELETE" });
+      toast.success("Đã xóa bài học");
+      if (selectedCourse) {
+        const updatedLessons = selectedCourse.lessons.filter((l) => l.id !== lessonId);
+        setSelectedCourse({
+          ...selectedCourse,
+          lessons: updatedLessons,
+        });
+        if (selectedLesson?.id === lessonId) {
+          setSelectedLesson(null);
+        }
+      }
+    } catch {
+      toast.error("Lỗi khi xóa bài học");
+    }
+  };
+
+  const handleReorderLessons = async (lessonIds: string[]) => {
+    if (!selectedCourse) return;
+
+    // Optimistic update: reorder lessons locally
+    const reorderedLessons = lessonIds
+      .map((id, index) => {
+        const lesson = selectedCourse.lessons.find((l) => l.id === id);
+        return lesson ? { ...lesson, order: index + 1 } : null;
+      })
+      .filter((l): l is Lesson => l !== null);
+
+    const previousLessons = selectedCourse.lessons;
+    setSelectedCourse({ ...selectedCourse, lessons: reorderedLessons });
+
+    try {
+      const res = await fetch(`/api/courses/${selectedCourse.id}/lessons/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonIds }),
       });
+      if (!res.ok) {
+        throw new Error("Reorder failed");
+      }
+      toast.success("Đã sắp xếp lại bài học");
+    } catch {
+      // Rollback on error
+      setSelectedCourse({ ...selectedCourse, lessons: previousLessons });
+      toast.error("Lỗi khi sắp xếp lại bài học");
+    }
+  };
+
+  const handleSelectLesson = (lesson: Lesson) => {
+    if ((chatMessageCount > 0 || transcriptDirty) && selectedLesson && selectedLesson.id !== lesson.id) {
+      setPendingLesson(lesson);
+      setShowLessonWarning(true);
+    } else {
+      setSelectedLesson(lesson);
+    }
+  };
+
+  const confirmLessonSwitch = () => {
+    if (pendingLesson) {
+      setSelectedLesson(pendingLesson);
+    }
+    setPendingLesson(null);
+    setShowLessonWarning(false);
+  };
+
+  const cancelLessonSwitch = () => {
+    setPendingLesson(null);
+    setShowLessonWarning(false);
+  };
+
+  const handleSaveTranscript = async (lessonId: string, transcript: string) => {
+    try {
+      await fetch(`/api/lessons/${lessonId}/transcript`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript }),
+      });
+      const updatedLesson = { ...selectedLesson!, transcript };
+      setSelectedLesson(updatedLesson);
+      if (selectedCourse) {
+        setSelectedCourse({
+          ...selectedCourse,
+          lessons: selectedCourse.lessons.map((l) =>
+            l.id === lessonId ? updatedLesson : l
+          ),
+        });
+      }
+      toast.success("Đã lưu transcript");
+    } catch {
+      toast.error("Lỗi khi lưu transcript");
     }
   };
 
@@ -193,11 +322,13 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) {
         setImportProgress(`Lỗi: ${data.error ?? "Import thất bại"}`);
+        toast.error(data.error ?? "Import thất bại");
         return;
       }
       setImportProgress(
         `Đã import "${data.title}" — ${data.lessonCount} bài học`
       );
+      toast.success(`Đã import "${data.title}" — ${data.lessonCount} bài học`);
       fetchCourses();
     } catch {
       setImportProgress("Lỗi kết nối khi import.");
@@ -207,6 +338,46 @@ export default function Home() {
   };
 
   const isConfigured = !!(settings.apiKey && settings.model);
+
+  // ── Keyboard shortcuts ──
+
+  const navigateLesson = (direction: "prev" | "next") => {
+    if (!selectedCourse || !selectedLesson) return;
+    const lessons = selectedCourse.lessons;
+    const idx = lessons.findIndex((l) => l.id === selectedLesson.id);
+    if (idx === -1) return;
+    const nextIdx = direction === "prev" ? idx - 1 : idx + 1;
+    if (nextIdx >= 0 && nextIdx < lessons.length) {
+      handleSelectLesson(lessons[nextIdx]);
+    }
+  };
+
+  useKeyboardShortcuts([
+    {
+      key: "alt+arrowup",
+      handler: () => navigateLesson("prev"),
+      description: "Bài trước",
+    },
+    {
+      key: "alt+arrowdown",
+      handler: () => navigateLesson("next"),
+      description: "Bài tiếp",
+    },
+    {
+      key: "ctrl+,",
+      handler: () => setShowSettings(true),
+      description: "Mở cài đặt",
+    },
+    {
+      key: "escape",
+      handler: () => {
+        if (showSettings) setShowSettings(false);
+        else if (showImport) setShowImport(false);
+        else if (showUpload) setShowUpload(false);
+      },
+      description: "Đóng modal",
+    },
+  ]);
 
   return (
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col overflow-hidden">
@@ -238,13 +409,26 @@ export default function Home() {
 
             <CourseList
               courses={courses}
+              loading={coursesLoading}
               selectedCourseId={selectedCourse?.id ?? null}
               onSelect={(c) => {
                 setSelectedCourse(c);
                 setSelectedLesson(null);
               }}
               onDelete={handleDeleteCourse}
+              onRename={handleRenameCourse}
             />
+
+            {courses.length === 0 && !coursesLoading && (
+              <OnboardingCard
+                onImport={() => {
+                  setShowImport(true);
+                  handleFetchUdemyCourses(settings.udemyCookie);
+                }}
+                onUpload={() => setShowUpload(true)}
+                onAddManual={() => handleAddManualCourse("Khóa học mới")}
+              />
+            )}
 
             {selectedCourse && (
               <>
@@ -252,8 +436,10 @@ export default function Home() {
                 <LessonList
                   lessons={selectedCourse.lessons}
                   selectedLessonId={selectedLesson?.id ?? null}
-                  onSelect={setSelectedLesson}
+                  onSelect={handleSelectLesson}
                   onAddLesson={handleAddLesson}
+                  onDelete={handleDeleteLesson}
+                  onReorder={handleReorderLessons}
                 />
               </>
             )}
@@ -265,8 +451,10 @@ export default function Home() {
           {selectedLesson ? (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 p-6 h-full">
               <TranscriptPanel
+                key={selectedLesson.id}
                 lesson={selectedLesson}
                 onSaveTranscript={handleSaveTranscript}
+                onDirtyChange={setTranscriptDirty}
               />
               <AIAssistantPanel
                 lesson={selectedLesson}
@@ -274,23 +462,69 @@ export default function Home() {
                 settings={settings}
                 isConfigured={isConfigured}
                 onOpenSettings={() => setShowSettings(true)}
+                onChatCountChange={setChatMessageCount}
               />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-6">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950 flex items-center justify-center">
-                <svg width="22" height="22" fill="none" viewBox="0 0 24 24" className="text-[#A435F0]">
+            <div className="flex flex-col items-center justify-center h-full text-center gap-4 p-6">
+              <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-950 flex items-center justify-center">
+                <svg width="26" height="26" fill="none" viewBox="0 0 24 24" className="text-[#A435F0]">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <p className="text-gray-800 dark:text-gray-200 font-medium text-sm">
-                {selectedCourse ? "Chọn một bài học để bắt đầu" : "Chọn một course từ sidebar"}
-              </p>
-              <p className="text-gray-400 dark:text-gray-500 text-xs max-w-xs leading-relaxed">
-                {selectedCourse
-                  ? "Chọn bài học bên trái để xem transcript và dùng AI assistant"
-                  : "Thêm hoặc chọn course từ danh sách bên trái để bắt đầu"}
-              </p>
+              <div>
+                <p className="text-gray-800 dark:text-gray-200 font-semibold text-sm">
+                  {selectedCourse
+                    ? selectedCourse.lessons.length === 0
+                      ? "Khóa học trống"
+                      : "Chọn một bài học để bắt đầu"
+                    : courses.length === 0
+                      ? "Chưa có khóa học nào"
+                      : "Chọn một course từ sidebar"}
+                </p>
+                <p className="text-gray-400 dark:text-gray-500 text-xs max-w-xs leading-relaxed mt-1.5">
+                  {selectedCourse
+                    ? selectedCourse.lessons.length === 0
+                      ? "Thêm bài học bằng cách upload file transcript hoặc tạo thủ công"
+                      : "Chọn bài học bên trái để xem transcript và dùng AI assistant"
+                    : courses.length === 0
+                      ? "Bắt đầu bằng cách import từ Udemy, upload file, hoặc tạo khóa học thủ công"
+                      : "Thêm hoặc chọn course từ danh sách bên trái để bắt đầu"}
+                </p>
+              </div>
+              {/* Quick action buttons for empty states */}
+              {!selectedCourse && courses.length === 0 && (
+                <div className="flex gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowImport(true);
+                      handleFetchUdemyCourses(settings.udemyCookie);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                  >
+                    Import từ Udemy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowUpload(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] cursor-pointer transition-colors"
+                  >
+                    Upload file
+                  </button>
+                </div>
+              )}
+              {selectedCourse && selectedCourse.lessons.length === 0 && (
+                <div className="flex gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowUpload(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] cursor-pointer transition-colors"
+                  >
+                    Upload transcript
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -336,6 +570,27 @@ export default function Home() {
           }
         }}
       />
+
+      <AlertDialog open={showLessonWarning} onOpenChange={setShowLessonWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chuyển bài học?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transcriptDirty && chatMessageCount > 0
+                ? "Bạn có thay đổi transcript chưa lưu và cuộc trò chuyện AI đang diễn ra. Chuyển bài học sẽ mất tất cả."
+                : transcriptDirty
+                  ? "Bạn có thay đổi transcript chưa lưu. Chuyển bài học sẽ mất các thay đổi này."
+                  : "Bạn đang có cuộc trò chuyện với AI. Chuyển bài học sẽ mất toàn bộ lịch sử chat hiện tại."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelLessonSwitch} className="cursor-pointer">Ở lại</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLessonSwitch} className="bg-[#A435F0] hover:bg-[#8710D8] cursor-pointer">
+              Chuyển bài học
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

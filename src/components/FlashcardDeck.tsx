@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Eye, RotateCw } from "lucide-react";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 interface FlashcardDeckProps {
   markdown: string;
@@ -80,9 +81,10 @@ export function FlashcardDeck({ markdown }: FlashcardDeckProps) {
 
   if (!cards.length) {
     return (
-      <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-        {markdown}
-      </pre>
+      <MarkdownRenderer
+        content={markdown}
+        className="text-xs text-gray-700 dark:text-gray-300"
+      />
     );
   }
 
