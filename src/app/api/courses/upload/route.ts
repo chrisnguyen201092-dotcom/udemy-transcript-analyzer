@@ -80,45 +80,46 @@ export async function POST(req: NextRequest) {
       where: { courseId },
     });
 
-    const lessons: Array<{ title: string; hasTranscript: boolean }> = [];
+    const created: Array<{ id: string; title: string; order: number }> = [];
+    const errors: Array<{ fileName: string; reason: string }> = [];
+    let orderOffset = 0;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of files) {
       let transcript: string | null = null;
 
-      const ext = file.type.toLowerCase();
-      switch (ext) {
-        case ".vtt":
-          transcript = parseVtt(file.content);
-          break;
-        case ".srt":
-          transcript = parseSrt(file.content);
-          break;
-        case ".txt":
-          transcript = parseTxt(file.content);
-          break;
-        default:
-          transcript = parseTxt(file.content);
+      try {
+        const ext = file.type.toLowerCase();
+        switch (ext) {
+          case ".vtt":
+            transcript = parseVtt(file.content);
+            break;
+          case ".srt":
+            transcript = parseSrt(file.content);
+            break;
+          case ".txt":
+            transcript = parseTxt(file.content);
+            break;
+          default:
+            transcript = parseTxt(file.content);
+        }
+
+        const title = removeExtension(file.name);
+        const order = existingCount + orderOffset + 1;
+
+        const lesson = await prisma.lesson.create({
+          data: { courseId, title, order, transcript },
+        });
+
+        created.push({ id: lesson.id, title: lesson.title, order: lesson.order });
+        orderOffset++;
+      } catch (fileError) {
+        const reason =
+          fileError instanceof Error ? fileError.message : String(fileError);
+        errors.push({ fileName: file.name, reason });
       }
-
-      const title = removeExtension(file.name);
-
-      await prisma.lesson.create({
-        data: {
-          courseId,
-          title,
-          order: existingCount + i + 1,
-          transcript,
-        },
-      });
-
-      lessons.push({ title, hasTranscript: !!transcript });
     }
 
-    return NextResponse.json({
-      importedCount: lessons.length,
-      lessons,
-    });
+    return NextResponse.json({ created, errors });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

@@ -9,11 +9,12 @@ const RoadmapSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
   model: z.string().min(1),
+  force: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const { courseId, apiKey, baseUrl, model } = RoadmapSchema.parse(await req.json());
+    const { courseId, apiKey, baseUrl, model, force } = RoadmapSchema.parse(await req.json());
 
     const course = await prisma.course.findUnique({
       where: { id: courseId },
@@ -30,6 +31,10 @@ export async function POST(req: NextRequest) {
         { error: "Course not found" },
         { status: 404 }
       );
+    }
+
+    if (course.roadmap && !force) {
+      return NextResponse.json({ roadmap: course.roadmap });
     }
 
     const lessonsWithTranscript = course.lessons.filter((l) => l.transcript);

@@ -10,6 +10,9 @@ const PracticeSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
   mode: z.enum(["quiz", "flashcards", "exercises"]),
+  force: z.boolean().optional(),
+  lessonIndex: z.number().int().min(0).optional(),
+  totalLessons: z.number().int().min(1).optional(),
 });
 
 const USER_PROMPTS: Record<string, string> = {
@@ -26,7 +29,7 @@ const DB_FIELD: Record<string, "quiz" | "flashcards" | "exercises"> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { lessonId, apiKey, baseUrl, model, mode } = PracticeSchema.parse(
+    const { lessonId, apiKey, baseUrl, model, mode, force, lessonIndex, totalLessons } = PracticeSchema.parse(
       await req.json()
     );
 
@@ -42,7 +45,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cached = lesson[DB_FIELD[mode]];
+    if (cached && !force) {
+      return NextResponse.json({ result: cached, mode });
+    }
+
     const client = createAIClient(apiKey, baseUrl);
+
+    const learnerContext = 
+      lessonIndex !== undefined && totalLessons !== undefined
+        ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
+        : "";
 
     const response = await client.chat.completions.create({
       model,
@@ -53,7 +66,7 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          content: `${USER_PROMPTS[mode]}\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}`,
+          content: `${USER_PROMPTS[mode]}\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
     });

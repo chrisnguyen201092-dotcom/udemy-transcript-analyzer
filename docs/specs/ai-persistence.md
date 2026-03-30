@@ -18,7 +18,8 @@ Tự động load kết quả AI đã lưu khi người dùng chọn bài học 
 
 ## Edge Cases
 - Bài học bị xóa trong khi đang xem → API trả 404, UI reset về trạng thái trống
-- DB data bị corrupt (JSON không parse được) → hiển thị raw text, không crash
+- DB data bị corrupt (JSON không parse được) → hiển thị raw text, không crash. **Test case cụ thể:** nếu `quiz` field chứa chuỗi không phải valid JSON (ví dụ `"truncated { \"q\""`) → tab Practice hiển thị nội dung raw thay vì parse thành component UI; không throw unhandled exception; console.error để debug
+- DB data schema thay đổi (stale data) → các fields AI là `String?` (không structured schema trong DB), nên backward-compatible tự nhiên. Risk duy nhất: client code mong đợi JSON structure cụ thể (ví dụ `quiz` format). **Mitigation:** parse trong try/catch, fallback về raw text display
 - Network error khi fetch `/api/lessons/[id]/ai` → hiển thị error state, retry button
 - Generate lại trong khi tab khác đang hiển thị → chỉ ghi đè field tương ứng, không reset tab khác
 - User chuyển bài liên tục nhanh → abort request trước nếu chưa xong (cancel fetch), không race condition

@@ -19,8 +19,9 @@ Cho phép người dùng import khóa học từ Udemy qua access token hoặc t
 ## Edge Cases
 - Access token hết hạn → trả về lỗi rõ ràng, không crash
 - Udemy API không trả về transcript cho bài nào đó → lesson được tạo với `transcript: null`
-- Import khóa học đã tồn tại (trùng URL) → upsert hoặc báo lỗi trùng
+- Import khóa học đã tồn tại (trùng URL) → upsert (update title) hoặc báo lỗi trùng rõ ràng; không tạo bản ghi mới
 - Xóa khóa học khi đang xem bài học của nó → UI reset về trạng thái trống
+- **[BUG RISK]** Tạo nhiều khóa học thủ công: `url @unique` constraint sẽ conflict nếu nhiều manual courses cùng `url = ""` → Schema phải dùng `@unique` với `@default(cuid())` cho `id` và bỏ unique constraint trên `url`, hoặc dùng `url String? @unique` với `null` thay vì `""` cho manual courses (NULL không trigger unique constraint trên SQLite/PostgreSQL)
 
 ## API Contract
 
@@ -86,7 +87,7 @@ Cho phép người dùng import khóa học từ Udemy qua access token hoặc t
 ```prisma
 model Course {
   id        String   @id @default(cuid())
-  url       String   @unique   // "" khi tạo thủ công
+  url       String?  @unique   // null khi tạo thủ công (dùng null thay vì "" để tránh unique constraint conflict)
   title     String
   roadmap   String?
   createdAt DateTime @default(now())
@@ -94,6 +95,10 @@ model Course {
   lessons   Lesson[]
 }
 ```
+
+> **⚠️ BREAKING CHANGE từ thiết kế ban đầu:** `url` đổi từ `String @unique` (với `""`) sang `String? @unique` (với `null`). SQLite và PostgreSQL cho phép nhiều bản ghi `NULL` trên cột `UNIQUE`. Cần migration: `ALTER TABLE Course ALTER COLUMN url DROP NOT NULL` hoặc tạo migration Prisma mới.
+>
+> **Lý do:** Nhiều manual courses với `url = ""` sẽ crash với `Unique constraint failed on the fields: (url)`. Dùng `null` là giải pháp đúng.
 
 ## UI Notes
 - Sidebar CourseList: hiển thị tên khóa học, click để select

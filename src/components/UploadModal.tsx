@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { FileUp, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { FileUp, X, CheckCircle2, AlertCircle, Loader2, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -48,11 +48,22 @@ export function UploadModal({
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const handleReset = useCallback(() => {
     setFiles([]);
     setUploading(false);
     setResult(null);
+  }, []);
+
+  // Set webkitdirectory attribute - this property is not in React types but is supported in all modern browsers
+  useEffect(() => {
+    if (folderInputRef.current) {
+      Object.defineProperty(folderInputRef.current, 'webkitdirectory', {
+        value: true,
+        writable: true,
+      });
+    }
   }, []);
 
   const handleClose = useCallback(() => {
@@ -72,6 +83,7 @@ export function UploadModal({
       setResult(null);
       // Reset input so same files can be re-selected
       if (inputRef.current) inputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
     },
     []
   );
@@ -173,31 +185,49 @@ export function UploadModal({
             </p>
           )}
 
-          {/* File input */}
-          {courseId && (
-            <>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 cursor-pointer text-xs"
-                  onClick={() => inputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <FileUp className="w-3.5 h-3.5" />
-                  Chọn file
-                </Button>
-                <span className="text-xs text-slate-400 dark:text-slate-500">
-                </span>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept=".vtt,.srt,.txt"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </div>
+           {/* File input */}
+           {courseId && (
+             <>
+               <div className="flex items-center gap-2">
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="gap-2 cursor-pointer text-xs"
+                   onClick={() => inputRef.current?.click()}
+                   disabled={uploading}
+                 >
+                   <FileUp className="w-3.5 h-3.5" />
+                   Chọn file
+                 </Button>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="gap-2 cursor-pointer text-xs"
+                   onClick={() => folderInputRef.current?.click()}
+                   disabled={uploading}
+                 >
+                   <FolderOpen className="w-3.5 h-3.5" />
+                   Tải lên thư mục
+                 </Button>
+                 <span className="text-xs text-slate-400 dark:text-slate-500">
+                 </span>
+                 <input
+                   ref={inputRef}
+                   type="file"
+                   accept=".vtt,.srt,.txt"
+                   multiple
+                   className="hidden"
+                   onChange={handleFileChange}
+                 />
+                 <input
+                   ref={folderInputRef}
+                   type="file"
+                   accept=".vtt,.srt,.txt"
+                   multiple
+                   className="hidden"
+                   onChange={handleFileChange}
+                 />
+               </div>
 
               {/* File list */}
               {files.length > 0 && (

@@ -23,6 +23,7 @@ Cho phép người dùng cấu hình AI provider tùy chọn (base URL, API key,
 - Provider không có endpoint `/models` → hiển thị input text thủ công để nhập model name
 - Không có settings → tất cả AI features hiển thị prompt "Cấu hình AI settings trước"
 - localStorage bị clear → app fallback về trạng thái chưa cấu hình
+- **[CLARIFICATION]** Modal "non-dismissable": Modal chỉ được dismiss khi `baseUrl`, `apiKey`, và `model` đều có giá trị. `udemyCookie` là optional — không cần thiết để dismiss. Nếu người dùng chưa chọn model (chưa load danh sách), nút "Lưu" bị disable.
 
 ## API Contract
 

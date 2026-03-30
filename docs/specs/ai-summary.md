@@ -32,14 +32,12 @@ Tạo tóm tắt bài học theo chuẩn giáo học pháp (Bloom's Taxonomy) t�
 ```json
 {
   "lessonId": "string",
-  "transcript": "string",
-  "settings": {
-    "baseUrl": "string",
-    "apiKey": "string",
-    "model": "string"
-  }
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
 }
 ```
+> **Note:** Transcript is **not sent by the client** — the server fetches it from the DB using `lessonId`.
 **Response 200:**
 ```json
 { "summary": "string" }
@@ -62,6 +60,17 @@ Tạo tóm tắt bài học theo chuẩn giáo học pháp (Bloom's Taxonomy) t�
 
 ## Data Model Changes
 Không có thay đổi schema. Persist vào field `summary` (String?) trong bảng `Lesson`.
+
+## Clarification: Streaming vs Non-Streaming
+
+> **⚠️ PRD Inconsistency (flagged):** PRD Flow 3 (section 9) dùng từ "Kết quả stream" khi mô tả Summary. Tuy nhiên spec này và API contract định nghĩa response là **plain text không stream** (response 200 trả `{ "summary": "string" }` một lần duy nhất).
+>
+> **Quyết định:** Giữ **non-streaming** cho Summary. Lý do:
+> - PRD dùng từ "stream" theo nghĩa thông thường ("kết quả chảy ra"), không phải SSE protocol
+> - Chỉ AI Chat (F-31..F-35) mới dùng Server-Sent Events thật sự
+> - Non-streaming đơn giản hơn và đủ cho use case Summary (tối đa ~2500 từ, < 10 giây)
+>
+> Nếu muốn đổi sang streaming: cần thay `Response 200` bằng `text/event-stream`, cập nhật client-side fetch, và cập nhật spec ai-chat.md để phân biệt rõ.
 
 ## Prompt Architecture
 - AI đóng vai **Instructional Designer**

@@ -21,6 +21,7 @@ Cho phép người dùng chat nhiều lượt với AI về nội dung bài họ
 - Bài học không có transcript → chat vẫn hoạt động nhưng AI không có context bài học (thông báo trong system prompt)
 - AI provider trả lỗi giữa stream → hiển thị thông báo lỗi, không crash UI
 - Message history quá dài (> 20 turns) → client trim bỏ messages cũ nhất (giữ system prompt + 10 turns gần nhất)
+  > **[CLARIFICATION] Định nghĩa "turn":** 1 turn = 1 cặp user+assistant (2 messages). "10 turns gần nhất" = 20 messages. Cụ thể: khi `messages.length > 20`, bỏ cặp `[user, assistant]` cũ nhất cho đến khi còn ≤ 20 messages. System prompt không tính vào giới hạn này (system prompt được inject ở server-side, không có trong mảng `messages` client gửi lên).
 - Model reasoning output `<think>` trong stream → client-side filter tag trước khi hiển thị
 
 ## API Contract
@@ -29,24 +30,23 @@ Cho phép người dùng chat nhiều lượt với AI về nội dung bài họ
 **Request:**
 ```json
 {
+  "lessonId": "string",
+  "message": "string (legacy single-message mode, optional)",
   "messages": [
     { "role": "user | assistant", "content": "string" }
   ],
-  "transcript": "string",
-  "settings": {
-    "baseUrl": "string",
-    "apiKey": "string",
-    "model": "string"
-  }
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
 }
 ```
-**Response:** Server-Sent Events stream
-```
-data: {"delta": "text chunk"}\n\n
-data: [DONE]\n\n
-```
+> **Note:** Either `message` (single string) or `messages` (full history array) must be provided.  
+> Transcript is **not sent by the client** — the server fetches it from the DB using `lessonId`.
+
+**Response:** `text/plain` chunked stream (raw text delta, no SSE envelope)
+
 **Errors (non-streaming):**
-- `400` — thiếu `messages`
+- `400` — thiếu `message`/`messages`, `lessonId` không tìm thấy transcript, hoặc `baseUrl` không hợp lệ
 - `500` — AI provider error
 
 ## Data Model Changes

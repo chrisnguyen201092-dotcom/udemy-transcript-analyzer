@@ -9,11 +9,14 @@ const SummarySchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
   model: z.string().min(1),
+  force: z.boolean().optional(),
+  lessonIndex: z.number().int().min(0).optional(),
+  totalLessons: z.number().int().min(1).optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const { lessonId, apiKey, baseUrl, model } = SummarySchema.parse(await req.json());
+    const { lessonId, apiKey, baseUrl, model, force, lessonIndex, totalLessons } = SummarySchema.parse(await req.json());
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -27,7 +30,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (lesson.summary && !force) {
+      return NextResponse.json({ summary: lesson.summary });
+    }
+
     const client = createAIClient(apiKey, baseUrl);
+
+    const learnerContext = 
+      lessonIndex !== undefined && totalLessons !== undefined
+        ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
+        : "";
 
     const response = await client.chat.completions.create({
       model,
@@ -38,7 +50,7 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}`,
+          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
     });

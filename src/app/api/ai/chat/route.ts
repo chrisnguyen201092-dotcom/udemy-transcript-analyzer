@@ -71,6 +71,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         let inThink = false;
         let buffer = "";
+        // Length of the longest opening tag we need to guard against splitting
+        const OPEN_TAG = "<think>";
+        const CLOSE_TAG = "</think>";
 
         for await (const chunk of stream) {
           const content = chunk.choices[0]?.delta?.content || "";
@@ -83,20 +86,29 @@ export async function POST(req: NextRequest) {
           let i = 0;
           while (i < buffer.length) {
             if (!inThink) {
-              const openIdx = buffer.indexOf("<think>", i);
+              const openIdx = buffer.indexOf(OPEN_TAG, i);
               if (openIdx === -1) {
-                // No more <think> tags — flush rest and clear buffer
-                output += buffer.slice(i);
-                buffer = "";
+                // No full <think> found. However the tail of the buffer might be a
+                // partial opening tag (e.g. buffer ends with "<thi"). Hold back the
+                // last (OPEN_TAG.length - 1) chars so the next chunk can complete it.
+                const safeEnd = buffer.length - (OPEN_TAG.length - 1);
+                if (safeEnd > i) {
+                  output += buffer.slice(i, safeEnd);
+                  buffer = buffer.slice(safeEnd);
+                } else {
+                  // Buffer is shorter than the guard window — hold everything
+                  buffer = buffer.slice(i);
+                }
+                i = buffer.length; // stop inner loop
                 break;
               } else {
                 // Flush up to the <think>
                 output += buffer.slice(i, openIdx);
                 inThink = true;
-                i = openIdx + 7; // skip "<think>"
+                i = openIdx + OPEN_TAG.length;
               }
             } else {
-              const closeIdx = buffer.indexOf("</think>", i);
+              const closeIdx = buffer.indexOf(CLOSE_TAG, i);
               if (closeIdx === -1) {
                 // Still inside think block, keep rest in buffer for next chunk
                 buffer = buffer.slice(i);
@@ -104,7 +116,7 @@ export async function POST(req: NextRequest) {
                 break;
               } else {
                 inThink = false;
-                i = closeIdx + 8; // skip "</think>"
+                i = closeIdx + CLOSE_TAG.length;
               }
             }
           }

@@ -51,13 +51,20 @@ Cho phép người dùng upload một hoặc nhiều file transcript (`.vtt`, `.
       "title": "string",
       "order": "number"
     }
+  ],
+  "errors": [
+    {
+      "fileName": "string",
+      "reason": "string"
+    }
   ]
 }
 ```
+> **Partial success:** Response luôn trả 200 kể cả khi một số file bị lỗi. `created` chứa các file thành công, `errors` chứa các file thất bại với lý do. Client phải hiển thị lỗi cho từng file thất bại, không báo "thành công" chung chung.
 **Errors:**
 - `400` — `courseId` bị thiếu, `files` rỗng, định dạng file không hợp lệ
 - `404` — course not found
-- `500` — lỗi parse hoặc lưu DB
+- `500` — lỗi parse hoặc lưu DB (toàn bộ batch fail, không phải partial)
 
 ## Data Model Changes
 Không có thay đổi schema. Bài học mới được tạo vào bảng `Lesson` với:

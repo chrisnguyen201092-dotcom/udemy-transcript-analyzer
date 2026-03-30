@@ -9,7 +9,7 @@ datasource db {
 
 model Course {
   id        String   @id @default(cuid())
-  url       String   @unique
+  url       String?  @unique
   title     String
   roadmap   String?
   createdAt DateTime @default(now())
@@ -26,7 +26,6 @@ model Lesson {
   transcript   String?
   summary      String?
   explanation  String?
-  roadmap      String?
   quiz         String?
   flashcards   String?
   exercises    String?

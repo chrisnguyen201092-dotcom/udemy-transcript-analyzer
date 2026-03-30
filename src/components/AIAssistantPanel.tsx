@@ -16,6 +16,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { QuizPlayer } from "@/components/QuizPlayer";
+import { FlashcardDeck } from "@/components/FlashcardDeck";
+import { ExerciseList } from "@/components/ExerciseList";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -564,23 +567,59 @@ export function AIAssistantPanel({
 
             {/* Result display */}
             {practiceMode === "quiz" &&
-              renderResult(
-                quizResult,
-                "Nhấn nút để AI tạo quiz kiểm tra kiến thức...",
-                quizLoading
-              )}
+              (quizLoading ? (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo quiz kiểm tra kiến thức...",
+                  true
+                )
+              ) : quizResult ? (
+                <ScrollArea className="flex-1 min-h-[160px]">
+                  <QuizPlayer markdown={quizResult} />
+                </ScrollArea>
+              ) : (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo quiz kiểm tra kiến thức...",
+                  false
+                )
+              ))}
             {practiceMode === "flashcards" &&
-              renderResult(
-                flashcardsResult,
-                "Nhấn nút để AI tạo flashcard ôn tập...",
-                flashcardsLoading
-              )}
+              (flashcardsLoading ? (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo flashcard ôn tập...",
+                  true
+                )
+              ) : flashcardsResult ? (
+                <ScrollArea className="flex-1 min-h-[160px]">
+                  <FlashcardDeck markdown={flashcardsResult} />
+                </ScrollArea>
+              ) : (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo flashcard ôn tập...",
+                  false
+                )
+              ))}
             {practiceMode === "exercises" &&
-              renderResult(
-                exercisesResult,
-                "Nhấn nút để AI tạo bài tập thực hành...",
-                exercisesLoading
-              )}
+              (exercisesLoading ? (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo bài tập thực hành...",
+                  true
+                )
+              ) : exercisesResult ? (
+                <ScrollArea className="flex-1 min-h-[160px]">
+                  <ExerciseList markdown={exercisesResult} />
+                </ScrollArea>
+              ) : (
+                renderResult(
+                  "",
+                  "Nhấn nút để AI tạo bài tập thực hành...",
+                  false
+                )
+              ))}
           </>
         )}
 

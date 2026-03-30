@@ -19,6 +19,7 @@ Cho phép người dùng thêm bài học thủ công vào khóa học, xem danh
 - Khóa học không có bài học nào → sidebar hiển thị trạng thái trống, có prompt "Thêm bài học đầu tiên"
 - Tên bài học bị bỏ trống → validate client-side, không gửi request
 - Import khóa học từ Udemy → bài học được tạo tự động với `order` từ curriculum Udemy; flow này xử lý bởi module course-management
+- Concurrent requests thêm bài học cùng lúc → có thể tạo 2 bài với cùng `order` nếu cả 2 request đều query `MAX(order)` trước khi insert. **Acceptable trong v1** (single-user app). Server phải query `MAX(order) + 1` trong một transaction để giảm thiểu risk. Nếu xảy ra trùng `order`: hiển thị theo `createdAt` làm tie-breaker.
 
 ## API Contract
 

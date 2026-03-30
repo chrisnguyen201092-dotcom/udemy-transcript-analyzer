@@ -34,14 +34,12 @@ Tạo giải thích sâu bài học theo Feynman Technique, tự động phân l
 ```json
 {
   "lessonId": "string",
-  "transcript": "string",
-  "settings": {
-    "baseUrl": "string",
-    "apiKey": "string",
-    "model": "string"
-  }
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
 }
 ```
+> **Note:** Transcript is **not sent by the client** — the server fetches it from the DB using `lessonId`.
 **Response 200:**
 ```json
 { "explanation": "string" }

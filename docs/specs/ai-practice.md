@@ -49,15 +49,13 @@ Tạo nội dung luyện tập từ transcript bài học: Quiz trắc nghiệm,
 ```json
 {
   "lessonId": "string",
-  "transcript": "string",
   "mode": "quiz | flashcards | exercises",
-  "settings": {
-    "baseUrl": "string",
-    "apiKey": "string",
-    "model": "string"
-  }
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
 }
 ```
+> **Note:** Transcript is **not sent by the client** — the server fetches it from the DB using `lessonId`.
 **Response 200:**
 ```json
 { "result": "string (JSON string)" }
