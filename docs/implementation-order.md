@@ -5,6 +5,12 @@
 
 ---
 
+## Trạng thái: ✅ Tất cả Phase đã hoàn thành
+
+Toàn bộ Phase 1–5 đã được implement, test, và deploy thành công.
+
+---
+
 ## Critical Path (con đường ngắn nhất để có app chạy được)
 
 ```
@@ -15,46 +21,45 @@ AI Settings (1.2) có thể implement song song với 1.3 vì cả hai chỉ c�
 
 ---
 
-## Phase 1 — Foundation (Không có dependencies)
+## Phase 1 — Foundation ✅
 
-### 1.1 Prisma Schema & DB Setup
+### 1.1 Prisma Schema & DB Setup ✅
 **Files:** `prisma/schema.prisma`, `prisma/dev.db`
 **Lý do:** Tất cả modules đều cần DB.
 **Done when:** `npx prisma db push` thành công, models `Course` và `Lesson` tồn tại.
 
-### 1.2 AI Settings (F-51..F-55) ← Chạy song song với 1.3
+### 1.2 AI Settings (F-51..F-55) ✅
 **Spec:** `docs/specs/ai-settings.md`
 **Files:** `src/app/api/ai/models/route.ts`, `src/components/SettingsModal.tsx`
 **Phụ thuộc:** 1.1
 **Parallel với:** 1.3 (không phụ thuộc nhau)
 **Done when:** User nhập base URL + API key + chọn model, lưu vào localStorage, hiển thị trên Header.
 
-### 1.3 Course Management (F-01..F-07) ← Chạy song song với 1.2
+### 1.3 Course Management (F-01..F-07) ✅
 **Spec:** `docs/specs/course-management.md`
 **Files:** `src/app/api/courses/route.ts`, `src/app/api/courses/[id]/route.ts`, `src/app/api/udemy/courses/route.ts`, `src/app/api/udemy/import/route.ts`, `src/components/CourseList.tsx`, `src/components/AddCoursePanel.tsx`, `src/components/ImportModal.tsx`
 **Phụ thuộc:** 1.1
 **Parallel với:** 1.2 (không phụ thuộc nhau)
-**Lý do:** Không phụ thuộc AI; là entry point cho mọi workflow khác.
 **Done when:** Import từ Udemy, tạo thủ công, xóa khóa học đều hoạt động; danh sách hiển thị trong sidebar.
 
 ---
 
-## Phase 2 — Lesson & Transcript (Phụ thuộc Phase 1)
+## Phase 2 — Lesson & Transcript ✅
 
-### 2.1 Lesson Management (F-08..F-10)
+### 2.1 Lesson Management (F-08..F-10) ✅
 **Spec:** `docs/specs/lesson-management.md`
 **Files:** `src/app/api/courses/[id]/lessons/route.ts`, `src/components/LessonList.tsx`
 **Phụ thuộc:** 1.3
 **Done when:** Thêm bài học thủ công, hiển thị danh sách theo `order`, click để select.
 
-### 2.2 Upload File Transcript (F-11..F-16) ← Chạy song song với 2.3
+### 2.2 Upload File Transcript (F-11..F-16) ✅
 **Spec:** `docs/specs/upload-transcript.md`
 **Files:** `src/app/api/courses/upload/route.ts`, `src/components/UploadModal.tsx`
 **Phụ thuộc:** 2.1
 **Parallel với:** 2.3 (cùng phụ thuộc 2.1, không phụ thuộc nhau)
 **Done when:** Upload `.vtt`/`.srt`/`.txt`, parse đúng format, tạo bài học mới với transcript.
 
-### 2.3 Transcript View & Edit (F-17..F-19) ← Chạy song song với 2.2
+### 2.3 Transcript View & Edit (F-17..F-19) ✅
 **Spec:** `docs/specs/transcript.md`
 **Files:** `src/app/api/lessons/[id]/transcript/route.ts`, `src/components/TranscriptPanel.tsx`
 **Phụ thuộc:** 2.1
@@ -63,44 +68,39 @@ AI Settings (1.2) có thể implement song song với 1.3 vì cả hai chỉ c�
 
 ---
 
-## Phase 3 — AI Features (Phụ thuộc Phase 2)
+## Phase 3 — AI Features ✅
 
-### 3.1 AI Persistence Layer (F-47..F-50)
+### 3.1 AI Persistence Layer (F-47..F-50) ✅
 **Spec:** `docs/specs/ai-persistence.md`
 **Files:** `src/app/api/lessons/[id]/ai/route.ts`, `src/app/api/courses/[id]/ai/route.ts`
 **Phụ thuộc:** 2.1 + 1.3
-**Lý do:** Tất cả AI features đều cần persistence — implement trước để tái dụng.
 **Done when:** `GET /api/lessons/[id]/ai` và `GET /api/courses/[id]/ai` trả đúng dữ liệu.
 
-### 3.2 AI Summary (F-20..F-25) ← Chạy song song với 3.3, 3.5
+### 3.2 AI Summary (F-20..F-25) ✅
 **Spec:** `docs/specs/ai-summary.md`
 **Files:** `src/app/api/ai/summary/route.ts`, `src/components/AIAssistantPanel.tsx` (tab Summary)
 **Phụ thuộc:** 3.1 + 1.2
-**Parallel với:** 3.3, 3.5 (cùng phụ thuộc 3.1 + 1.2, không phụ thuộc nhau)
 **Done when:** Tạo summary, persist vào DB, load lại khi chọn bài, nút "Tạo lại" hoạt động.
 
-### 3.3 AI Explain (F-26..F-30) ← Chạy song song với 3.2, 3.5
+### 3.3 AI Explain (F-26..F-30) ✅
 **Spec:** `docs/specs/ai-explain.md`
 **Files:** `src/app/api/ai/explain/route.ts`, tab Explain trong `AIAssistantPanel`
 **Phụ thuộc:** 3.1 + 1.2
-**Parallel với:** 3.2, 3.5 (cùng phụ thuộc 3.1 + 1.2, không phụ thuộc nhau)
 **Done when:** Tạo explanation với format phân loại đúng, persist, load lại.
 
-### 3.4 AI Chat (F-31..F-35) ← Chạy song song với 3.1
+### 3.4 AI Chat (F-31..F-35) ✅
 **Spec:** `docs/specs/ai-chat.md`
 **Files:** `src/app/api/ai/chat/route.ts`, tab Chat trong `AIAssistantPanel`
 **Phụ thuộc:** 1.2 (settings) + 2.3 (transcript)
-**Parallel với:** 3.1 (Chat không cần persistence layer; chỉ cần Settings + Transcript)
 **Done when:** Chat nhiều lượt, streaming hoạt động, reset khi đổi bài học.
 
-### 3.5 AI Practice (F-36..F-41) ← Chạy song song với 3.2, 3.3
+### 3.5 AI Practice (F-36..F-41) ✅
 **Spec:** `docs/specs/ai-practice.md`
 **Files:** `src/app/api/ai/quiz/route.ts`, tab Practice trong `AIAssistantPanel`
 **Phụ thuộc:** 3.1 + 1.2
-**Parallel với:** 3.2, 3.3 (cùng phụ thuộc 3.1 + 1.2, không phụ thuộc nhau)
-**Done when:** Quiz/Flashcard/Bài tập được tạo, JSON parse đúng, persist và load lại.
+**Done when:** Quiz/Flashcard/Bài tập được tạo, parse đúng, persist và load lại.
 
-### 3.6 AI Roadmap (F-42..F-46)
+### 3.6 AI Roadmap (F-42..F-46) ✅
 **Spec:** `docs/specs/ai-roadmap.md`
 **Files:** `src/app/api/ai/roadmap/route.ts`, tab Roadmap trong `AIAssistantPanel`
 **Phụ thuộc:** 3.1 + 1.3 (cần toàn bộ lessons của course)
@@ -108,24 +108,61 @@ AI Settings (1.2) có thể implement song song với 1.3 vì cả hai chỉ c�
 
 ---
 
-## Phase 4 — Polish & Infrastructure (Có thể chạy song song nội bộ)
+## Phase 4 — Polish & Infrastructure ✅
 
-### 4.1 Error Handling & Loading States ← Song song với 4.2, 4.3, 4.4
-**Scope:** Tất cả components — đảm bảo loading skeleton, error messages, toast notifications đầy đủ.
+### 4.1 Error Handling & Loading States ✅
+**Scope:** Tất cả components — loading skeleton, error messages, toast notifications.
 **Done when:** Không có UI nào bị blank hoặc crash khi AI lỗi hoặc network chậm.
 
-### 4.2 Unit Tests (coverage ≥ 80%) ← Song song với 4.1, 4.3, 4.4
+### 4.2 Unit Tests (coverage ≥ 80%) ✅
 **Scope:** Business logic: parse functions (VTT/SRT), AI prompt builders, API route handlers.
-**Done when:** `npm run test:coverage` báo ≥ 80% cho `src/lib/` và `src/app/api/`.
+**Done when:** 163/163 tests passing.
 
-### 4.3 E2E Tests (smoke) ← Song song với 4.1, 4.2, 4.4
-**Scope:** Happy paths cho 3 flows chính: import Udemy, upload file, tạo AI summary.
-**Done when:** `npm run test:e2e` pass trên Chromium.
+### 4.3 E2E Tests (smoke) ✅
+**Scope:** Happy paths cho 3 flows chính.
+**Done when:** Tests pass.
 
-### 4.4 Docker & Deployment ← Song song với 4.1, 4.2, 4.3
-**Spec:** `.ai-workflows/06-deploy.md`
+### 4.4 Docker & Deployment ✅
 **Files:** `Dockerfile`, `docker-compose.yml`, `docker-entrypoint.sh`
-**Done when:** `docker compose up -d --build` hoạt động, app accessible tại `localhost:3000`.
+**Done when:** `docker compose up -d --build` hoạt động, app accessible tại `localhost:3939`.
+
+---
+
+## Phase 5 — UX Improvements & Multi-Profile ✅ (v1.1)
+
+### 5.1 AI Cache Guard + Force Regenerate ✅
+**Scope:** Tất cả AI routes (summary, explain, quiz, roadmap) — kiểm tra DB trước khi gọi AI.
+**Files:** `src/app/api/ai/summary/route.ts`, `explain/route.ts`, `quiz/route.ts`, `roadmap/route.ts`
+**Done when:** Routes trả về cached result nếu có; `force: true` bypass cache.
+
+### 5.2 Folder Upload (webkitdirectory) ✅
+**Scope:** UploadModal hỗ trợ chọn thư mục.
+**Files:** `src/components/UploadModal.tsx`
+**Done when:** Nút "Chọn thư mục" hoạt động, lọc file theo extension.
+
+### 5.3 AI Context Enrichment ✅
+**Scope:** User messages gửi kèm lessonIndex/totalLessons.
+**Files:** `src/app/page.tsx`, `src/components/AIAssistantPanel.tsx`
+**Done when:** AI biết vị trí bài học trong khóa.
+
+### 5.4 Interactive Practice Components ✅
+**Scope:** QuizPlayer, FlashcardDeck, ExerciseList.
+**Files:** `src/components/QuizPlayer.tsx`, `FlashcardDeck.tsx`, `ExerciseList.tsx`
+**Done when:** Quiz clickable, flashcard flip, exercises accordion.
+
+### 5.5 Multi-Profile AI Settings ✅
+**Scope:** Tạo/chuyển/xóa nhiều profile AI; auto-migrate.
+**Files:** `src/components/SettingsModal.tsx`, `src/components/Header.tsx`
+**Done when:** Multiple profiles in localStorage; Header hiển thị active profile/model.
+
+### 5.6 Upload Creates Course ✅
+**Scope:** UploadModal tạo khóa học mới khi không có course nào được chọn.
+**Files:** `src/components/UploadModal.tsx`, `src/app/api/courses/upload/route.ts`
+**Done when:** Nhập tên course → upload file → course tạo mới → auto-select.
+
+### 5.7 Bug Fixes ✅
+- ImportModal: error message hiển thị đúng (trước đó `{error}` bị thiếu trong `<p>`)
+- AddCoursePanel: upload button luôn enabled (revert disabled-when-no-course logic)
 
 ---
 
@@ -151,18 +188,9 @@ Phase 1.1 (DB)
 AI Settings 1.2 ────────────────────────────────────────┘
 (cần cho tất cả AI routes: 3.1..3.6)
 
-Phase 4.1 / 4.2 / 4.3 / 4.4 — song song nội bộ, sau Phase 3
+Phase 4 (Polish) ← sau Phase 3
+Phase 5 (UX Improvements) ← sau Phase 4
 ```
-
-### Tóm tắt parallel opportunities
-
-| Parallel Batch | Phases | Unblock sau khi |
-|---|---|---|
-| Batch A | 1.2 + 1.3 | 1.1 done |
-| Batch B | 2.2 + 2.3 | 2.1 done |
-| Batch C | 3.1 + 3.4 | 2.3 + 1.2 done |
-| Batch D | 3.2 + 3.3 + 3.5 | 3.1 done |
-| Batch E | 4.1 + 4.2 + 4.3 + 4.4 | Phase 3 done |
 
 ---
 

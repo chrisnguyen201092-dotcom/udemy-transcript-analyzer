@@ -6,16 +6,16 @@
 |--------|-------------------|------------|-----------------|----------|
 | Quản lý Khóa học | 4 | 4 | 0 | 0 |
 | Udemy Import | 2 | 2 | 0 | 0 |
-| Upload File Cục bộ | 1 | 1 | 0 | 0 |
+| Upload & Tạo khóa học từ file | 4 | 4 | 0 | 0 |
 | Quản lý Transcript | 3 | 3 | 0 | 0 |
 | AI Assistant — Bài học | 4 | 4 | 0 | 0 |
-| AI Assistant — Luyện tập | 3 | 3 | 0 | 0 |
+| AI Assistant — Luyện tập (Interactive) | 3 | 3 | 0 | 0 |
 | AI Assistant — Lộ trình | 1 | 1 | 0 | 0 |
-| Persistence AI | 2 | 2 | 0 | 0 |
-| Cài đặt | 3 | 3 | 0 | 0 |
+| AI Cache & Persistence | 4 | 4 | 0 | 0 |
+| Cài đặt (Multi-Profile) | 5 | 5 | 0 | 0 |
 | Prompt Engineering | 4 | 4 | 0 | 0 |
 | UI/UX | 4 | 4 | 0 | 0 |
-| **Tổng cộng** | **31** | **31** | **0** | **0** |
+| **Tổng cộng** | **38** | **38** | **0** | **0** |
 
 ---
 
@@ -39,11 +39,14 @@
 
 ---
 
-## Module 3: Upload File Cục bộ
+## Module 3: Upload & Tạo khóa học từ file cục bộ
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Upload transcript từ file máy tính | Người dùng chọn file transcript từ máy tính để tạo bài học mới trong khóa học đang chọn | ✅ Hoàn thành | `POST /api/courses/upload` + `UploadModal` | Hỗ trợ `.vtt`, `.srt`, `.txt`; đọc file client-side, gửi content qua JSON; server parse từng định dạng (VTT/SRT deduplicate lines, strip timestamps); tên file (không có extension) trở thành tên bài học; upload nhiều file cùng lúc |
+| Tạo khóa học mới từ file upload | Khi không có khóa học nào được chọn, người dùng nhập tên khóa học mới, hệ thống tự tạo khóa học và thêm bài học từ file | ✅ Hoàn thành | `POST /api/courses/upload` + `UploadModal` | Upload API nhận `courseTitle` (tạo mới) hoặc `courseId` (thêm vào khóa học đã có); Zod `.refine()` validate; trả về `courseId` trong response |
+| Upload file transcript | Chọn file transcript từ máy tính để tạo bài học | ✅ Hoàn thành | `POST /api/courses/upload` + `UploadModal` | Hỗ trợ `.vtt`, `.srt`, `.txt`; đọc file client-side, gửi content qua JSON; server parse từng định dạng (VTT/SRT deduplicate lines, strip timestamps); tên file (không có extension) trở thành tên bài học |
+| Upload thư mục (folder) | Chọn cả thư mục chứa nhiều file transcript cùng lúc | ✅ Hoàn thành | `UploadModal` | Sử dụng `webkitdirectory` attribute; lọc file theo extension `.vtt`/`.srt`/`.txt` |
+| Tự động chọn khóa học mới | Sau khi upload tạo khóa học mới xong, tự động select khóa học đó trong sidebar | ✅ Hoàn thành | `UploadModal` + `page.tsx` | `onCourseCreated` callback từ UploadModal; refresh danh sách khóa học và set active course |
 
 ---
 
@@ -68,13 +71,13 @@
 
 ---
 
-## Module 6: AI Assistant — Luyện tập (Practice)
+## Module 6: AI Assistant — Luyện tập (Interactive Practice)
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| AI Quiz | Tạo bộ quiz kiểm tra kiến thức bài học: trắc nghiệm, đúng/sai, điền khuyết, trả lời ngắn, hoàn thành code (nếu có code). 8–12 câu, phân bố theo Bloom's Taxonomy 3 mức độ, có đáp án và giải thích chi tiết | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "quiz"` | Persona: Assessment Designer; Item Response Theory; distractors dựa trên hiểu lầm thực tế; phân bố Bloom's Taxonomy; kết quả persist vào `Lesson.quiz` |
-| AI Flashcard | Tạo bộ flashcard ôn tập theo Spaced Repetition System (SRS) và Minimum Information Principle: 15–25 thẻ, 5 loại thẻ (Term→Definition, Concept→Explanation, Code→Output, Scenario→Solution, Compare→Differences), có mnemonic | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "flashcards"` | Persona: Flashcard Designer (SRS + Piotr Wozniak); atomic principle (1 fact/thẻ); active recall cues; kết quả persist vào `Lesson.flashcards` |
-| AI Bài tập thực hành | Tạo bài tập luyện tập theo Deliberate Practice và Project-Based Learning: 3–5 bài, phân loại Tái hiện/Mở rộng/Sáng tạo/Debug/Mini Project, tự phân loại Lý thuyết/Thực hành/Hỗn hợp từ transcript | ✅ Hoàn thành | `POST /api/ai/quiz` với `mode: "exercises"` | Persona: Practice Exercise Designer; scaffolding từng bậc; rubric đánh giá rõ ràng; lời giải tham khảo đầy đủ; kết quả persist vào `Lesson.exercises` |
+| AI Quiz (Interactive) | Tạo bộ quiz kiểm tra kiến thức bài học: trắc nghiệm, đúng/sai, điền khuyết, trả lời ngắn, hoàn thành code (nếu có code). 8–12 câu, phân bố theo Bloom's Taxonomy 3 mức độ, có đáp án và giải thích chi tiết. **UI tương tác**: click chọn đáp án, chấm điểm tự động, hiển thị đáp án đúng/sai | ✅ Hoàn thành | `POST /api/ai/quiz` + `QuizPlayer.tsx` | Persona: Assessment Designer; `QuizPlayer` parse markdown output → render câu hỏi tương tác; click chọn đáp án → highlight đúng/sai; persist vào `Lesson.quiz` |
+| AI Flashcard (Flip) | Tạo bộ flashcard ôn tập theo SRS và Minimum Information Principle: 15–25 thẻ, 5 loại thẻ. **UI tương tác**: lật thẻ (flip animation), prev/next navigation, hiển thị tiến trình | ✅ Hoàn thành | `POST /api/ai/quiz` + `FlashcardDeck.tsx` | `FlashcardDeck` parse markdown → render thẻ có mặt trước/sau; click để lật; điều hướng qua từng thẻ; persist vào `Lesson.flashcards` |
+| AI Bài tập thực hành (Accordion) | Tạo bài tập luyện tập theo Deliberate Practice và PBL: 3–5 bài. **UI tương tác**: accordion expandable, mở rộng để xem lời giải tham khảo | ✅ Hoàn thành | `POST /api/ai/quiz` + `ExerciseList.tsx` | `ExerciseList` parse markdown → render bài tập dạng accordion; click mở rộng/thu gọn; có rubric + lời giải; persist vào `Lesson.exercises` |
 
 ---
 
@@ -86,22 +89,26 @@
 
 ---
 
-## Module 8: Persistence AI Results
+## Module 8: AI Cache & Persistence
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
 | Lưu kết quả AI theo bài học | Summary, Explanation, Quiz, Flashcard, Exercises tự động lưu vào DB sau mỗi lần generate; load lại khi chọn lại bài học | ✅ Hoàn thành | `GET /api/lessons/[id]/ai` | AI results persist vào các trường tương ứng trong `Lesson`; load khi `lesson.id` thay đổi; không cần regenerate mỗi lần |
 | Lưu kết quả AI theo khóa học | Roadmap được lưu vào `Course.roadmap`; load lại khi chọn lại khóa học | ✅ Hoàn thành | `GET /api/courses/[id]/ai` | Course-level persistence trong `Course.roadmap`; load khi `courseId` thay đổi |
+| Cache guard trên AI routes | Tất cả AI routes (summary, explain, quiz, roadmap) kiểm tra DB trước khi gọi AI; nếu đã có kết quả → trả về ngay | ✅ Hoàn thành | Tất cả `POST /api/ai/*` routes | Kiểm tra field tương ứng trong Lesson/Course trước khi gọi OpenAI; giảm chi phí API và thời gian chờ |
+| Force regenerate | Gửi `"force": true` trong request body để bỏ qua cache, gọi AI lại và ghi đè kết quả cũ | ✅ Hoàn thành | Tất cả `POST /api/ai/*` routes + UI button "Tạo lại" | UI hiển thị nút "Tạo lại" khi đã có kết quả cached; backend xóa field cũ trước khi generate mới |
 
 ---
 
-## Module 9: Cài đặt (Settings)
+## Module 9: Cài đặt Multi-Profile (Settings)
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
-| Cấu hình AI provider | Nhập base URL, API key và chọn model từ dropdown để kết nối với AI provider | ✅ Hoàn thành | `SettingsModal` | Base URL cho phép dùng bất kỳ OpenAI-compatible API; model list fetch động từ `/models` endpoint; hiển thị tên model hiện tại trong Header |
-| Cấu hình Udemy cookie | Nhập `access_token` cookie từ trình duyệt để xác thực với Udemy API | ✅ Hoàn thành | `SettingsModal` | Cookie được lưu client-side trong localStorage; gửi kèm request khi gọi Udemy API |
-| Lưu settings vào localStorage | Toàn bộ cấu hình được persist trong localStorage, không cần backend | ✅ Hoàn thành | Client-side (`SETTINGS_KEY = "udemy_ai_settings"`) | Không cần đăng nhập; settings tồn tại giữa các session; merge với `DEFAULT_SETTINGS` khi load để xử lý thiếu field |
+| Multi-profile AI | Tạo, chuyển đổi, xóa nhiều profile AI — mỗi profile có base URL, API key, model, Udemy cookie riêng | ✅ Hoàn thành | `SettingsModal` | `AIProfile` type: `{ id, name, baseUrl, apiKey, model, udemyCookie, cachedModels[] }`; lưu trong localStorage key `udemy_ai_profiles` với shape `{ profiles: AIProfile[], activeId: string }` |
+| Cấu hình AI provider per-profile | Mỗi profile có base URL, API key, model dropdown riêng | ✅ Hoàn thành | `SettingsModal` | Base URL cho phép dùng bất kỳ OpenAI-compatible API; model list fetch động từ `/models` endpoint; cached trong profile |
+| Cấu hình Udemy cookie per-profile | Mỗi profile có `access_token` cookie riêng | ✅ Hoàn thành | `SettingsModal` | Cookie được lưu client-side trong profile; gửi kèm request khi gọi Udemy API |
+| Hiển thị profile hiện tại trên Header | Header hiển thị "Tên profile / model" khi đã cấu hình | ✅ Hoàn thành | `Header.tsx` | Đọc active profile từ localStorage; hiển thị `profile.name / profile.model` |
+| Auto-migrate từ settings cũ | Tự động migrate từ `udemy_ai_settings` (single config) sang `udemy_ai_profiles` (multi-profile) | ✅ Hoàn thành | `SettingsModal` | Chạy một lần khi load; tạo profile "Default" từ settings cũ; xóa key cũ sau khi migrate |
 
 ---
 
@@ -137,14 +144,14 @@
 | `DELETE` | `/api/courses/[id]` | Xóa khóa học (cascade) | |
 | `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học (roadmap) | Dùng để load persisted roadmap |
 | `POST` | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học | |
-| `POST` | `/api/courses/upload` | Upload file transcript → tạo bài học | `.vtt`, `.srt`, `.txt`; parse + deduplicate |
+| `POST` | `/api/courses/upload` | Upload file transcript → tạo khóa học hoặc thêm bài học | Nhận `courseId` (thêm vào) hoặc `courseTitle` (tạo mới); Zod validation |
 | `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
 | `PUT` | `/api/lessons/[id]/transcript` | Cập nhật transcript bài học | |
-| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | |
-| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | |
-| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist |
-| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level |
-| `POST` | `/api/ai/quiz` | Tạo Quiz/Flashcard/Exercises; persist → Lesson | Param: `mode: "quiz" \| "flashcards" \| "exercises"` |
+| `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | Cache guard + `force` flag |
+| `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | Cache guard + `force` flag |
+| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist; không cache |
+| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level; Cache guard + `force` flag |
+| `POST` | `/api/ai/quiz` | Tạo Quiz/Flashcard/Exercises; persist → Lesson | Param: `mode: "quiz" \| "flashcards" \| "exercises"`; Cache guard + `force` flag |
 | `POST` | `/api/ai/models` | Lấy danh sách model từ provider | |
 | `POST` | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy | |
 | `POST` | `/api/udemy/import` | Import khóa học, lessons, transcripts từ Udemy | |
@@ -188,7 +195,7 @@ model Lesson {
 
 | Layer | Công nghệ |
 |-------|-----------|
-| Framework | Next.js (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Frontend | React 19 |
 | Database ORM | Prisma + SQLite |
 | AI SDK | OpenAI SDK (OpenAI-compatible) |
@@ -196,4 +203,4 @@ model Lesson {
 | Components | shadcn/ui (Radix UI primitives) |
 | Language | TypeScript |
 | Validation | Zod |
-| Deploy | Docker (docker-compose) |
+| Deploy | Docker (docker-compose, port 3939) |

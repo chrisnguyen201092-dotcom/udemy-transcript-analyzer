@@ -2,7 +2,9 @@
 
 ## Overview
 
-Three system prompts for Udemy lesson transcript processing, grounded in evidence-based learning science.
+Seven system prompts for Udemy lesson transcript processing, grounded in evidence-based learning science. All prompts are managed via `getSystemPrompt(type)` dispatcher in `src/lib/ai/prompts.ts`.
+
+**Prompt types:** `summary`, `explain`, `chat`, `roadmap`, `quiz`, `flashcards`, `exercises`
 
 ---
 
@@ -76,6 +78,95 @@ Three system prompts for Udemy lesson transcript processing, grounded in evidenc
 
 ---
 
+## 4. ROADMAP_SYSTEM_PROMPT
+
+### Role: "Learning Consultant (Andragogy + Deliberate Practice)"
+**Why:** Course-level analysis requires a different persona than lesson-level. A Learning Consultant thinks about the entire learning journey, not just individual topics.
+
+### Design Decisions
+
+| Element | Rationale |
+|---------|-----------|
+| Course-level aggregation | Roadmap analyzes ALL lessons (truncated to 4000 chars each) to build a holistic view |
+| Phân giai đoạn (Phased learning) | **Scaffolding** + **Deliberate Practice** (Ericsson, 1993) — structured progression from foundation → intermediate → advanced prevents overwhelm |
+| Bản đồ kiến thức | **Schema Theory** (Bartlett, 1932) — visualizing concept relationships helps learners see the big picture before diving into details |
+| Kế hoạch tuần (Weekly plan) | **Spaced Practice** (Cepeda et al., 2006) — distributing study over time improves long-term retention vs. cramming |
+| Dự án tổng hợp | **Project-Based Learning** (Blumenfeld et al., 1991) — integrative projects consolidate knowledge across multiple lessons |
+| Phương pháp học tối ưu | **Metacognition** (Flavell, 1979) — teaching HOW to learn is as important as WHAT to learn |
+
+### Expected Output: Comprehensive roadmap
+- Course overview, phased learning stages, knowledge map
+- Optimal study methods, integrative projects, weekly schedule
+- Personalized to course content (not generic advice)
+
+---
+
+## 5. QUIZ_SYSTEM_PROMPT
+
+### Role: "Assessment Designer (Item Response Theory)"
+**Why:** Well-designed assessments require expertise in psychometrics. An Assessment Designer creates questions that genuinely test understanding, not just recall.
+
+### Design Decisions
+
+| Element | Rationale |
+|---------|-----------|
+| 8-12 questions | Enough for comprehensive coverage without fatigue (Haladyna et al., 2002) |
+| 3 Bloom's levels | **Bloom's Taxonomy** — questions distributed across Remember, Understand, Apply ensures depth beyond surface-level recall |
+| 5 question types | Mixed formats (MCQ, T/F, fill-blank, short answer, code completion) test different cognitive skills |
+| Realistic distractors | **Item Response Theory** — distractors based on common misconceptions reveal actual understanding gaps |
+| Detailed explanations | **Elaborative feedback** (Butler et al., 2008) — explaining WHY an answer is correct/incorrect produces deeper learning than simple correct/incorrect feedback |
+
+### Expected Output: Interactive quiz
+- 8-12 questions with answers and explanations
+- Parsed by `QuizPlayer.tsx` → clickable MCQ interface
+- Bloom's distribution visible in question labels
+
+---
+
+## 6. FLASHCARD_SYSTEM_PROMPT
+
+### Role: "Flashcard Designer (SRS + Piotr Wozniak)"
+**Why:** Effective flashcards follow strict principles from spaced repetition research. A specialized persona ensures cards are atomic and optimally formulated.
+
+### Design Decisions
+
+| Element | Rationale |
+|---------|-----------|
+| 15-25 cards | Comprehensive coverage without overwhelm for a single lesson |
+| Minimum Information Principle | **Wozniak's 20 Rules** — each card tests exactly ONE fact/concept for optimal retention |
+| 5 card types | Different knowledge types need different card formats: Term→Def, Concept→Explain, Code→Output, Scenario→Solution, Compare→Diff |
+| Active recall cues | Cards designed to TRIGGER recall, not passively present information |
+| Mnemonics included | **Mnemonic Devices** (Putnam, 2015) — memory aids on cards boost retention via multiple encoding pathways |
+
+### Expected Output: Flashcard deck
+- 15-25 atomic cards with front/back
+- Parsed by `FlashcardDeck.tsx` → flip card interface with navigation
+- Each card self-contained and recall-optimized
+
+---
+
+## 7. EXERCISES_SYSTEM_PROMPT
+
+### Role: "Practice Exercise Designer (Deliberate Practice + PBL)"
+**Why:** Practice exercises need structured scaffolding from simple recall to creative application. A specialized designer ensures progressive difficulty.
+
+### Design Decisions
+
+| Element | Rationale |
+|---------|-----------|
+| 3-5 exercises | Focused practice on key concepts without overwhelming |
+| 5 difficulty tiers | Tái hiện → Mở rộng → Sáng tạo → Debug → Mini Project — progressive challenge (**Deliberate Practice**, Ericsson 1993) |
+| Auto-classify content type | Lý thuyết / Thực hành / Hỗn hợp — detection from transcript determines exercise style |
+| Rubric đánh giá | Clear success criteria help learners self-assess (**Self-Regulated Learning**, Zimmerman 2002) |
+| Lời giải tham khảo | Complete reference solutions prevent learned helplessness while still encouraging independent attempt first |
+
+### Expected Output: Practice exercises
+- 3-5 exercises with difficulty classification
+- Parsed by `ExerciseList.tsx` → accordion interface with expandable solutions
+- Each exercise has rubric + reference solution
+
+---
+
 ## Cross-Cutting Design Principles
 
 ### 1. Transcript Resilience
@@ -86,16 +177,29 @@ Each prompt contains explicit "KHÔNG bịa thêm thông tin" (do not fabricate)
 - Summary: Strict — extract only what's there
 - Explain: Allowed to add illustrative examples to clarify existing concepts
 - Chat: Strict + hedging language when uncertain
+- Quiz/Flashcard/Exercises: Based on transcript content; exercises may extend concepts
+- Roadmap: Infers from lesson content; does not invent topics not covered
 
 ### 3. Model-Agnostic
 - No model-specific tokens or formatting
 - Clear structure with markdown (universally supported)
 - Template-style format with [placeholders] works across OpenAI, Qwen, Llama, etc.
+- Think-tag suppression handles reasoning models (DeepSeek, etc.)
 
 ### 4. Vietnamese-First
 - All prompts written in Vietnamese to avoid translation artifacts
 - Cultural tone: respectful but approachable (not overly formal)
 - English terms preserved in parentheses for technical accuracy
+
+### 5. DRY Architecture
+- Shared builder functions: `buildASRRules(inferenceSource, fallback?)`, `buildLanguageRules(translationStyle)`
+- Each prompt reuses common rules via builders, customizing only what differs
+- `getSystemPrompt(type)` dispatcher centralizes prompt selection
+
+### 6. AI Context Enrichment
+- User messages include `lessonIndex` and `totalLessons` for positional context
+- AI knows where the lesson sits within the overall course structure
+- Enables more contextual responses (e.g., "this is an introductory lesson" vs. "this builds on previous concepts")
 
 ---
 
@@ -105,5 +209,17 @@ Each prompt contains explicit "KHÔNG bịa thêm thông tin" (do not fabricate)
 import { getSystemPrompt } from "@/lib/ai/prompts";
 
 // In your API route:
-const systemPrompt = getSystemPrompt("summary"); // or "explain" or "chat"
+const systemPrompt = getSystemPrompt("summary");    // or "explain", "chat", "roadmap", "quiz", "flashcards", "exercises"
 ```
+
+### Available prompt types:
+
+| Type | Route | Persona | Output Target |
+|------|-------|---------|---------------|
+| `summary` | `/api/ai/summary` | Instructional Designer | `Lesson.summary` |
+| `explain` | `/api/ai/explain` | Feynman Lecturer | `Lesson.explanation` |
+| `chat` | `/api/ai/chat` | Socratic Tutor | Streaming (no persist) |
+| `roadmap` | `/api/ai/roadmap` | Learning Consultant | `Course.roadmap` |
+| `quiz` | `/api/ai/quiz?mode=quiz` | Assessment Designer | `Lesson.quiz` |
+| `flashcards` | `/api/ai/quiz?mode=flashcards` | Flashcard Designer (SRS) | `Lesson.flashcards` |
+| `exercises` | `/api/ai/quiz?mode=exercises` | Exercise Designer (DP) | `Lesson.exercises` |
