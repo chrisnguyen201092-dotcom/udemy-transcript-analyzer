@@ -17,6 +17,16 @@ import {
 } from "@/components/SettingsModal";
 import { ImportModal } from "@/components/ImportModal";
 import { UploadModal } from "@/components/UploadModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Lesson {
   id: string;
@@ -54,6 +64,11 @@ export default function Home() {
 
   // Multi-profile store
   const [store, setStore] = useState<SettingsStore>(() => loadStore());
+
+  // Chat leave warning state
+  const [chatMessageCount, setChatMessageCount] = useState(0);
+  const [pendingLesson, setPendingLesson] = useState<Lesson | null>(null);
+  const [showLessonWarning, setShowLessonWarning] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -113,6 +128,25 @@ export default function Home() {
     }
   };
 
+  const handleRenameCourse = async (id: string, newTitle: string) => {
+    try {
+      const res = await fetch(`/api/courses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCourses((prev) => prev.map((c) => (c.id === id ? updated : c)));
+        if (selectedCourse?.id === id) {
+          setSelectedCourse(updated);
+        }
+      }
+    } catch {
+      // Silently fail — title stays unchanged in UI
+    }
+  };
+
   const handleAddLesson = async (title: string) => {
     if (!selectedCourse) return;
     const res = await fetch(`/api/courses/${selectedCourse.id}/lessons`, {
@@ -127,6 +161,42 @@ export default function Home() {
         lessons: [...selectedCourse.lessons, data],
       });
     }
+  };
+
+  const handleDeleteLesson = async (lessonId: string) => {
+    await fetch(`/api/lessons/${lessonId}`, { method: "DELETE" });
+    if (selectedCourse) {
+      const updatedLessons = selectedCourse.lessons.filter((l) => l.id !== lessonId);
+      setSelectedCourse({
+        ...selectedCourse,
+        lessons: updatedLessons,
+      });
+      if (selectedLesson?.id === lessonId) {
+        setSelectedLesson(null);
+      }
+    }
+  };
+
+  const handleSelectLesson = (lesson: Lesson) => {
+    if (chatMessageCount > 0 && selectedLesson && selectedLesson.id !== lesson.id) {
+      setPendingLesson(lesson);
+      setShowLessonWarning(true);
+    } else {
+      setSelectedLesson(lesson);
+    }
+  };
+
+  const confirmLessonSwitch = () => {
+    if (pendingLesson) {
+      setSelectedLesson(pendingLesson);
+    }
+    setPendingLesson(null);
+    setShowLessonWarning(false);
+  };
+
+  const cancelLessonSwitch = () => {
+    setPendingLesson(null);
+    setShowLessonWarning(false);
   };
 
   const handleSaveTranscript = async (lessonId: string, transcript: string) => {
@@ -244,6 +314,7 @@ export default function Home() {
                 setSelectedLesson(null);
               }}
               onDelete={handleDeleteCourse}
+              onRename={handleRenameCourse}
             />
 
             {selectedCourse && (
@@ -252,8 +323,9 @@ export default function Home() {
                 <LessonList
                   lessons={selectedCourse.lessons}
                   selectedLessonId={selectedLesson?.id ?? null}
-                  onSelect={setSelectedLesson}
+                  onSelect={handleSelectLesson}
                   onAddLesson={handleAddLesson}
+                  onDelete={handleDeleteLesson}
                 />
               </>
             )}
@@ -274,6 +346,7 @@ export default function Home() {
                 settings={settings}
                 isConfigured={isConfigured}
                 onOpenSettings={() => setShowSettings(true)}
+                onChatCountChange={setChatMessageCount}
               />
             </div>
           ) : (
@@ -336,6 +409,23 @@ export default function Home() {
           }
         }}
       />
+
+      <AlertDialog open={showLessonWarning} onOpenChange={setShowLessonWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chuyển bài học?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn đang có cuộc trò chuyện với AI. Chuyển bài học sẽ mất toàn bộ lịch sử chat hiện tại.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelLessonSwitch} className="cursor-pointer">Ở lại</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLessonSwitch} className="bg-[#A435F0] hover:bg-[#8710D8] cursor-pointer">
+              Chuyển bài học
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

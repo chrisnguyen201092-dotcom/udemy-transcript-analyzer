@@ -194,6 +194,118 @@ Phase 5 (UX Improvements) ← sau Phase 4
 
 ---
 
+## Phase 6 — UX Overhaul (Target: 9.5+ All Categories)
+
+**Spec:** `docs/specs/ux-overhaul.md`
+**Branch:** `feat/ux-overhaul`
+**Phụ thuộc:** Phase 5
+
+### 6A — Critical Fixes
+
+```
+6A.1 Markdown Rendering ←── standalone, no deps
+6A.4 Transcript Fill Height ←── standalone, no deps
+         ↓
+6A.2 URL Navigation ←── depends on page.tsx refactor
+         ↓
+6A.3 Responsive Layout ←── depends on page.tsx refactor from 6A.2
+```
+
+#### 6A.1 Markdown Rendering cho AI Output ✅ (pending)
+**Files:** `src/components/MarkdownRenderer.tsx` (NEW), `AIAssistantPanel.tsx`, `FlashcardDeck.tsx`, `ExerciseList.tsx`
+**Done when:** AI output rendered as formatted markdown with syntax highlighting.
+
+#### 6A.2 URL-Based Navigation
+**Files:** `src/hooks/useUrlState.ts` (NEW), `src/app/page.tsx`
+**Phụ thuộc:** 6A.1 (page.tsx changes)
+**Done when:** URL search params sync with app state; refresh preserves position; Back/Forward work.
+
+#### 6A.3 Responsive Layout
+**Files:** `src/components/Sidebar.tsx` (NEW), `src/hooks/useMediaQuery.ts` (NEW), `Header.tsx`, `page.tsx`, `globals.css`
+**Phụ thuộc:** 6A.2 (page.tsx changes)
+**Done when:** Mobile sidebar overlay, tablet collapsible, desktop 3-panel.
+
+#### 6A.4 Transcript Panel Fill Height
+**Files:** `src/components/TranscriptPanel.tsx`, `src/app/page.tsx`
+**Done when:** Transcript fills available height with independent scroll.
+
+### 6B — Major Fixes
+
+All 6B items are independent of each other (parallel-safe).
+
+#### 6B.1 Search & Filter (CourseList + LessonList)
+**Files:** `CourseList.tsx`, `LessonList.tsx`
+**Done when:** Realtime search filter with result count.
+
+#### 6B.2 Regenerate Confirmation Dialog
+**Files:** `AIAssistantPanel.tsx`
+**Done when:** AlertDialog before regenerate when cached content exists.
+
+#### 6B.3 Lesson Deletion
+**Files:** `LessonList.tsx`, `src/app/api/lessons/[id]/route.ts` (ADD DELETE), `page.tsx`
+**Done when:** Delete lesson via UI + API, selection cleared if deleted.
+
+#### 6B.4 Course Renaming
+**Files:** `CourseList.tsx`, `src/app/api/courses/[id]/route.ts` (ADD PATCH)
+**Done when:** Inline rename via double-click or edit icon.
+
+#### 6B.5 Fix `lang="vi"`
+**Files:** `layout.tsx`
+**Done when:** `<html lang="vi">`.
+
+#### 6B.6 Settings Validation
+**Files:** `SettingsModal.tsx`
+**Done when:** URL format validation, test connection, required field indicators.
+
+#### 6B.7 Chat Leave Warning
+**Files:** `page.tsx`, `AIAssistantPanel.tsx`
+**Done when:** Confirm dialog when switching lesson with active chat.
+
+### 6C — Polish
+
+#### 6C.1 Toast System (sonner)
+**Files:** `layout.tsx`, all components with feedback
+**Done when:** Global toast for success/error.
+
+#### 6C.2 Loading Skeletons
+**Files:** `CourseList.tsx`, `LessonList.tsx`, `TranscriptPanel.tsx`, `AIAssistantPanel.tsx`
+**Done when:** Skeleton components during data fetching.
+
+#### 6C.3 AI Generation Progress + Cancel
+**Files:** `AIAssistantPanel.tsx`
+**Done when:** Animated progress with elapsed time + AbortController cancel.
+
+#### 6C.4 Keyboard Shortcuts
+**Files:** `src/hooks/useKeyboardShortcuts.ts` (NEW), components with tooltips
+**Done when:** Ctrl+S, Alt+1-5, Alt+↑/↓, Ctrl+K, Escape work.
+
+#### 6C.5 DnD File Upload
+**Files:** `UploadModal.tsx`
+**Done when:** Drag-and-drop dropzone with visual feedback.
+
+#### 6C.6 Enhanced Empty States
+**Files:** `page.tsx`, `src/components/OnboardingCard.tsx` (NEW)
+**Done when:** Contextual empty states with action buttons + one-time onboarding.
+
+#### 6C.7 Lesson Reorder (dnd-kit)
+**Files:** `LessonList.tsx`, `src/app/api/courses/[id]/lessons/reorder/route.ts` (NEW)
+**Done when:** Drag-to-reorder with optimistic UI + API persist.
+
+#### 6C.8 Transcript Edit Mode Toggle
+**Files:** `TranscriptPanel.tsx`
+**Done when:** Read mode (prose) / Edit mode (textarea) toggle with unsaved warning.
+
+### Phase 6 Dependency Graph
+
+```
+6A.1 (Markdown) ──┐
+6A.4 (Transcript)  ├──→ 6A.2 (URL Nav) ──→ 6A.3 (Responsive)
+                   │
+                   └──→ 6B.* (all parallel) ──→ 6C.* (all parallel)
+```
+
+---
+
 ## Ghi chú
 
 - Mỗi phase: viết spec → implement → chạy `npm run quality-gate` → commit

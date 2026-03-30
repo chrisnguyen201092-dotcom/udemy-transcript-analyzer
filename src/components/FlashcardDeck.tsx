@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Eye, RotateCw } from "lucide-react";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 interface FlashcardDeckProps {
   markdown: string;
@@ -25,36 +26,27 @@ export function FlashcardDeck({ markdown }: FlashcardDeckProps) {
   const [showHint, setShowHint] = useState(false);
 
   const cards = parseFlashcards(markdown);
-
-  if (!cards.length) {
-    return (
-      <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-        {markdown}
-      </pre>
-    );
-  }
-
   const currentCard = cards[currentIndex];
 
-  const handleNext = useCallback(() => {
+  const handleNext = () => {
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsFlipped(false);
       setShowHint(false);
     }
-  }, [currentIndex, cards.length]);
+  };
 
-  const handlePrev = useCallback(() => {
+  const handlePrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setIsFlipped(false);
       setShowHint(false);
     }
-  }, [currentIndex]);
+  };
 
-  const handleFlip = useCallback(() => {
+  const handleFlip = () => {
     setIsFlipped(!isFlipped);
-  }, [isFlipped]);
+  };
 
   // Keyboard navigation
   useEffect(() => {
@@ -70,6 +62,15 @@ export function FlashcardDeck({ markdown }: FlashcardDeckProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleNext, handlePrev, handleFlip]);
+
+  if (!cards.length) {
+    return (
+      <MarkdownRenderer
+        content={markdown}
+        className="text-xs text-gray-700 dark:text-gray-300"
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Eye } from "lucide-react";
 
@@ -30,19 +30,10 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
 
   const parsed = parseQuiz(markdown);
 
-  if (!parsed.questions.length) {
-    return (
-      <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-        {markdown}
-      </pre>
-    );
-  }
-
-  const handleSelect = useCallback(
-    (questionId: number, option: string, correctAnswer: string) => {
+  const handleSelect =
+    (questionId: number, option: string) => {
       if (selectedAnswers[questionId]) return;
 
-      const isCorrect = option === correctAnswer;
       const newAnswers = { ...selectedAnswers, [questionId]: option };
       setSelectedAnswers(newAnswers);
 
@@ -54,9 +45,15 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
         }, 0);
         setScore(correctCount);
       }
-    },
-    [selectedAnswers, parsed.questions, parsed.answers]
-  );
+    };
+
+  if (!parsed.questions.length) {
+    return (
+      <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
+        {markdown}
+      </pre>
+    );
+  }
 
   const totalQuestions = parsed.questions.length;
   const answeredCount = Object.keys(selectedAnswers).length;
@@ -86,7 +83,6 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
         const answer = parsed.answers.find((a) => a.questionId === question.id);
         const selectedAnswer = selectedAnswers[question.id];
         const isAnswered = !!selectedAnswer;
-        const isCorrect = isAnswered && answer && selectedAnswer === answer.correct;
 
         return (
           <div
@@ -133,7 +129,7 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
                   return (
                     <button
                       key={optionLabel}
-                      onClick={() => handleSelect(question.id, optionLabel, answer?.correct || "")}
+                      onClick={() => handleSelect(question.id, optionLabel)}
                       disabled={isAnswered}
                       className={`w-full text-left px-3 py-2 text-xs rounded border transition-colors cursor-pointer ${bgColor} ${borderColor} ${textColor} hover:border-[#A435F0]/40 disabled:cursor-default`}
                     >
@@ -181,7 +177,7 @@ export function QuizPlayer({ markdown }: QuizPlayerProps) {
                   return (
                     <button
                       key={option}
-                      onClick={() => handleSelect(question.id, option, answer?.correct || "")}
+                      onClick={() => handleSelect(question.id, option)}
                       disabled={isAnswered}
                       className={`flex-1 px-3 py-2 text-xs rounded border transition-colors cursor-pointer ${bgColor} ${borderColor} ${textColor} hover:border-[#A435F0]/40 disabled:cursor-default`}
                     >

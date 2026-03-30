@@ -48,7 +48,7 @@ export function TranscriptPanel({ lesson, onSaveTranscript }: TranscriptPanelPro
       {/* Body */}
       <div className="flex-1 p-5">
         {lesson.transcript ? (
-          <ScrollArea className="h-80">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed pr-3">
               {lesson.transcript}
             </div>

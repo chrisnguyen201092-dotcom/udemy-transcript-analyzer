@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Plus, Trash2, Check, Pencil } from "lucide-react";
+import { RefreshCw, Plus, Trash2, Check, Pencil, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,6 +116,8 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
   const [editingName, setEditingName] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsError, setModelsError] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{status: 'idle' | 'loading' | 'success' | 'error', message?: string}>({status: 'idle'});
 
   // Sync when modal opens
   useEffect(() => {
@@ -124,12 +126,20 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
       setSelectedId(store.activeId || store.profiles[0]?.id || "");
       setEditingName(false);
       setModelsError("");
+      setUrlError(null);
+      setTestResult({ status: 'idle' });
     }
   }, [open, store]);
 
   const selectedProfile = draft.profiles.find((p) => p.id === selectedId) ?? draft.profiles[0];
 
   const updateProfile = (changes: Partial<AIProfile>) => {
+    if ('baseUrl' in changes || 'apiKey' in changes || 'model' in changes) {
+      setTestResult({ status: 'idle' });
+    }
+    if ('baseUrl' in changes) {
+      setUrlError(null);
+    }
     setDraft((prev) => ({
       ...prev,
       profiles: prev.profiles.map((p) =>
@@ -138,11 +148,50 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
     }));
   };
 
+  const validateUrl = (url: string): string | null => {
+    if (!url) return "Base URL is required";
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return "URL must start with http:// or https://";
+    }
+    try {
+      new URL(url);
+      return null;
+    } catch {
+      return "Invalid URL format";
+    }
+  };
+
+  const handleUrlBlur = () => {
+    const error = validateUrl(selectedProfile.baseUrl);
+    setUrlError(error);
+  };
+
+  const handleTestConnection = async () => {
+    setTestResult({ status: 'loading' });
+    try {
+      const res = await fetch("/api/ai/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: selectedProfile.baseUrl, apiKey: selectedProfile.apiKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTestResult({ status: 'error', message: data.error ?? "Connection failed" });
+      } else {
+        setTestResult({ status: 'success', message: "Connection successful" });
+      }
+    } catch {
+      setTestResult({ status: 'error', message: "Network error" });
+    }
+  };
+
   const addProfile = () => {
     const p = makeProfile({ name: `Profile ${draft.profiles.length + 1}` });
     setDraft((prev) => ({ ...prev, profiles: [...prev.profiles, p] }));
     setSelectedId(p.id);
     setModelsError("");
+    setUrlError(null);
+    setTestResult({ status: 'idle' });
   };
 
   const deleteProfile = (id: string) => {
@@ -154,6 +203,8 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
       setSelectedId(remaining[0].id);
     }
     setModelsError("");
+    setUrlError(null);
+    setTestResult({ status: 'idle' });
   };
 
   const fetchModels = useCallback(async (profile: AIProfile) => {
@@ -299,19 +350,25 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
               {/* Base URL */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="baseUrl" className="text-xs">Base URL</Label>
+                <Label htmlFor="baseUrl" className="text-xs">
+                  Base URL <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="baseUrl"
                   value={selectedProfile.baseUrl}
                   onChange={(e) => updateProfile({ baseUrl: e.target.value })}
+                  onBlur={handleUrlBlur}
                   placeholder="https://api.openai.com/v1"
                   className="text-sm"
                 />
+                {urlError && <p className="text-[11px] text-red-500 mt-0.5">{urlError}</p>}
               </div>
 
               {/* API Key */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="apiKey" className="text-xs">API Key</Label>
+                <Label htmlFor="apiKey" className="text-xs">
+                  API Key <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="apiKey"
                   type="password"
@@ -358,6 +415,27 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
                 {fetchingModels ? "Đang tải models..." : "Lấy danh sách Models"}
               </Button>
 
+              {/* Test Connection */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={testResult.status === 'loading' || !selectedProfile.baseUrl || !selectedProfile.apiKey}
+                  className="gap-2 cursor-pointer flex-1"
+                >
+                  {testResult.status === 'loading' && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {testResult.status === 'success' && <Check className="w-4 h-4 text-green-600" />}
+                  {testResult.status === 'error' && <X className="w-4 h-4 text-red-600" />}
+                  {testResult.status === 'idle' && "Test Connection"}
+                  {testResult.status === 'loading' && "Testing..."}
+                  {testResult.status === 'success' && "Success"}
+                  {testResult.status === 'error' && "Failed"}
+                </Button>
+              </div>
+              {testResult.status === 'error' && testResult.message && (
+                <p className="text-[11px] text-red-500 mt-0.5">{testResult.message}</p>
+              )}
+
               {modelsError && (
                 <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800 rounded-lg px-3 py-2">
                   {modelsError}
@@ -366,7 +444,9 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
 
               {/* Model selector */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="model" className="text-xs">Model</Label>
+                <Label htmlFor="model" className="text-xs">
+                  Model <span className="text-red-500">*</span>
+                </Label>
                 {selectedProfile.cachedModels.length > 0 ? (
                   <Select
                     value={selectedProfile.model}

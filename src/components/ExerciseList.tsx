@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp, Lightbulb, BookOpen } from "lucide-react";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 interface ExerciseListProps {
   markdown: string;
@@ -26,9 +27,10 @@ export function ExerciseList({ markdown }: ExerciseListProps) {
 
   if (!exercises.length) {
     return (
-      <pre className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-        {markdown}
-      </pre>
+      <MarkdownRenderer
+        content={markdown}
+        className="text-xs text-gray-700 dark:text-gray-300"
+      />
     );
   }
 

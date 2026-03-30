@@ -16,6 +16,24 @@ export async function GET(
   return NextResponse.json(course);
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = await req.json();
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+  const course = await prisma.course.update({
+    where: { id },
+    data: { title },
+    include: { lessons: { orderBy: { order: "asc" } } },
+  });
+  return NextResponse.json(course);
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
