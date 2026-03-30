@@ -155,7 +155,7 @@ export function UploadModal({
         <div className="flex flex-col gap-3 py-1">
           {/* No course selected warning */}
           {!courseId && (
-            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-800 rounded-lg px-3 py-2">
               Vui lòng chọn course trước
             </p>
           )}
@@ -165,8 +165,8 @@ export function UploadModal({
             <p
               className={`text-sm rounded-lg px-3 py-2 border ${
                 result.startsWith("Đã upload")
-                  ? "bg-green-50 text-green-700 border-green-100"
-                  : "bg-red-50 text-red-600 border-red-100"
+                  ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-100 dark:border-green-800"
+                  : "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
               }`}
             >
               {result}
@@ -187,8 +187,7 @@ export function UploadModal({
                   <FileUp className="w-3.5 h-3.5" />
                   Chọn file
                 </Button>
-                <span className="text-xs text-slate-400">
-                  Hỗ trợ: .vtt, .srt, .txt
+                <span className="text-xs text-slate-400 dark:text-slate-500">
                 </span>
                 <input
                   ref={inputRef}
@@ -207,20 +206,20 @@ export function UploadModal({
                     {files.map((f, i) => (
                       <li
                         key={`${f.file.name}-${i}`}
-                        className="flex items-center gap-2 p-2 border border-slate-100 rounded-lg text-sm"
+                        className="flex items-center gap-2 p-2 border border-slate-100 dark:border-slate-800 rounded-lg text-sm"
                       >
                         {statusIcon(f.status)}
                         <span className="flex-1 truncate text-xs">{f.file.name}</span>
-                        <span className="text-xs text-slate-400 shrink-0">
+                        <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
                           {formatFileSize(f.file.size)}
                         </span>
                         {f.status === "pending" && !uploading && (
                           <button
                             type="button"
                             onClick={() => handleRemoveFile(i)}
-                            className="p-0.5 hover:bg-slate-100 rounded cursor-pointer"
+                            className="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer"
                           >
-                            <X className="w-3 h-3 text-slate-400" />
+                            <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                           </button>
                         )}
                       </li>

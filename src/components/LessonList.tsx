@@ -33,12 +33,12 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest px-1">
+      <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-1">
         Bài học {lessons.length > 0 && <span className="font-normal normal-case tracking-normal">({lessons.length})</span>}
       </p>
 
       {lessons.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-5 gap-1.5 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-5 gap-1.5 text-gray-400 dark:text-gray-500">
           <FileText className="w-5 h-5 opacity-30" />
           <p className="text-xs">Chưa có bài học nào</p>
         </div>
@@ -54,17 +54,17 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
                   className={`flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-100 ${
                     isSelected
                       ? "bg-[#A435F0]/10"
-                      : "hover:bg-gray-100"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
-                  <span className="text-[10px] text-gray-400 mt-0.5 w-4 shrink-0 font-mono tabular-nums">
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 w-4 shrink-0 font-mono tabular-nums">
                     {lesson.order}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium leading-snug ${isSelected ? "text-[#A435F0]" : "text-gray-800"}`}>
+                    <p className={`text-xs font-medium leading-snug ${isSelected ? "text-[#A435F0]" : "text-gray-800 dark:text-gray-200"}`}>
                       {lesson.title}
                     </p>
-                    <p className={`text-[10px] mt-0.5 ${lesson.transcript ? "text-emerald-600" : "text-gray-400"}`}>
+                    <p className={`text-[10px] mt-0.5 ${lesson.transcript ? "text-emerald-600" : "text-gray-400 dark:text-gray-500"}`}>
                       {lesson.transcript ? "Có transcript" : "Chưa có transcript"}
                     </p>
                   </div>
@@ -80,7 +80,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson }:
           value={newLessonTitle}
           onChange={(e) => setNewLessonTitle(e.target.value)}
           placeholder="Tên bài học..."
-          className="flex-1 text-xs h-7 border-gray-200 focus-visible:ring-[#A435F0]/30"
+          className="flex-1 text-xs h-7 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
         />
         <Button
           type="submit"

@@ -212,7 +212,7 @@ export default function Home() {
   const isConfigured = !!(settings.apiKey && settings.model);
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
+    <div className="h-screen bg-white dark:bg-gray-900 flex flex-col overflow-hidden">
       {/* Topbar */}
       <Header
         isConfigured={isConfigured}
@@ -223,7 +223,7 @@ export default function Home() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-[272px] shrink-0 border-r border-gray-100 flex flex-col overflow-y-auto bg-white">
+        <aside className="w-[272px] shrink-0 border-r border-gray-100 dark:border-gray-800 flex flex-col overflow-y-auto bg-white dark:bg-gray-900">
           <div className="flex flex-col gap-5 p-4 pb-8">
             <AddCoursePanel
               hasUdemyCookie={!!settings.udemyCookie}
@@ -236,7 +236,7 @@ export default function Home() {
               onOpenSettings={() => setShowSettings(true)}
             />
 
-            <div className="h-px bg-gray-100" />
+            <div className="h-px bg-gray-100 dark:bg-gray-800" />
 
             <CourseList
               courses={courses}
@@ -250,7 +250,7 @@ export default function Home() {
 
             {selectedCourse && (
               <>
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-gray-100 dark:bg-gray-800" />
                 <LessonList
                   lessons={selectedCourse.lessons}
                   selectedLessonId={selectedLesson?.id ?? null}
@@ -263,7 +263,7 @@ export default function Home() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50/40">
+        <main className="flex-1 overflow-y-auto bg-gray-50/40 dark:bg-gray-900/40">
           {selectedLesson ? (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 p-6 h-full">
               <TranscriptPanel
@@ -280,15 +280,15 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-6">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950 flex items-center justify-center">
                 <svg width="22" height="22" fill="none" viewBox="0 0 24 24" className="text-[#A435F0]">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <p className="text-gray-800 font-medium text-sm">
+              <p className="text-gray-800 dark:text-gray-200 font-medium text-sm">
                 {selectedCourse ? "Chọn một bài học để bắt đầu" : "Chọn một course từ sidebar"}
               </p>
-              <p className="text-gray-400 text-xs max-w-xs leading-relaxed">
+              <p className="text-gray-400 dark:text-gray-500 text-xs max-w-xs leading-relaxed">
                 {selectedCourse
                   ? "Chọn bài học bên trái để xem transcript và dùng AI assistant"
                   : "Thêm hoặc chọn course từ danh sách bên trái để bắt đầu"}

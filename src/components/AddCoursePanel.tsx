@@ -32,7 +32,7 @@ export function AddCoursePanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest px-1">
+      <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-1">
         Thêm course
       </p>
 
@@ -40,7 +40,7 @@ export function AddCoursePanel({
         <Button
           variant="outline"
           size="sm"
-          className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
+          className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
           onClick={onOpenImport}
         >
           <Upload className="w-3.5 h-3.5" />
@@ -50,7 +50,7 @@ export function AddCoursePanel({
         <Button
           variant="outline"
           size="sm"
-          className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-500 hover:bg-gray-50 text-xs h-8"
+          className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs h-8"
           onClick={onOpenSettings}
         >
           <Settings2 className="w-3.5 h-3.5" />
@@ -61,7 +61,7 @@ export function AddCoursePanel({
       <Button
         variant="outline"
         size="sm"
-        className="w-full gap-2 cursor-pointer justify-start border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
+        className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
         onClick={onOpenUpload}
       >
         <FileUp className="w-3.5 h-3.5" />
@@ -73,7 +73,7 @@ export function AddCoursePanel({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Tên course..."
-          className="flex-1 text-xs h-8 border-gray-200 focus-visible:ring-[#A435F0]/30"
+          className="flex-1 text-xs h-8 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
         />
         <Button
           type="submit"

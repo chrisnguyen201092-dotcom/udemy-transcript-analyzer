@@ -98,8 +98,7 @@ export function SettingsModal({ open, initialSettings, onSave, onClose }: Settin
               onChange={(e) => setDraft((p) => ({ ...p, baseUrl: e.target.value }))}
               placeholder="https://api.openai.com/v1"
             />
-            <p className="text-xs text-slate-400">
-              OpenAI-compatible endpoint (OpenAI, Together, Groq, Ollama, LM Studio…)
+            <p className="text-xs text-slate-400 dark:text-slate-500">
             </p>
           </div>
 
@@ -118,13 +117,13 @@ export function SettingsModal({ open, initialSettings, onSave, onClose }: Settin
           <Separator />
 
           {/* Udemy section */}
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide -mb-1">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide -mb-1">
             Udemy Import
           </p>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="udemyCookie">
               Udemy Cookie{" "}
-              <span className="text-slate-400 font-normal">(access_token)</span>
+              <span className="text-slate-400 dark:text-slate-500 font-normal">(access_token)</span>
             </Label>
             <Input
               id="udemyCookie"
@@ -133,9 +132,9 @@ export function SettingsModal({ open, initialSettings, onSave, onClose }: Settin
               onChange={(e) => setDraft((p) => ({ ...p, udemyCookie: e.target.value }))}
               placeholder="Paste access_token từ udemy.com..."
             />
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
               F12 → Application → Cookies → udemy.com → copy giá trị{" "}
-              <code className="bg-slate-100 px-1 rounded">access_token</code>
+              <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">access_token</code>
             </p>
           </div>
 
@@ -151,7 +150,7 @@ export function SettingsModal({ open, initialSettings, onSave, onClose }: Settin
           </Button>
 
           {modelsError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800 rounded-lg px-3 py-2">
               {modelsError}
             </p>
           )}

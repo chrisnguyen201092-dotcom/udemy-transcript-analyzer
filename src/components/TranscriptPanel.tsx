@@ -33,15 +33,15 @@ export function TranscriptPanel({ lesson, onSaveTranscript }: TranscriptPanelPro
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-          <FileText className="w-3.5 h-3.5 text-gray-500" />
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+        <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+          <FileText className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">Transcript</h2>
-          <p className="text-xs text-gray-400 truncate mt-0.5">{lesson.title}</p>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Transcript</h2>
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{lesson.title}</p>
         </div>
       </div>
 
@@ -49,20 +49,20 @@ export function TranscriptPanel({ lesson, onSaveTranscript }: TranscriptPanelPro
       <div className="flex-1 p-5">
         {lesson.transcript ? (
           <ScrollArea className="h-80">
-            <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed pr-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed pr-3">
               {lesson.transcript}
             </div>
           </ScrollArea>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+            <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-800 rounded-xl px-3 py-2.5">
               Chưa có transcript. Paste nội dung bên dưới để lưu thủ công.
             </p>
             <Textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Paste transcript here..."
-              className="h-56 text-sm resize-none border-gray-200 focus-visible:ring-[#A435F0]/30 rounded-xl"
+              className="h-56 text-sm resize-none border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30 rounded-xl"
             />
             <Button
               onClick={handleSave}

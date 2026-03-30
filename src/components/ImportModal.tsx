@@ -55,15 +55,14 @@ export function ImportModal({
         <div className="flex flex-col gap-3 py-1">
           {/* Status */}
           {fetching && (
-            <div className="flex items-center gap-2 text-sm text-slate-500 py-4 justify-center">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-4 justify-center">
               <RefreshCw className="w-4 h-4 animate-spin" />
               Đang lấy danh sách courses...
             </div>
           )}
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-              {error}
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-800 rounded-lg px-3 py-2">
             </p>
           )}
 
@@ -71,8 +70,8 @@ export function ImportModal({
             <p
               className={`text-sm rounded-lg px-3 py-2 border ${
                 importProgress.startsWith("✅") || importProgress.startsWith("Đã import")
-                  ? "bg-green-50 text-green-700 border-green-100"
-                  : "bg-amber-50 text-amber-700 border-amber-100"
+                  ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-100 dark:border-green-800"
+                  : "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800"
               }`}
             >
               {importProgress}
@@ -86,11 +85,11 @@ export function ImportModal({
                 {courses.map((c) => (
                   <li
                     key={c.id}
-                    className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors"
+                    className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <div className="flex-1 min-w-0 mr-3">
                       <p className="text-sm font-medium truncate">{c.title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{c.num_lectures} bài học</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{c.num_lectures} bài học</p>
                     </div>
                     <Button
                       size="sm"
