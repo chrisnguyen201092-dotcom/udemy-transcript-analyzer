@@ -11,6 +11,8 @@ import {
   Map,
   Loader2,
   GraduationCap,
+  StickyNote,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +35,9 @@ import { QuizPlayer } from "@/components/QuizPlayer";
 import { FlashcardDeck } from "@/components/FlashcardDeck";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { ExerciseList } from "@/components/ExerciseList";
+import { NotesEditor } from "@/components/NotesEditor";
+import { LearnerProfileModal } from "@/components/LearnerProfileModal";
+import { ExportDropdown } from "@/components/ExportDropdown";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -59,9 +64,10 @@ interface AIAssistantPanelProps {
   onChatCountChange?: (count: number) => void;
   externalExplainText?: string | null;
   onExternalExplainHandled?: () => void;
+  onQuizComplete?: (lessonId: string, score: number) => void;
 }
 
-type TabType = "summary" | "explain" | "chat" | "roadmap" | "practice";
+type TabType = "summary" | "explain" | "chat" | "roadmap" | "notes" | "practice";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -73,6 +79,7 @@ const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
   { key: "explain", label: "Giải thích", icon: BookOpen },
   { key: "chat", label: "Chat", icon: MessageCircle },
   { key: "roadmap", label: "Lộ trình", icon: Map },
+  { key: "notes", label: "Ghi chú", icon: StickyNote },
   { key: "practice", label: "Luyện tập", icon: GraduationCap },
 ];
 
@@ -87,6 +94,7 @@ export function AIAssistantPanel({
   onChatCountChange,
   externalExplainText,
   onExternalExplainHandled,
+  onQuizComplete,
 }: AIAssistantPanelProps) {
   // Tab
   const [activeTab, setActiveTab] = useState<TabType>("summary");
@@ -99,6 +107,7 @@ export function AIAssistantPanel({
   // Chat state (fully isolated)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const lastSavedChatCountRef = useRef(0);
 
   // Loading states per tab
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -115,8 +124,28 @@ export function AIAssistantPanel({
   const [exercisesLoading, setExercisesLoading] = useState(false);
   const [practiceMode, setPracticeMode] = useState<"quiz" | "flashcards" | "exercises">("quiz");
 
+  // SRS state
+  const [srsMode, setSrsMode] = useState(false);
+  const [dueBadge, setDueBadge] = useState(0);
+
+  // Learner profile state
+  const [learnerProfile, setLearnerProfile] = useState<{
+    level: string;
+    goal: string;
+    dailyTimeMin: number;
+    knownTopicIds: string[];
+    learningStyle: string;
+  } | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
+
   // Persistence loading flag
   const [dbLoading, setDbLoading] = useState(false);
+
+  // Notes state
+  const [notesContent, setNotesContent] = useState("");
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [insertToNotesText, setInsertToNotesText] = useState<string | null>(null);
 
   // AI generation progress
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -173,6 +202,9 @@ export function AIAssistantPanel({
     setQuizResult("");
     setFlashcardsResult("");
     setExercisesResult("");
+    setNotesContent("");
+    setSrsMode(false);
+    lastSavedChatCountRef.current = 0;
 
     // Load saved AI data from DB (lesson-level: summary + explanation + practice)
     const loadSaved = async () => {
@@ -189,6 +221,34 @@ export function AIAssistantPanel({
         }
       } catch {
         // Silently fail — user can regenerate
+      }
+      // Load chat history
+      try {
+        const chatRes = await fetch(`/api/lessons/${lesson.id}/chat`);
+        if (chatRes.ok) {
+          const chatData = await chatRes.json();
+          if (Array.isArray(chatData) && chatData.length > 0) {
+            setChatMessages(
+              chatData.map((m: { role: string; content: string }) => ({
+                role: m.role as "user" | "assistant",
+                content: m.content,
+              }))
+            );
+            lastSavedChatCountRef.current = chatData.length;
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+      // Load notes
+      try {
+        const notesRes = await fetch(`/api/lessons/${lesson.id}/notes`);
+        if (notesRes.ok) {
+          const notesData = await notesRes.json();
+          if (notesData.notes) setNotesContent(notesData.notes);
+        }
+      } catch {
+        // Silently fail
       } finally {
         setDbLoading(false);
       }
@@ -217,14 +277,52 @@ export function AIAssistantPanel({
     loadCourseAI();
   }, [courseId]);
 
+  // ── Load learner profile when courseId changes ──
+
+  useEffect(() => {
+    setLearnerProfile(null);
+    setProfileChecked(false);
+    const checkProfile = async () => {
+      try {
+        const res = await fetch(`/api/courses/${courseId}/profile`);
+        if (res.ok) {
+          const data = await res.json();
+          setLearnerProfile(data);
+        }
+      } catch {
+        // silent
+      }
+      setProfileChecked(true);
+    };
+    checkProfile();
+  }, [courseId]);
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  // Report chat message count to parent (for leave-warning)
+  // Load SRS due count when flashcards are available
   useEffect(() => {
-    onChatCountChange?.(chatMessages.length);
+    if (!flashcardsResult) return;
+    const loadDue = async () => {
+      try {
+        const res = await fetch(`/api/lessons/${lesson.id}/srs/due`);
+        if (res.ok) {
+          const data = await res.json();
+          setDueBadge(data.dueCards?.length || 0);
+        }
+      } catch {
+        // silent
+      }
+    };
+    loadDue();
+  }, [flashcardsResult, lesson.id]);
+
+  // Report unsaved chat message count to parent (for leave-warning)
+  useEffect(() => {
+    const unsavedCount = chatMessages.length - lastSavedChatCountRef.current;
+    onChatCountChange?.(unsavedCount > 0 ? unsavedCount : 0);
   }, [chatMessages.length, onChatCountChange]);
 
   // ── Handle external explain request (from TranscriptPanel highlight-to-explain) ──
@@ -486,6 +584,8 @@ export function AIAssistantPanel({
     const assistantMsg: ChatMessage = { role: "assistant", content: "" };
     setChatMessages([...updatedMessages, assistantMsg]);
 
+    let finalResponse = "";
+
     try {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
@@ -513,6 +613,7 @@ export function AIAssistantPanel({
           });
         }
       }
+      finalResponse = response;
     } catch {
       setChatMessages((prev) => {
         const copy = [...prev];
@@ -526,6 +627,25 @@ export function AIAssistantPanel({
     }
 
     setChatLoading(false);
+
+    // Persist chat messages to DB (fire-and-forget)
+    if (finalResponse) {
+      try {
+        await fetch(`/api/lessons/${lesson.id}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "user", content: userMsg.content }),
+        });
+        await fetch(`/api/lessons/${lesson.id}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "assistant", content: finalResponse }),
+        });
+        lastSavedChatCountRef.current = chatMessages.length + 2;
+      } catch {
+        // Silently fail — chat still works in memory
+      }
+    }
   };
 
   // ── Render helpers ──
@@ -700,9 +820,26 @@ export function AIAssistantPanel({
             )}
           </div>
         </div>
-        {dbLoading && (
-          <Loader2 className="w-3.5 h-3.5 text-gray-300 animate-spin" />
-        )}
+        <div className="flex items-center gap-2">
+          {activeTab !== "chat" && activeTab !== "notes" && (
+            <ExportDropdown
+              lessonId={lesson.id}
+              courseId={courseId}
+              activeTab={activeTab}
+              practiceMode={practiceMode}
+              hasData={{
+                summary: !!summaryResult,
+                explanation: !!explainResult,
+                quiz: !!quizResult,
+                flashcards: !!flashcardsResult,
+                exercises: !!exercisesResult,
+              }}
+            />
+          )}
+          {dbLoading && (
+            <Loader2 className="w-3.5 h-3.5 text-gray-300 animate-spin" />
+          )}
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -791,20 +928,84 @@ export function AIAssistantPanel({
         {/* Tab: Roadmap (course-level — không cần transcript của bài hiện tại) */}
         {activeTab === "roadmap" && (
           <>
-            {renderActionButton(
-              "Tạo lộ trình toàn khóa",
-              "Tạo lại lộ trình",
-              !!roadmapResult,
-              roadmapLoading,
-              handleRoadmap,
-              true, // course-level: no transcript required
+            {/* Learner Profile prompt */}
+            {profileChecked && !learnerProfile && (
+              <div className="bg-gradient-to-br from-[#A435F0]/5 to-purple-100/30 dark:from-gray-800 dark:to-gray-800/50 border border-[#A435F0]/20 dark:border-gray-700 rounded-xl p-4">
+                <p className="text-xs font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  🎯 Cá nhân hóa lộ trình?
+                </p>
+                <p className="text-[10px] text-gray-500 mb-3">
+                  Hãy cho chúng tôi biết về bạn để AI tạo lộ trình phù hợp nhất.
+                </p>
+                <Button
+                  onClick={() => setShowProfileModal(true)}
+                  size="sm"
+                  className="cursor-pointer bg-[#A435F0] hover:bg-[#8710D8] text-white text-xs"
+                >
+                  Tạo hồ sơ học viên
+                </Button>
+              </div>
             )}
+
+            {/* Roadmap action buttons */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                {renderActionButton(
+                  "Tạo lộ trình toàn khóa",
+                  "Tạo lại lộ trình",
+                  !!roadmapResult,
+                  roadmapLoading,
+                  handleRoadmap,
+                  true, // course-level: no transcript required
+                )}
+              </div>
+              {learnerProfile && (
+                <Button
+                  onClick={() => setShowProfileModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className="cursor-pointer text-[10px] text-gray-500 border-gray-200 dark:border-gray-700 hover:text-[#A435F0] hover:border-[#A435F0]/20 shrink-0 h-8"
+                >
+                  Cập nhật hồ sơ
+                </Button>
+              )}
+            </div>
+
             {renderResult(
               roadmapResult,
               "Nhấn nút để AI phân tích toàn khóa và đề xuất lộ trình học tập...",
               roadmapLoading
             )}
+
+            {/* Learner Profile Modal */}
+            <LearnerProfileModal
+              open={showProfileModal}
+              courseId={courseId}
+              existingProfile={learnerProfile}
+              onClose={() => setShowProfileModal(false)}
+              onSaved={(profile) => {
+                const wasNew = !learnerProfile;
+                setLearnerProfile(profile);
+                if (wasNew) {
+                  toast.success("Hồ sơ đã tạo! Đang tạo lộ trình cá nhân...");
+                  handleRoadmap();
+                } else {
+                  toast.success("Hồ sơ đã cập nhật. Bạn có thể tạo lại lộ trình.");
+                }
+              }}
+            />
           </>
+        )}
+
+        {/* Tab: Notes */}
+        {activeTab === "notes" && (
+          <NotesEditor
+            lessonId={lesson.id}
+            lessonTitle={lesson.title}
+            courseId={courseId}
+            insertText={insertToNotesText}
+            onInsertHandled={() => setInsertToNotesText(null)}
+          />
         )}
 
         {/* Tab: Practice */}
@@ -849,6 +1050,33 @@ export function AIAssistantPanel({
                 flashcardsLoading,
                 handlePractice
               )}
+            {/* SRS toggle for flashcards */}
+            {practiceMode === "flashcards" && flashcardsResult && (
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setSrsMode(!srsMode)}
+                  variant={srsMode ? "default" : "outline"}
+                  size="sm"
+                  className={`text-xs cursor-pointer ${
+                    srsMode
+                      ? "bg-[#A435F0] hover:bg-[#8710D8] text-white"
+                      : "text-[#A435F0] border-[#A435F0]/20 hover:bg-[#A435F0]/5"
+                  }`}
+                >
+                  🧠 Ôn tập SRS
+                  {dueBadge > 0 && !srsMode && (
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white">
+                      {dueBadge}
+                    </span>
+                  )}
+                </Button>
+                {srsMode && (
+                  <span className="text-[10px] text-gray-400">
+                    Chế độ ôn tập thông minh
+                  </span>
+                )}
+              </div>
+            )}
             {practiceMode === "exercises" &&
               renderActionButton(
                 "Tạo bài tập",
@@ -870,7 +1098,7 @@ export function AIAssistantPanel({
                 )
               ) : quizResult ? (
                 <ScrollArea className="flex-1 min-h-[160px]">
-                  <QuizPlayer markdown={quizResult} />
+                  <QuizPlayer markdown={quizResult} onComplete={(score) => onQuizComplete?.(lesson.id, score)} />
                 </ScrollArea>
               ) : (
                 renderResult(
@@ -890,7 +1118,25 @@ export function AIAssistantPanel({
                 )
               ) : flashcardsResult ? (
                 <ScrollArea className="flex-1 min-h-[160px]">
-                  <FlashcardDeck markdown={flashcardsResult} />
+                  <FlashcardDeck
+                    markdown={flashcardsResult}
+                    mode={srsMode ? "srs" : "normal"}
+                    lessonId={lesson.id}
+                    onFlashcardsChange={(newMarkdown) => {
+                      setFlashcardsResult(newMarkdown);
+                      fetch(`/api/lessons/${lesson.id}/ai`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ flashcards: newMarkdown }),
+                      }).catch(() => {
+                        toast.error("Lỗi khi lưu flashcard");
+                      });
+                    }}
+                    onReviewComplete={() => {
+                      setDueBadge(0);
+                      toast.success("Hoàn thành ôn tập SRS!");
+                    }}
+                  />
                 </ScrollArea>
               ) : (
                 renderResult(
@@ -925,6 +1171,28 @@ export function AIAssistantPanel({
         {/* Tab: Chat */}
         {activeTab === "chat" && (
           <>
+            {chatMessages.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await fetch(`/api/lessons/${lesson.id}/chat`, { method: "DELETE" });
+                      setChatMessages([]);
+                      lastSavedChatCountRef.current = 0;
+                      toast.success("Đã xóa lịch sử chat");
+                    } catch {
+                      toast.error("Lỗi khi xóa lịch sử chat");
+                    }
+                  }}
+                  className="text-xs text-gray-400 hover:text-red-500 h-6 cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Xóa lịch sử
+                </Button>
+              </div>
+            )}
             {/* Chat messages */}
             <ScrollArea className="flex-1 min-h-[160px]">
               <div className="flex flex-col gap-2.5 min-h-[160px]">
@@ -947,7 +1215,23 @@ export function AIAssistantPanel({
                     >
                       {msg.content ? (
                         msg.role === "assistant" ? (
-                          <MarkdownRenderer content={msg.content} />
+                          <>
+                            <MarkdownRenderer content={msg.content} />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInsertToNotesText(msg.content);
+                                setActiveTab("notes");
+                                toast.success("Đã chèn vào ghi chú");
+                              }}
+                              className="mt-1 text-[10px] text-gray-400 hover:text-[#A435F0] cursor-pointer flex items-center gap-1"
+                              title="Chèn vào ghi chú"
+                            >
+                              <StickyNote className="w-3 h-3" />
+                              Chèn vào ghi chú
+                            </button>
+                          </>
                         ) : (
                           msg.content
                         )
