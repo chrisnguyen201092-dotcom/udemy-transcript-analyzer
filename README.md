@@ -150,10 +150,17 @@ src/
 │   ├── QuizPlayer.tsx          # Quiz tương tác (chọn đáp án, chấm điểm)
 │   ├── FlashcardDeck.tsx       # Flashcard lật thẻ (prev/next navigation)
 │   ├── ExerciseList.tsx        # Bài tập accordion (mở rộng lời giải)
+│   ├── MarkdownRenderer.tsx    # Render markdown content
+│   ├── ModeToggle.tsx          # Dark/light mode toggle
+│   ├── OnboardingCard.tsx      # Hướng dẫn người dùng mới
+│   ├── ThemeProvider.tsx       # Theme context provider
 │   └── ui/                     # shadcn/ui primitives
 └── lib/
     ├── prisma.ts               # Prisma client singleton
     ├── utils.ts                # Utility functions
+    ├── parse-transcript.ts     # Parse VTT/SRT/TXT transcript files
+    ├── srs.ts                  # Spaced repetition scheduling
+    ├── strip-think.ts          # Strip AI thinking tags from responses
     └── ai/
         └── prompts.ts          # AI system prompts (7 loại)
 ```
