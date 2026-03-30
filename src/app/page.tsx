@@ -225,6 +225,7 @@ export default function Home() {
           <div className="flex flex-col gap-5 p-4 pb-8">
             <AddCoursePanel
               hasUdemyCookie={!!settings.udemyCookie}
+              selectedCourseId={selectedCourse?.id ?? null}
               onAddManual={handleAddManualCourse}
               onOpenImport={() => {
                 setShowImport(true);

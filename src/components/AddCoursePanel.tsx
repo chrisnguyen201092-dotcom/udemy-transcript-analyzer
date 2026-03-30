@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 
 interface AddCoursePanelProps {
   hasUdemyCookie: boolean;
+  selectedCourseId: string | null;
   onAddManual: (title: string) => void;
   onOpenImport: () => void;
   onOpenUpload: () => void;
@@ -15,6 +16,7 @@ interface AddCoursePanelProps {
 
 export function AddCoursePanel({
   hasUdemyCookie,
+  selectedCourseId,
   onAddManual,
   onOpenImport,
   onOpenUpload,
@@ -61,8 +63,10 @@ export function AddCoursePanel({
       <Button
         variant="outline"
         size="sm"
-        className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
+        className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8 disabled:opacity-50 disabled:cursor-not-allowed"
         onClick={onOpenUpload}
+        disabled={!selectedCourseId}
+        title={!selectedCourseId ? "Chọn một course trước để upload" : undefined}
       >
         <FileUp className="w-3.5 h-3.5" />
         Upload từ file
