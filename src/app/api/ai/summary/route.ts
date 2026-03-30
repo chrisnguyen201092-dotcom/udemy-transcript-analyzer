@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
+import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
 const SummarySchema = z.object({
   lessonId: z.string(),
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Cache guard — return JSON for cached results
     if (lesson.summary && !force) {
       return NextResponse.json({ summary: lesson.summary });
     }
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
         ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
         : "";
 
-    const response = await client.chat.completions.create({
+    const openaiStream = await client.chat.completions.create({
       model,
       messages: [
         {
@@ -54,18 +56,25 @@ export async function POST(req: NextRequest) {
           content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
+      stream: true,
     });
 
-    const raw = response.choices[0].message.content ?? "";
-    const summary = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
-    // Persist to DB
-    await prisma.lesson.update({
-      where: { id: lessonId },
-      data: { summary },
+    // Best-effort DB persistence after stream completes
+    fullText.then(async (summary) => {
+      if (!summary) return;
+      try {
+        await prisma.lesson.update({
+          where: { id: lessonId },
+          data: { summary },
+        });
+      } catch (dbError) {
+        console.error("[summary] DB persistence failed:", dbError);
+      }
     });
 
-    return NextResponse.json({ summary });
+    return new Response(stream, { headers: STREAM_HEADERS });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

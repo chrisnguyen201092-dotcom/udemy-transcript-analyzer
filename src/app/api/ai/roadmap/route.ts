@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
+import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
 const RoadmapSchema = z.object({
   courseId: z.string(),
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Cache guard — return JSON for cached results
     if (course.roadmap && !force) {
       return NextResponse.json({ roadmap: course.roadmap });
     }
@@ -111,7 +113,7 @@ export async function POST(req: NextRequest) {
 
     const client = createAIClient(apiKey, baseUrl);
 
-    const response = await client.chat.completions.create({
+    const openaiStream = await client.chat.completions.create({
       model,
       messages: [
         {
@@ -123,18 +125,25 @@ export async function POST(req: NextRequest) {
           content: `Phân tích TOÀN BỘ khóa học và đề xuất lộ trình học tập tối ưu cho TOÀN KHÓA:\n\nKhóa học: ${course.title}\nTổng số bài: ${course.lessons.length} (${lessonsWithTranscript.length} bài có transcript)\n\nDanh sách bài học:\n${lessonList}\n\nNội dung các bài học:\n${transcriptBlocks}${profileContext}${progressContext}`,
         },
       ],
+      stream: true,
     });
 
-    const raw = response.choices[0].message.content ?? "";
-    const roadmap = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
-    // Persist to Course (not Lesson)
-    await prisma.course.update({
-      where: { id: courseId },
-      data: { roadmap },
+    // Best-effort DB persistence after stream completes
+    fullText.then(async (roadmap) => {
+      if (!roadmap) return;
+      try {
+        await prisma.course.update({
+          where: { id: courseId },
+          data: { roadmap },
+        });
+      } catch (dbError) {
+        console.error("[roadmap] DB persistence failed:", dbError);
+      }
     });
 
-    return NextResponse.json({ roadmap });
+    return new Response(stream, { headers: STREAM_HEADERS });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

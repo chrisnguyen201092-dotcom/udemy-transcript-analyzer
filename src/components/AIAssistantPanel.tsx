@@ -232,7 +232,7 @@ export function AIAssistantPanel({
     if (!externalExplainText || !isConfigured || explainLoading) return;
     setActiveTab("explain");
     setExplainLoading(true);
-    setExplainResult("Đang giải thích đoạn đã chọn...");
+    setExplainResult("");
     const doExplain = async () => {
       try {
         const res = await fetch("/api/ai/explain", {
@@ -244,8 +244,10 @@ export function AIAssistantPanel({
             force: true,
           }),
         });
-        const data = await res.json();
-        setExplainResult(data.explanation || data.error || "Không có kết quả.");
+        const result = await readStreamOrJson(
+          res, "explanation", setExplainResult,
+        );
+        if (!result) setExplainResult("Không có kết quả.");
       } catch {
         setExplainResult("Lỗi khi giải thích.");
       }
@@ -267,6 +269,52 @@ export function AIAssistantPanel({
     [lesson.id, settings.apiKey, settings.baseUrl, settings.model]
   );
 
+  /**
+   * Reads a streaming response progressively, calling onChunk with the
+   * accumulated text after each chunk. If the response is JSON (cached),
+   * it extracts the value using jsonKey and returns it directly.
+   */
+  const readStreamOrJson = async (
+    res: Response,
+    jsonKey: string,
+    onChunk: (accumulated: string) => void,
+    signal?: AbortSignal,
+  ): Promise<string> => {
+    // Check if response is JSON (cached result) or streaming
+    const contentType = res.headers.get("Content-Type") || "";
+    const isStreaming = res.headers.get("X-Content-Type") === "streaming"
+      || contentType.startsWith("text/plain");
+
+    if (!isStreaming) {
+      // JSON response (cached or error)
+      const data = await res.json();
+      if (data.error) return data.error;
+      const value = data[jsonKey] || "Không có kết quả.";
+      onChunk(value);
+      return value;
+    }
+
+    // Streaming response — read progressively
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+
+    if (reader) {
+      while (true) {
+        if (signal?.aborted) {
+          reader.cancel();
+          break;
+        }
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value);
+        onChunk(accumulated);
+      }
+    }
+
+    return accumulated;
+  };
+
   const handleSummary = async () => {
     if (!hasTranscript || !isConfigured || summaryLoading) return;
     const controller = new AbortController();
@@ -281,8 +329,10 @@ export function AIAssistantPanel({
         body: JSON.stringify(apiBody()),
         signal: controller.signal,
       });
-      const data = await res.json();
-      setSummaryResult(data.summary || data.error || "Không có kết quả.");
+      const result = await readStreamOrJson(
+        res, "summary", setSummaryResult, controller.signal,
+      );
+      if (!result) setSummaryResult("Không có kết quả.");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setSummaryResult("");
@@ -311,8 +361,10 @@ export function AIAssistantPanel({
         body: JSON.stringify(apiBody()),
         signal: controller.signal,
       });
-      const data = await res.json();
-      setExplainResult(data.explanation || data.error || "Không có kết quả.");
+      const result = await readStreamOrJson(
+        res, "explanation", setExplainResult, controller.signal,
+      );
+      if (!result) setExplainResult("Không có kết quả.");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setExplainResult("");
@@ -346,8 +398,10 @@ export function AIAssistantPanel({
         }),
         signal: controller.signal,
       });
-      const data = await res.json();
-      setRoadmapResult(data.roadmap || data.error || "Không có kết quả.");
+      const result = await readStreamOrJson(
+        res, "roadmap", setRoadmapResult, controller.signal,
+      );
+      if (!result) setRoadmapResult("Không có kết quả.");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setRoadmapResult("");
@@ -399,8 +453,10 @@ export function AIAssistantPanel({
         body: JSON.stringify({ ...apiBody(), mode: practiceMode }),
         signal: controller.signal,
       });
-      const data = await res.json();
-      setResult(data.result || data.error || "Không có kết quả.");
+      const result = await readStreamOrJson(
+        res, "result", setResult, controller.signal,
+      );
+      if (!result) setResult("Không có kết quả.");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setResult("");
@@ -511,7 +567,24 @@ export function AIAssistantPanel({
             </button>
           </div>
         ) : content ? (
-          <MarkdownRenderer content={content} />
+          <>
+            <MarkdownRenderer content={content} />
+            {isLoading && (
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <Loader2 className="w-3 h-3 animate-spin text-[#A435F0]" />
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Đang tạo...{elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
+                </span>
+                <button
+                  onClick={cancelGeneration}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer ml-auto"
+                >
+                  <X className="w-3 h-3" />
+                  Hủy
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <span className="text-xs text-gray-400 dark:text-gray-500">{placeholder}</span>
         )}
@@ -655,7 +728,7 @@ export function AIAssistantPanel({
       </div>
 
       {/* Body */}
-      <div className="flex-1 flex flex-col gap-4 p-5">
+      <div className="flex-1 min-h-0 flex flex-col gap-4 p-5">
         {/* Warnings */}
         {!isConfigured && (
           <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-800 rounded-xl px-3 py-2.5">

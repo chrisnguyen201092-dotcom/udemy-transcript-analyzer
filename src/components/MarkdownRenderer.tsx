@@ -74,13 +74,13 @@ const components: Partial<Components> = {
       );
     }
     return (
-      <code className="bg-gray-100 dark:bg-gray-800 text-[#A435F0] dark:text-purple-400 px-1 py-0.5 rounded text-[11px] font-mono">
+      <code className="bg-gray-100 dark:bg-gray-800 text-[#A435F0] dark:text-purple-400 px-1 py-0.5 rounded text-[11px]" style={{ fontFamily: "'Geist Mono', 'Segoe UI', 'Roboto', sans-serif" }}>
         {children}
       </code>
     );
   },
   pre: ({ children }) => (
-    <pre className="bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-3 overflow-x-auto mb-2 text-[11px] leading-relaxed border border-gray-800">
+    <pre className="bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-3 overflow-x-auto mb-2 text-[11px] leading-relaxed border border-gray-800" style={{ fontFamily: "'Geist Mono', 'Segoe UI', 'Roboto', sans-serif" }}>
       {children}
     </pre>
   ),

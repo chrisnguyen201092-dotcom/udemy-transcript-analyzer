@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
+import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
 const PracticeSchema = z.object({
   lessonId: z.string(),
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Cache guard — return JSON for cached results
     const cached = lesson[DB_FIELD[mode]];
     if (cached && !force) {
       return NextResponse.json({ result: cached, mode });
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
         ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
         : "";
 
-    const response = await client.chat.completions.create({
+    const openaiStream = await client.chat.completions.create({
       model,
       messages: [
         {
@@ -69,18 +71,25 @@ export async function POST(req: NextRequest) {
           content: `${USER_PROMPTS[mode]}\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
+      stream: true,
     });
 
-    const raw = response.choices[0].message.content ?? "";
-    const result = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
-    // Persist to DB
-    await prisma.lesson.update({
-      where: { id: lessonId },
-      data: { [DB_FIELD[mode]]: result },
+    // Best-effort DB persistence after stream completes
+    fullText.then(async (result) => {
+      if (!result) return;
+      try {
+        await prisma.lesson.update({
+          where: { id: lessonId },
+          data: { [DB_FIELD[mode]]: result },
+        });
+      } catch (dbError) {
+        console.error("[practice] DB persistence failed:", dbError);
+      }
     });
 
-    return NextResponse.json({ result, mode });
+    return new Response(stream, { headers: STREAM_HEADERS });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

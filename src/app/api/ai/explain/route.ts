@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getExplainPrompt, type ExplainDepth, type CodeRatio } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
+import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
 const ExplainSchema = z
   .object({
@@ -112,26 +113,33 @@ export async function POST(req: NextRequest) {
       userContent = `Giải thích chi tiết bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung bài học:\n${lesson.transcript}${learnerContext}`;
     }
 
-    const response = await client.chat.completions.create({
+    const openaiStream = await client.chat.completions.create({
       model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
+      stream: true,
     });
 
-    const raw = response.choices[0].message.content ?? "";
-    const explanation = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
-    // Persist to DB only when NOT in selectedText mode
+    // Best-effort DB persistence after stream completes (only when NOT in selectedText mode)
     if (!selectedText) {
-      await prisma.lesson.update({
-        where: { id: lessonId },
-        data: { explanation },
+      fullText.then(async (explanation) => {
+        if (!explanation) return;
+        try {
+          await prisma.lesson.update({
+            where: { id: lessonId },
+            data: { explanation },
+          });
+        } catch (dbError) {
+          console.error("[explain] DB persistence failed:", dbError);
+        }
       });
     }
 
-    return NextResponse.json({ explanation, depthActual: depth });
+    return new Response(stream, { headers: STREAM_HEADERS });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
