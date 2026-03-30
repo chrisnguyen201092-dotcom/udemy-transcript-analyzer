@@ -15,7 +15,7 @@ import {
   FLASHCARD_SYSTEM_PROMPT,
   EXERCISE_SYSTEM_PROMPT,
 } from "@/lib/ai/prompts";
-import type { PromptType } from "@/lib/ai/prompts";
+import type { PromptType, ContentType } from "@/lib/ai/prompts";
 
 describe("getSystemPrompt", () => {
   it('returns SUMMARY_SYSTEM_PROMPT for type "summary"', () => {
@@ -74,7 +74,7 @@ describe("getSystemPrompt", () => {
 
   it("each prompt type returns a DISTINCT string", () => {
     const types: PromptType[] = ["summary", "explain", "chat", "roadmap", "quiz", "flashcards", "exercises"];
-    const prompts = types.map(getSystemPrompt);
+    const prompts = types.map((type) => getSystemPrompt(type));
     const uniquePrompts = new Set(prompts);
     expect(uniquePrompts.size).toBe(types.length);
   });
@@ -100,5 +100,78 @@ describe("CHAT_SYSTEM_PROMPT", () => {
 describe("ROADMAP_SYSTEM_PROMPT", () => {
   it("mentions analyzing entire course content", () => {
     expect(ROADMAP_SYSTEM_PROMPT).toMatch(/TOÀN BỘ|toàn bộ/i);
+  });
+});
+
+describe("getSystemPrompt with contentType (B-09 to B-12)", () => {
+  const allTypes: PromptType[] = ["summary", "summary-quick", "explain", "chat", "roadmap", "quiz", "flashcards", "exercises"];
+
+  it('backward compatible: getSystemPrompt("summary") without contentType still works', () => {
+    expect(getSystemPrompt("summary")).toBe(SUMMARY_SYSTEM_PROMPT);
+  });
+
+  it('backward compatible: getSystemPrompt("summary", "course") returns course prompt', () => {
+    expect(getSystemPrompt("summary", "course")).toBe(SUMMARY_SYSTEM_PROMPT);
+  });
+
+  it('getSystemPrompt("summary", "book") returns book-specific prompt', () => {
+    const bookPrompt = getSystemPrompt("summary", "book");
+    expect(bookPrompt).not.toBe(SUMMARY_SYSTEM_PROMPT);
+  });
+
+  it("book summary prompt does NOT contain ASR rules", () => {
+    const bookPrompt = getSystemPrompt("summary", "book");
+    expect(bookPrompt).not.toMatch(/ASR/);
+  });
+
+  it('book summary prompt uses "chương sách" terminology', () => {
+    const bookPrompt = getSystemPrompt("summary", "book");
+    expect(bookPrompt).toMatch(/chương sách/);
+  });
+
+  it("book explain prompt removes video references", () => {
+    const bookPrompt = getSystemPrompt("explain", "book");
+    expect(bookPrompt).not.toMatch(/video/i);
+  });
+
+  it('book roadmap becomes "Kế hoạch đọc"', () => {
+    const bookPrompt = getSystemPrompt("roadmap", "book");
+    expect(bookPrompt).toMatch(/Kế hoạch đọc/);
+  });
+
+  it("book prompts still contain Vietnamese language instructions", () => {
+    for (const type of allTypes) {
+      const prompt = getSystemPrompt(type, "book");
+      expect(prompt).toMatch(/tiếng Việt/i);
+    }
+  });
+
+  it("book prompts still contain think-tag suppression", () => {
+    for (const type of allTypes) {
+      const prompt = getSystemPrompt(type, "book");
+      expect(prompt).toMatch(/<think>/);
+    }
+  });
+
+  it("book prompts use buildLanguageRules", () => {
+    for (const type of allTypes) {
+      const prompt = getSystemPrompt(type, "book");
+      expect(prompt).toMatch(/QUY TẮC NGÔN NGỮ/);
+    }
+  });
+
+  it("each book prompt type returns a DISTINCT string", () => {
+    const prompts = allTypes.map((type) => getSystemPrompt(type, "book"));
+    const uniquePrompts = new Set(prompts);
+    expect(uniquePrompts.size).toBe(allTypes.length);
+  });
+
+  it('all valid PromptTypes work with contentType "book"', () => {
+    for (const type of allTypes) {
+      expect(() => getSystemPrompt(type, "book")).not.toThrow();
+      const prompt = getSystemPrompt(type, "book");
+      expect(typeof prompt).toBe("string");
+      expect(prompt.length).toBeGreaterThan(0);
+    }
   });
 });

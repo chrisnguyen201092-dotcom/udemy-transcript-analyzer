@@ -1,4 +1,4 @@
-# Spec: Book-Aware AI Prompt Adaptation
+# Spec: Book-Aware AI Prompt Adaptation (B-09, B-10, B-11, B-12)
 
 ## Goal
 

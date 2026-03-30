@@ -6,6 +6,10 @@ import { z } from "zod";
 const CreateCourseSchema = z.object({
   url: z.string().optional(),
   title: z.string().min(1),
+  contentType: z.enum(["course", "book"]).default("course"),
+  author: z.string().optional(),
+  isbn: z.string().optional(),
+  publisher: z.string().optional(),
 });
 
 export async function GET() {
@@ -19,7 +23,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { url, title } = CreateCourseSchema.parse(body);
+    const { url, title, contentType, author, isbn, publisher } = CreateCourseSchema.parse(body);
 
     if (url) {
       const existingCourse = await prisma.course.findFirst({
@@ -34,6 +38,10 @@ export async function POST(req: NextRequest) {
       data: {
         url: url || `manual:${randomUUID()}`,
         title,
+        contentType,
+        author,
+        isbn,
+        publisher,
         lessons: { create: [] },
       },
       include: { lessons: true },

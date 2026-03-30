@@ -200,3 +200,97 @@ describe("DELETE /api/courses/[id]", () => {
     expect(mockPrisma.course.delete).toHaveBeenCalledWith({ where: { id: "c42" } });
   });
 });
+
+// ─── B-01/B-02/B-03: Book support fields ─────────────────────────────────────
+describe("POST /api/courses — book fields (B-01/B-02/B-03)", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("creates book with contentType 'book'", async () => {
+    const fakeBook = { id: "b1", title: "My Book", contentType: "book", author: "Author Name", url: "manual:uuid", lessons: [] };
+    mockPrisma.course.create.mockResolvedValue(fakeBook);
+
+    const req = makeRequest("POST", { title: "My Book", contentType: "book", author: "Author Name" });
+    const res = await postCourse(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.contentType).toBe("book");
+    expect(json.author).toBe("Author Name");
+
+    const createCall = mockPrisma.course.create.mock.calls[0][0];
+    expect(createCall.data.contentType).toBe("book");
+    expect(createCall.data.author).toBe("Author Name");
+  });
+
+  it("defaults contentType to 'course' when not provided", async () => {
+    const fakeCourse = { id: "c1", title: "My Course", contentType: "course", url: "manual:uuid", lessons: [] };
+    mockPrisma.course.create.mockResolvedValue(fakeCourse);
+
+    const req = makeRequest("POST", { title: "My Course" });
+    await postCourse(req);
+
+    const createCall = mockPrisma.course.create.mock.calls[0][0];
+    expect(createCall.data.contentType).toBe("course");
+  });
+
+  it("rejects invalid contentType", async () => {
+    const req = makeRequest("POST", { title: "Test", contentType: "podcast" });
+    const res = await postCourse(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBeDefined();
+  });
+
+  it("accepts all book-specific fields", async () => {
+    const fakeBook = {
+      id: "b2", title: "Book", contentType: "book",
+      author: "Auth", isbn: "978-xxx", publisher: "Pub",
+      url: "manual:uuid", lessons: [],
+    };
+    mockPrisma.course.create.mockResolvedValue(fakeBook);
+
+    const req = makeRequest("POST", {
+      title: "Book", contentType: "book",
+      author: "Auth", isbn: "978-xxx", publisher: "Pub",
+    });
+    const res = await postCourse(req);
+
+    expect(res.status).toBe(201);
+
+    const createCall = mockPrisma.course.create.mock.calls[0][0];
+    expect(createCall.data.author).toBe("Auth");
+    expect(createCall.data.isbn).toBe("978-xxx");
+    expect(createCall.data.publisher).toBe("Pub");
+  });
+
+  it("book-specific fields are optional", async () => {
+    const fakeBook = { id: "b3", title: "Book", contentType: "book", url: "manual:uuid", lessons: [] };
+    mockPrisma.course.create.mockResolvedValue(fakeBook);
+
+    const req = makeRequest("POST", { title: "Book", contentType: "book" });
+    const res = await postCourse(req);
+
+    expect(res.status).toBe(201);
+  });
+
+  it("GET /api/courses returns book fields", async () => {
+    const fakeCourses = [
+      {
+        id: "b1", title: "My Book", url: "manual:uuid",
+        contentType: "book", author: "Author", isbn: "978-123", publisher: "Pub Co",
+        lessons: [],
+      },
+    ];
+    mockPrisma.course.findMany.mockResolvedValue(fakeCourses);
+
+    const res = await getCourses();
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json[0].contentType).toBe("book");
+    expect(json[0].author).toBe("Author");
+    expect(json[0].isbn).toBe("978-123");
+    expect(json[0].publisher).toBe("Pub Co");
+  });
+});

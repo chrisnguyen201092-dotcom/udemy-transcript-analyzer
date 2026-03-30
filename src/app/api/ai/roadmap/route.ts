@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getSystemPrompt } from "@/lib/ai/prompts";
+import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
@@ -111,6 +111,8 @@ export async function POST(req: NextRequest) {
       })
       .join("\n\n");
 
+    const contentType = (course.contentType ?? "course") as ContentType;
+
     const client = createAIClient(apiKey, baseUrl);
 
     const openaiStream = await client.chat.completions.create({
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: getSystemPrompt("roadmap"),
+          content: getSystemPrompt("roadmap", contentType),
         },
         {
           role: "user",

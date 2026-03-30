@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getExplainPrompt, type ExplainDepth, type CodeRatio } from "@/lib/ai/prompts";
+import { getExplainPrompt, getSystemPrompt, type ExplainDepth, type CodeRatio, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const contentType = (lesson.course.contentType ?? "course") as ContentType;
+
     // Cache guard — only for non-selectedText mode
     if (!selectedText && lesson.explanation && !force) {
       return NextResponse.json({
@@ -90,13 +92,15 @@ export async function POST(req: NextRequest) {
       // LearnerProfile model may not exist yet — gracefully ignore
     }
 
-    // Build system prompt
-    const systemPrompt = getExplainPrompt(
-      depth,
-      codeRatio,
-      learnerProfile?.level ?? undefined,
-      selectedText,
-    );
+    // Build system prompt — books skip ASR rules, use clean book prompt instead
+    const systemPrompt = contentType === "book"
+      ? getSystemPrompt("explain", "book")
+      : getExplainPrompt(
+          depth,
+          codeRatio,
+          learnerProfile?.level ?? undefined,
+          selectedText,
+        );
 
     const client = createAIClient(apiKey, baseUrl);
 

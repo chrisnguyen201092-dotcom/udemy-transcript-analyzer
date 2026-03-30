@@ -11,6 +11,10 @@ model Course {
   id             String           @id @default(cuid())
   url            String?          @unique
   title          String
+  contentType    String           @default("course")
+  author         String?
+  isbn           String?
+  publisher      String?
   roadmap        String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -25,6 +29,8 @@ model Lesson {
   course           Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title            String
   order            Int
+  chapterNumber    Int?
+  pageRange        String?
   transcript       String?
   summary          String?
   explanation      String?

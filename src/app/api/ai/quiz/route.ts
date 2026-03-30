@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getSystemPrompt } from "@/lib/ai/prompts";
+import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ result: cached, mode });
     }
 
+    const contentType = (lesson.course.contentType ?? "course") as ContentType;
+
     const client = createAIClient(apiKey, baseUrl);
 
     const learnerContext = 
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: getSystemPrompt(mode),
+          content: getSystemPrompt(mode, contentType),
         },
         {
           role: "user",

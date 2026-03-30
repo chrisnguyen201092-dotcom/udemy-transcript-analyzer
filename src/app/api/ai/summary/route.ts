@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getSystemPrompt } from "@/lib/ai/prompts";
+import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
@@ -32,16 +32,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cache guard — return JSON for cached results
+    // Cache guard â€” return JSON for cached results
     if (lesson.summary && !force) {
       return NextResponse.json({ summary: lesson.summary });
     }
+
+    const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
     const client = createAIClient(apiKey, baseUrl);
 
     const learnerContext = 
       lessonIndex !== undefined && totalLessons !== undefined
-        ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
+        ? `\n\nBá»‘i cáº£nh ngÆ°á»i há»c: BÃ i há»c ${lessonIndex + 1} cá»§a ${totalLessons} bÃ i.`
         : "";
 
     const openaiStream = await client.chat.completions.create({
@@ -49,11 +51,11 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: getSystemPrompt(mode === "quick" ? "summary-quick" : "summary"),
+          content: getSystemPrompt(mode === "quick" ? "summary-quick" : "summary", contentType),
         },
         {
           role: "user",
-          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
+          content: `TÃ³m táº¯t bÃ i há»c sau Ä‘Ã¢y:\n\nKhÃ³a há»c: ${lesson.course.title}\nTiÃªu Ä‘á» bÃ i há»c: ${lesson.title}\nNá»™i dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
       stream: true,
@@ -87,3 +89,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

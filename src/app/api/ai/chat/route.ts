@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { getSystemPrompt, SOCRATIC_INSTRUCTION } from "@/lib/ai/prompts";
+import { getSystemPrompt, SOCRATIC_INSTRUCTION, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 
@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
     }
 
     const client = createAIClient(apiKey, baseUrl);
+    const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
     // Build system prompt — optionally inject Socratic instruction
-    let systemPromptContent = getSystemPrompt("chat");
+    let systemPromptContent = getSystemPrompt("chat", contentType);
     if (parsed.socraticMode) {
       systemPromptContent += "\n\n" + SOCRATIC_INSTRUCTION;
     }
