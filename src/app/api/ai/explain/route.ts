@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getExplainPrompt, getSystemPrompt, type ExplainDepth, type CodeRatio, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
+import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
 const ExplainSchema = z
   .object({
@@ -50,6 +51,13 @@ export async function POST(req: NextRequest) {
       selectedText,
     } = parsed;
     let depth: ExplainDepth = parsed.depth;
+
+    let safeBaseUrl: string;
+    try {
+      safeBaseUrl = validateBaseUrl(baseUrl);
+    } catch {
+      return Response.json({ error: "Invalid configuration" }, { status: 400 });
+    }
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -102,7 +110,7 @@ export async function POST(req: NextRequest) {
           selectedText,
         );
 
-    const client = createAIClient(apiKey, baseUrl);
+    const client = createAIClient(apiKey, safeBaseUrl);
 
     const learnerContext =
       lessonIndex !== undefined && totalLessons !== undefined
@@ -144,15 +152,11 @@ export async function POST(req: NextRequest) {
     }
 
     return new Response(stream, { headers: STREAM_HEADERS });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues }, { status: 400 });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("[explain]", msg);
-    return NextResponse.json(
-      { error: `Failed to generate explanation: ${msg}` },
-      { status: 500 }
-    );
+    console.error("[AI Route Error]", err);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

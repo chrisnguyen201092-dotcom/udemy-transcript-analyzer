@@ -7,26 +7,20 @@ interface LessonProgressRecord {
   completedAt: Date | null;
   timeSpentMs: number;
   quizScore: number | null;
-  flashcardsMastered: number;
-  flashcardsTotal: number;
 }
 
-interface FlashcardReviewRecord {
-  id: string;
+interface LessonReviewStats {
   lessonId: string;
-  cardIndex: number;
-  easinessFactor: number;
-  interval: number;
-  repetitions: number;
-  nextReviewAt: Date;
-  lastQuality: number;
-  totalReviews: number;
+  flashcardsMastered: number;
+  flashcardsTotal: number;
 }
 
 /**
  * GET /api/analytics/course/[id]
  *
  * Returns detailed analytics for a single course.
+ * Summary metrics (counts, sums, averages) are computed in the database;
+ * only per-lesson detail rows are fetched into memory.
  */
 export async function GET(
   _req: NextRequest,
@@ -55,88 +49,137 @@ export async function GET(
     }
 
     const lessonIds = course.lessons.map((l: { id: string }) => l.id);
-
-    // Fetch all lesson progress for this course
-    const lessonProgressRecords: LessonProgressRecord[] =
-      await prisma.lessonProgress.findMany({
-        where: { lessonId: { in: lessonIds } },
-      });
-    const progressMap = new Map<string, LessonProgressRecord>(
-      lessonProgressRecords.map((lp: LessonProgressRecord) => [lp.lessonId, lp])
-    );
-
-    // Fetch all flashcard reviews for this course's lessons
-    const flashcardReviews: FlashcardReviewRecord[] =
-      await prisma.flashcardReview.findMany({
-        where: { lessonId: { in: lessonIds } },
-      });
-
-    // Group reviews by lesson
-    const reviewsByLesson = new Map<string, FlashcardReviewRecord[]>();
-    for (const review of flashcardReviews) {
-      const existing = reviewsByLesson.get(review.lessonId) ?? [];
-      existing.push(review);
-      reviewsByLesson.set(review.lessonId, existing);
-    }
-
-    // Build lesson details
+    const totalLessons = lessonIds.length;
     const now = new Date();
-    const totalLessons = course.lessons.length;
-    let completedCount = 0;
-    let totalTimeMs = 0;
-    const quizScores: number[] = [];
 
-    const lessons = course.lessons.map((lesson) => {
-      const progress = progressMap.get(lesson.id);
-      const reviews = reviewsByLesson.get(lesson.id) ?? [];
+    // ── DB-level aggregations ──────────────────────────────────────────────
+    const [
+      completedCount,
+      timeAgg,
+      quizAgg,
+      totalReviews,
+      masteredCardCount,
+      dueCardCount,
+      efAgg,
+    ] = await Promise.all([
+      // Completed lesson count
+      prisma.lessonProgress.count({
+        where: { lessonId: { in: lessonIds }, completed: true },
+      }),
+      // Total time spent
+      prisma.lessonProgress.aggregate({
+        where: { lessonId: { in: lessonIds } },
+        _sum: { timeSpentMs: true },
+      }),
+      // Average quiz score (only rows with a score)
+      prisma.lessonProgress.aggregate({
+        where: { lessonId: { in: lessonIds }, quizScore: { not: null } },
+        _avg: { quizScore: true },
+        _count: { quizScore: true },
+      }),
+      // Total flashcard reviews for course
+      prisma.flashcardReview.count({
+        where: { lessonId: { in: lessonIds } },
+      }),
+      // Mastered cards (interval > 7)
+      prisma.flashcardReview.count({
+        where: { lessonId: { in: lessonIds }, interval: { gt: 7 } },
+      }),
+      // Due cards
+      prisma.flashcardReview.count({
+        where: { lessonId: { in: lessonIds }, nextReviewAt: { lte: now } },
+      }),
+      // Average easiness factor
+      prisma.flashcardReview.aggregate({
+        where: { lessonId: { in: lessonIds } },
+        _avg: { easinessFactor: true },
+      }),
+    ]);
 
-      const completed = progress?.completed ?? false;
-      if (completed) completedCount++;
-
-      const timeMs = progress?.timeSpentMs ?? 0;
-      totalTimeMs += timeMs;
-
-      const quizScore = progress?.quizScore ?? null;
-      if (quizScore !== null) quizScores.push(quizScore);
-
-      // Flashcard stats per lesson from reviews
-      const flashcardsMastered = reviews.filter(
-        (r: FlashcardReviewRecord) => r.interval > 7
-      ).length;
-      const flashcardsTotal = reviews.length;
-
-      return {
-        lessonId: lesson.id,
-        title: lesson.title,
-        completed,
-        timeSeconds: Math.round(timeMs / 1000),
-        quizScore,
-        flashcardsMastered,
-        flashcardsTotal,
-        completedAt: completed && progress?.completedAt
-          ? progress.completedAt.toISOString()
-          : null,
-      };
-    });
-
-    // Completion rate
+    const totalTimeSeconds = Math.round(
+      (timeAgg._sum.timeSpentMs ?? 0) / 1000
+    );
     const completionRate =
       totalLessons > 0
         ? Math.round((completedCount / totalLessons) * 10000) / 100
         : 0;
-
-    // Total time seconds
-    const totalTimeSeconds = Math.round(totalTimeMs / 1000);
-
-    // Average quiz score
     const averageQuizScore =
-      quizScores.length > 0
-        ? Math.round(
-            (quizScores.reduce((a, b) => a + b, 0) / quizScores.length) * 100
-          ) / 100
+      quizAgg._avg.quizScore !== null
+        ? Math.round(quizAgg._avg.quizScore * 100) / 100
+        : null;
+    const retentionRate =
+      totalReviews > 0
+        ? Math.round((masteredCardCount / totalReviews) * 10000) / 100
+        : null;
+    const averageEaseFactor =
+      totalReviews > 0 && efAgg._avg.easinessFactor !== null
+        ? Math.round(efAgg._avg.easinessFactor * 100) / 100
         : null;
 
-    // Quiz score distribution (5 bins)
+    // ── Per-lesson detail (small row fetch) ───────────────────────────────
+    const lessonProgressRecords: LessonProgressRecord[] =
+      await prisma.lessonProgress.findMany({
+        where: { lessonId: { in: lessonIds } },
+        select: {
+          lessonId: true,
+          completed: true,
+          completedAt: true,
+          timeSpentMs: true,
+          quizScore: true,
+        },
+      });
+    const progressMap = new Map<string, LessonProgressRecord>(
+      lessonProgressRecords.map((lp) => [lp.lessonId, lp])
+    );
+
+    // Per-lesson flashcard mastered counts (grouped in DB via groupBy)
+    const masteredByLesson = await prisma.flashcardReview.groupBy({
+      by: ["lessonId"],
+      where: { lessonId: { in: lessonIds }, interval: { gt: 7 } },
+      _count: { _all: true },
+    });
+    const totalByLesson = await prisma.flashcardReview.groupBy({
+      by: ["lessonId"],
+      where: { lessonId: { in: lessonIds } },
+      _count: { _all: true },
+    });
+
+    const masteredMap = new Map<string, number>(
+      masteredByLesson.map((r) => [r.lessonId, r._count._all])
+    );
+    const totalMap = new Map<string, number>(
+      totalByLesson.map((r) => [r.lessonId, r._count._all])
+    );
+
+    const quizScores: number[] = [];
+    const lessons: LessonReviewStats[] = [];
+
+    const lessonDetails = course.lessons.map((lesson) => {
+      const progress = progressMap.get(lesson.id);
+      const quizScore = progress?.quizScore ?? null;
+      if (quizScore !== null) quizScores.push(quizScore);
+
+      const flashcardsMastered = masteredMap.get(lesson.id) ?? 0;
+      const flashcardsTotal = totalMap.get(lesson.id) ?? 0;
+      lessons.push({ lessonId: lesson.id, flashcardsMastered, flashcardsTotal });
+
+      return {
+        lessonId: lesson.id,
+        title: lesson.title,
+        completed: progress?.completed ?? false,
+        timeSeconds: Math.round((progress?.timeSpentMs ?? 0) / 1000),
+        quizScore,
+        flashcardsMastered,
+        flashcardsTotal,
+        completedAt:
+          progress?.completed && progress.completedAt
+            ? progress.completedAt.toISOString()
+            : null,
+      };
+    });
+
+    // Quiz score distribution (5 bins) — still computed in JS but only over
+    // the small per-lesson set (one score per lesson, not all rows)
     const quizScoreDistribution = [
       { bin: "0-20", count: 0 },
       { bin: "21-40", count: 0 },
@@ -152,38 +195,13 @@ export async function GET(
       else quizScoreDistribution[4].count++;
     }
 
-    // Flashcard metrics across all lessons
-    const totalReviews = flashcardReviews.length;
-    const masteredCardCount = flashcardReviews.filter(
-      (r) => r.interval > 7
-    ).length;
-    const dueCardCount = flashcardReviews.filter(
-      (r) => new Date(r.nextReviewAt) <= now
-    ).length;
-
-    // Retention rate
-    const retentionRate =
-      totalReviews > 0
-        ? Math.round((masteredCardCount / totalReviews) * 10000) / 100
-        : null;
-
-    // Average ease factor
-    let averageEaseFactor: number | null = null;
-    if (totalReviews > 0) {
-      const sumEF = flashcardReviews.reduce(
-        (sum, r) => sum + r.easinessFactor,
-        0
-      );
-      averageEaseFactor = Math.round((sumEF / totalReviews) * 100) / 100;
-    }
-
     return NextResponse.json({
       courseId: course.id,
       courseName: course.title,
       completionRate,
       totalTimeSeconds,
       averageQuizScore,
-      lessons,
+      lessons: lessonDetails,
       quizScoreDistribution,
       retentionRate,
       masteredCardCount,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCleanHeaders } from "@/lib/ai/client";
+import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
 const ModelsSchema = z.object({
   baseUrl: z.string().url(),
@@ -11,20 +12,23 @@ export async function POST(req: NextRequest) {
   try {
     const { baseUrl, apiKey } = ModelsSchema.parse(await req.json());
 
-    const url = `${baseUrl.replace(/\/$/, "")}/models`;
-    const res = await fetch(url, {
+    let safeBaseUrl: string;
+    try {
+      safeBaseUrl = validateBaseUrl(baseUrl);
+    } catch {
+      return Response.json({ error: "Invalid configuration" }, { status: 400 });
+    }
+
+    const url = `${safeBaseUrl.replace(/\/$/, "")}/models`;
+    const upstream = await fetch(url, {
       headers: getCleanHeaders(apiKey),
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      return NextResponse.json(
-        { error: `Provider returned ${res.status}: ${text}` },
-        { status: res.status }
-      );
+    if (!upstream.ok) {
+      return Response.json({ error: "provider_error" }, { status: 502 });
     }
 
-    const data = await res.json();
+    const data = await upstream.json();
 
     // OpenAI-compatible: { data: [{ id, ... }] }
     const models: string[] = (data?.data ?? [])
@@ -33,14 +37,11 @@ export async function POST(req: NextRequest) {
       .sort();
 
     return NextResponse.json({ models });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues }, { status: 400 });
     }
-    console.error("Models fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch models" },
-      { status: 500 }
-    );
+    console.error("[AI Route Error]", err);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

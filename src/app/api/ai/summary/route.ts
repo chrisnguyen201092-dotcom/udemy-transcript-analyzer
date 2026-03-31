@@ -1,9 +1,10 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
+import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
 const SummarySchema = z.object({
   lessonId: z.string(),
@@ -20,6 +21,13 @@ export async function POST(req: NextRequest) {
   try {
     const { lessonId, apiKey, baseUrl, model, force, mode, lessonIndex, totalLessons } = SummarySchema.parse(await req.json());
 
+    let safeBaseUrl: string;
+    try {
+      safeBaseUrl = validateBaseUrl(baseUrl);
+    } catch {
+      return Response.json({ error: "Invalid configuration" }, { status: 400 });
+    }
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
       include: { course: true },
@@ -32,18 +40,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cache guard â€” return JSON for cached results
+    // Cache guard — return JSON for cached results
     if (lesson.summary && !force) {
       return NextResponse.json({ summary: lesson.summary });
     }
 
     const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
-    const client = createAIClient(apiKey, baseUrl);
+    const client = createAIClient(apiKey, safeBaseUrl);
 
     const learnerContext = 
       lessonIndex !== undefined && totalLessons !== undefined
-        ? `\n\nBá»‘i cáº£nh ngÆ°á»i há»c: BÃ i há»c ${lessonIndex + 1} cá»§a ${totalLessons} bÃ i.`
+        ? `\n\nBối cảnh người học: Bài học ${lessonIndex + 1} của ${totalLessons} bài.`
         : "";
 
     const openaiStream = await client.chat.completions.create({
@@ -55,7 +63,7 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          content: `TÃ³m táº¯t bÃ i há»c sau Ä‘Ã¢y:\n\nKhÃ³a há»c: ${lesson.course.title}\nTiÃªu Ä‘á» bÃ i há»c: ${lesson.title}\nNá»™i dung:\n${lesson.transcript}${learnerContext}`,
+          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
         },
       ],
       stream: true,
@@ -77,16 +85,11 @@ export async function POST(req: NextRequest) {
     });
 
     return new Response(stream, { headers: STREAM_HEADERS });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues }, { status: 400 });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("[summary]", msg);
-    return NextResponse.json(
-      { error: `Failed to generate summary: ${msg}` },
-      { status: 500 }
-    );
+    console.error("[AI Route Error]", err);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

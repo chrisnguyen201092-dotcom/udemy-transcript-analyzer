@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSystemPrompt, SOCRATIC_INSTRUCTION, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
+import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
 const MessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest) {
     const parsed = ChatSchema.parse(await req.json());
     const { lessonId, apiKey, baseUrl, model } = parsed;
 
+    let safeBaseUrl: string;
+    try {
+      safeBaseUrl = validateBaseUrl(baseUrl);
+    } catch {
+      return Response.json({ error: "Invalid configuration" }, { status: 400 });
+    }
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
       include: { course: true },
@@ -41,7 +49,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const client = createAIClient(apiKey, baseUrl);
+    const client = createAIClient(apiKey, safeBaseUrl);
     const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
     // Build system prompt — optionally inject Socratic instruction
@@ -107,15 +115,11 @@ export async function POST(req: NextRequest) {
     });
 
     return new Response(stream, { headers: STREAM_HEADERS });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.issues }, { status: 400 });
     }
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("[chat]", msg);
-    return NextResponse.json(
-      { error: `Failed to process chat: ${msg}` },
-      { status: 500 }
-    );
+    console.error("[AI Route Error]", err);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
