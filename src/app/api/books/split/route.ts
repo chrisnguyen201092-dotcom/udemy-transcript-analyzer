@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     // ── Validate format ──────────────────────────────────────────────────
     if (!SUPPORTED_BOOK_EXTENSIONS.has(ext)) {
       return NextResponse.json(
-        { error: `Định dạng '${parsed.format}' không hỗ trợ. Chấp nhận: pdf, epub, docx, txt, md` },
+        { error: `Định dạng '${parsed.format}' không hỗ trợ. Chấp nhận: pdf, docx, txt, md` },
         { status: 400 }
       );
     }

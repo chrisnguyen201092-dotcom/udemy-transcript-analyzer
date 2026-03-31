@@ -7,6 +7,22 @@ const Schema = z.object({
   cookie: z.string().min(1),
 });
 
+const UDEMY_API_ORIGIN = "https://www.udemy.com";
+
+function validateUdemyNextUrl(nextUrl: string | null | undefined): string | null {
+  if (!nextUrl) return null;
+  try {
+    const parsed = new URL(nextUrl);
+    if (parsed.origin !== UDEMY_API_ORIGIN) {
+      console.warn(`[Udemy Import] Blocked redirect to: ${parsed.origin}`);
+      return null;
+    }
+    return nextUrl;
+  } catch {
+    return null;
+  }
+}
+
 interface CurriculumItem {
   _class: string;
   id: number;
@@ -76,55 +92,58 @@ export async function POST(req: NextRequest) {
       if (!r.ok) break;
       const d: { results?: CurriculumItem[]; next?: string | null } = await r.json();
       allItems.push(...(d.results ?? []));
-      nextPage = d.next ?? null;
+      nextPage = validateUdemyNextUrl(d.next ?? null);
     }
 
     // 3. Filter only lectures
     const lectures = allItems.filter((item) => item._class === "lecture");
 
-    // 4. Upsert course in DB
-    const existingCourse = await prisma.course.findFirst({ where: { url: courseUrl } });
-    const dbCourse = existingCourse
-      ? await prisma.course.update({ where: { id: existingCourse.id }, data: { title: courseTitle } })
-      : await prisma.course.create({ data: { url: courseUrl, title: courseTitle } });
+    // 4-5. Upsert course + create lessons atomically
+    const { importedCount, dbCourseId } = await prisma.$transaction(async (tx) => {
+      const existingCourse = await tx.course.findFirst({ where: { url: courseUrl } });
+      const dbCourse = existingCourse
+        ? await tx.course.update({ where: { id: existingCourse.id }, data: { title: courseTitle } })
+        : await tx.course.create({ data: { url: courseUrl, title: courseTitle } });
 
-    // Delete existing lessons to re-import fresh
-    if (existingCourse) {
-      await prisma.lesson.deleteMany({ where: { courseId: dbCourse.id } });
-    }
-
-    // 5. For each lecture: fetch transcript if available, then save
-    let importedCount = 0;
-    for (const lecture of lectures) {
-      let transcript: string | null = null;
-
-      const captions = lecture.asset?.captions ?? [];
-      // Prefer English, then any
-      const caption =
-        captions.find((c) => c.locale_id === "en_US") ??
-        captions.find((c) => c.locale_id?.startsWith("en")) ??
-        captions[0] ??
-        null;
-
-      if (caption?.url) {
-        transcript = await fetchTranscript(caption.url);
+      // Delete existing lessons to re-import fresh
+      if (existingCourse) {
+        await tx.lesson.deleteMany({ where: { courseId: dbCourse.id } });
       }
 
-      await prisma.lesson.create({
-        data: {
-          courseId: dbCourse.id,
-          title: lecture.title,
-          order: lecture.object_index,
-          transcript,
-        },
-      });
-      importedCount++;
-    }
+      let count = 0;
+      for (const lecture of lectures) {
+        let transcript: string | null = null;
+
+        const captions = lecture.asset?.captions ?? [];
+        // Prefer English, then any
+        const caption =
+          captions.find((c) => c.locale_id === "en_US") ??
+          captions.find((c) => c.locale_id?.startsWith("en")) ??
+          captions[0] ??
+          null;
+
+        if (caption?.url) {
+          transcript = await fetchTranscript(caption.url);
+        }
+
+        await tx.lesson.create({
+          data: {
+            courseId: dbCourse.id,
+            title: lecture.title,
+            order: lecture.object_index,
+            transcript,
+          },
+        });
+        count++;
+      }
+
+      return { importedCount: count, dbCourseId: dbCourse.id };
+    });
 
     return NextResponse.json({
       title: courseTitle,
       lessonCount: importedCount,
-      courseId: dbCourse.id,
+      courseId: dbCourseId,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
