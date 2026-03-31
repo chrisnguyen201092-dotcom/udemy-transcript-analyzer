@@ -28,6 +28,8 @@ export function NotesEditor({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipAutoSaveRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -45,17 +47,64 @@ export function NotesEditor({
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch notes when lesson changes
+  const refetchNotes = () => {
+    setIsLoading(true);
+    setSaveStatus("idle");
+    setLastSaved(null);
+    setFetchError(false);
+    skipAutoSaveRef.current = true;
+
+    fetch(`/api/lessons/${lessonId}/notes`)
+      .then((res) => {
+        if (!res.ok) {
+          setFetchError(true);
+          setAutosaveEnabled(false);
+          setIsLoading(false);
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data !== undefined) {
+          setContent(data.notes ?? "");
+          setIsLoading(false);
+          setAutosaveEnabled(true);
+          // Allow auto-save after next user edit
+          setTimeout(() => {
+            skipAutoSaveRef.current = false;
+          }, 100);
+        }
+      })
+      .catch(() => {
+        setFetchError(true);
+        setAutosaveEnabled(false);
+        setIsLoading(false);
+      });
+  };
+
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setSaveStatus("idle");
     setLastSaved(null);
+    setFetchError(false);
+    setAutosaveEnabled(true);
     skipAutoSaveRef.current = true;
 
     fetch(`/api/lessons/${lessonId}/notes`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          if (!cancelled) {
+            setFetchError(true);
+            setAutosaveEnabled(false);
+            setIsLoading(false);
+          }
+          return undefined;
+        }
+        return res.json();
+      })
       .then((data) => {
-        if (!cancelled) {
+        if (data !== undefined && !cancelled) {
           setContent(data.notes ?? "");
           setIsLoading(false);
           // Allow auto-save after next user edit
@@ -66,9 +115,9 @@ export function NotesEditor({
       })
       .catch(() => {
         if (!cancelled) {
-          setContent("");
+          setFetchError(true);
+          setAutosaveEnabled(false);
           setIsLoading(false);
-          skipAutoSaveRef.current = false;
         }
       });
 
@@ -122,6 +171,7 @@ export function NotesEditor({
 
   // Auto-save with 1s debounce
   useEffect(() => {
+    if (!autosaveEnabled) return;
     if (skipAutoSaveRef.current) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -132,7 +182,7 @@ export function NotesEditor({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [content, saveNotes]);
+  }, [content, saveNotes, autosaveEnabled]);
 
   // Cross-lesson search with debounce
   useEffect(() => {
@@ -177,6 +227,22 @@ export function NotesEditor({
 
   return (
     <div className="flex flex-col gap-3 flex-1 min-h-0">
+      {/* Fetch error banner */}
+      {fetchError && (
+        <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs bg-destructive/10 text-destructive">
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Failed to load notes. Autosave disabled to prevent data loss.</span>
+          </div>
+          <button
+            type="button"
+            onClick={refetchNotes}
+            className="shrink-0 underline underline-offset-2 hover:no-underline cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {/* Save status bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">

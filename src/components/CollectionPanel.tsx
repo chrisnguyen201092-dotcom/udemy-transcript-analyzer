@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   StickyNote,
   Layers,
@@ -95,15 +95,16 @@ export function CollectionPanel({
   const items =
     activeTab === "notes" ? data?.notes ?? [] : data?.flashcards ?? [];
 
-  const filtered = searchQuery.trim()
-    ? items.filter(
-        (item) =>
-          item.lessonTitle
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          item.content.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : items;
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    return items.filter(
+      (item) =>
+        item.lessonTitle
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        item.content.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [items, searchQuery]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -272,8 +273,8 @@ export function CollectionPanel({
                     key={`${activeTab}-${item.lessonId}`}
                     className="rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900"
                   >
-                    {/* Lesson header */}
-                    <button
+                    {/* Lesson header - use div instead of button to avoid nested button */}
+                    <div
                       onClick={() => toggleLesson(item.lessonId)}
                       className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
                     >
@@ -308,7 +309,7 @@ export function CollectionPanel({
                           Đi tới bài
                         </button>
                       )}
-                    </button>
+                    </div>
 
                     {/* Expanded content */}
                     {isExpanded && (
@@ -318,7 +319,7 @@ export function CollectionPanel({
                             {item.content}
                           </div>
                         ) : (
-                          <FlashcardDeck markdown={item.content} />
+                          <FlashcardDeck markdown={item.content} lessonId={item.lessonId} />
                         )}
                       </div>
                     )}

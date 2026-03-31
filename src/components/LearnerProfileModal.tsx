@@ -10,14 +10,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface LearnerProfile {
   level: string;
   goal: string;
   dailyTimeMin: number;
-  knownTopicIds: string[];
+  knownTopics: string[];
   learningStyle: string;
 }
 
@@ -75,12 +75,13 @@ export function LearnerProfileModal({
   const [level, setLevel] = useState(existingProfile?.level || "");
   const [goal, setGoal] = useState(existingProfile?.goal || "");
   const [dailyTimeMin, setDailyTimeMin] = useState(existingProfile?.dailyTimeMin || 0);
-  const [knownTopicIds, setKnownTopicIds] = useState<string[]>(existingProfile?.knownTopicIds || []);
+  const [knownTopics, setKnownTopics] = useState<string[]>(existingProfile?.knownTopics || []);
   const [learningStyle, setLearningStyle] = useState(existingProfile?.learningStyle || "");
 
   // Lessons for known topics step
   const [lessons, setLessons] = useState<LessonOption[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
+  const [lessonLoadError, setLessonLoadError] = useState<string | null>(null);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -89,7 +90,7 @@ export function LearnerProfileModal({
       setLevel(existingProfile?.level || "");
       setGoal(existingProfile?.goal || "");
       setDailyTimeMin(existingProfile?.dailyTimeMin || 0);
-      setKnownTopicIds(existingProfile?.knownTopicIds || []);
+      setKnownTopics(existingProfile?.knownTopics || []);
       setLearningStyle(existingProfile?.learningStyle || "");
     }
   }, [open, existingProfile]);
@@ -100,6 +101,7 @@ export function LearnerProfileModal({
     let cancelled = false;
     const loadLessons = async () => {
       setLessonsLoading(true);
+      setLessonLoadError(null);
       try {
         const res = await fetch(`/api/courses/${courseId}`);
         if (res.ok && !cancelled) {
@@ -112,9 +114,13 @@ export function LearnerProfileModal({
               }))
             );
           }
+        } else if (!cancelled) {
+          setLessonLoadError("Failed to load lessons. Please try again.");
         }
       } catch {
-        // silent
+        if (!cancelled) {
+          setLessonLoadError("Failed to load lessons. Please try again.");
+        }
       }
       if (!cancelled) setLessonsLoading(false);
     };
@@ -123,7 +129,7 @@ export function LearnerProfileModal({
   }, [open, courseId]);
 
   const toggleKnownTopic = (id: string) => {
-    setKnownTopicIds((prev) =>
+    setKnownTopics((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
@@ -145,7 +151,7 @@ export function LearnerProfileModal({
       level,
       goal,
       dailyTimeMin,
-      knownTopicIds,
+      knownTopics,
       learningStyle,
     };
 
@@ -257,6 +263,12 @@ export function LearnerProfileModal({
               <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Chủ đề bạn đã biết? (tuỳ chọn)
               </p>
+              {lessonLoadError && (
+                <div className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs bg-destructive/10 text-destructive">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{lessonLoadError}</span>
+                </div>
+              )}
               {lessonsLoading ? (
                 <div className="flex items-center gap-2 py-4 justify-center">
                   <Loader2 className="w-4 h-4 animate-spin text-[#A435F0]" />
@@ -265,7 +277,7 @@ export function LearnerProfileModal({
               ) : lessons.length > 0 ? (
                 <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1">
                   {lessons.map((lesson) => {
-                    const isSelected = knownTopicIds.includes(lesson.id);
+                    const isSelected = knownTopics.includes(lesson.id);
                     return (
                       <button
                         key={lesson.id}
@@ -293,23 +305,25 @@ export function LearnerProfileModal({
                   })}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-[10px] text-gray-400">
-                    Nhập chủ đề bạn đã biết (phân cách bằng dấu phẩy):
-                  </p>
-                  <Input
-                    value={knownTopicIds.join(", ")}
-                    onChange={(e) => {
-                      const topics = e.target.value
-                        .split(",")
-                        .map((t) => t.trim())
-                        .filter(Boolean);
-                      setKnownTopicIds(topics);
-                    }}
-                    placeholder="VD: HTML, CSS, JavaScript..."
-                    className="text-xs"
-                  />
-                </div>
+                !lessonLoadError && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-gray-400">
+                      Nhập chủ đề bạn đã biết (phân cách bằng dấu phẩy):
+                    </p>
+                    <Input
+                      value={knownTopics.join(", ")}
+                      onChange={(e) => {
+                        const topics = e.target.value
+                          .split(",")
+                          .map((t) => t.trim())
+                          .filter(Boolean);
+                        setKnownTopics(topics);
+                      }}
+                      placeholder="VD: HTML, CSS, JavaScript..."
+                      className="text-xs"
+                    />
+                  </div>
+                )
               )}
             </div>
           )}

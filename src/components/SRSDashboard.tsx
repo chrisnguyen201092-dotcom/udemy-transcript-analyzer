@@ -27,20 +27,23 @@ export function SRSDashboard({ onNavigateToLesson }: SRSDashboardProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     const loadDashboard = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/srs/dashboard");
+        const res = await fetch("/api/srs/dashboard", { signal: controller.signal });
         if (res.ok) {
           const result = await res.json();
           setData(result);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         toast.error("Lỗi khi tải dữ liệu SRS");
       }
       setLoading(false);
     };
     loadDashboard();
+    return () => controller.abort();
   }, []);
 
   if (loading) {

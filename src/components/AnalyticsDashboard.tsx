@@ -28,21 +28,24 @@ export function AnalyticsDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/analytics/overview");
+        const res = await fetch("/api/analytics/overview", { signal: controller.signal });
         if (!res.ok) throw new Error("Không thể tải dữ liệu thống kê");
         const json = await res.json();
         setData(json);
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Lỗi không xác định");
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+    return () => controller.abort();
   }, []);
 
   if (loading) {

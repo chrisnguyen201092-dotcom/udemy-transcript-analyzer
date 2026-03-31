@@ -78,6 +78,8 @@ interface ChatMessage {
   content: string;
 }
 
+const MAX_HISTORY = 20;
+
 const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
   { key: "summary", label: "Tóm tắt", icon: FileText },
   { key: "explain", label: "Giải thích", icon: BookOpen },
@@ -144,7 +146,7 @@ export function AIAssistantPanel({
     level: string;
     goal: string;
     dailyTimeMin: number;
-    knownTopicIds: string[];
+    knownTopics: string[];
     learningStyle: string;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -219,9 +221,10 @@ export function AIAssistantPanel({
 
     // Load saved AI data from DB (lesson-level: summary + explanation + practice)
     const loadSaved = async () => {
+      const controller = new AbortController();
       setDbLoading(true);
       try {
-        const res = await fetch(`/api/lessons/${lesson.id}/ai`);
+        const res = await fetch(`/api/lessons/${lesson.id}/ai`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           if (data.summary) setSummaryResult(data.summary);
@@ -230,39 +233,45 @@ export function AIAssistantPanel({
           if (data.flashcards) setFlashcardsResult(data.flashcards);
           if (data.exercises) setExercisesResult(data.exercises);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         // Silently fail — user can regenerate
       }
       // Load chat history
       try {
-        const chatRes = await fetch(`/api/lessons/${lesson.id}/chat`);
+        const chatRes = await fetch(`/api/lessons/${lesson.id}/chat`, { signal: controller.signal });
         if (chatRes.ok) {
           const chatData = await chatRes.json();
           if (Array.isArray(chatData) && chatData.length > 0) {
-            setChatMessages(
-              chatData.map((m: { role: string; content: string }) => ({
+            setChatMessages((prev) => {
+              const mapped = chatData.map((m: { role: string; content: string }) => ({
                 role: m.role as "user" | "assistant",
                 content: m.content,
-              }))
-            );
+              }));
+              const updated = mapped;
+              return updated.length > MAX_HISTORY ? updated.slice(updated.length - MAX_HISTORY) : updated;
+            });
             lastSavedChatCountRef.current = chatData.length;
           }
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         // Silently fail
       }
       // Load notes
       try {
-        const notesRes = await fetch(`/api/lessons/${lesson.id}/notes`);
+        const notesRes = await fetch(`/api/lessons/${lesson.id}/notes`, { signal: controller.signal });
         if (notesRes.ok) {
           const notesData = await notesRes.json();
           if (notesData.notes) setNotesContent(notesData.notes);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         // Silently fail
       } finally {
         setDbLoading(false);
       }
+      return () => controller.abort();
     };
 
     loadSaved();
@@ -586,6 +595,7 @@ export function AIAssistantPanel({
     if (!hasTranscript || !chatInput.trim() || !isConfigured || chatLoading)
       return;
 
+    const currentLessonId = lesson.id; // Capture lessonId at call time
     const userMsg: ChatMessage = { role: "user", content: chatInput.trim() };
     const updatedMessages = [...chatMessages, userMsg];
     setChatMessages(updatedMessages);
@@ -640,6 +650,11 @@ export function AIAssistantPanel({
     }
 
     setChatLoading(false);
+
+    // Discard results if lessonId changed (race condition prevention)
+    if (currentLessonId !== lesson.id) {
+      return;
+    }
 
     // Persist chat messages to DB (fire-and-forget)
     if (finalResponse) {

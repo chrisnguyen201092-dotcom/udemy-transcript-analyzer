@@ -167,7 +167,11 @@ export function FlashcardDeck({ markdown, mode = "normal", lessonId, onFlashcard
     return () => { cancelled = true; };
   }, [mode, lessonId]);
 
+  const isSubmittingRef = useRef(false);
+
   const handleSrsRate = async (quality: number) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     const card = srsCards[srsReviewIndex];
     try {
       await fetch(`/api/lessons/${lessonId}/srs/review`, {
@@ -188,6 +192,8 @@ export function FlashcardDeck({ markdown, mode = "normal", lessonId, onFlashcard
       }
     } catch {
       toast.error("Lỗi khi lưu kết quả ôn tập");
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 

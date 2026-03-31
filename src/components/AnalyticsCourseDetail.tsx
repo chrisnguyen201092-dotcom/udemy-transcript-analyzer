@@ -54,21 +54,24 @@ export function AnalyticsCourseDetail({ courseId }: AnalyticsCourseDetailProps) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/analytics/course/${courseId}`);
+        const res = await fetch(`/api/analytics/course/${courseId}`, { signal: controller.signal });
         if (!res.ok) throw new Error("Không thể tải dữ liệu thống kê khóa học");
         const json = await res.json();
         setData(json);
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Lỗi không xác định");
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+    return () => controller.abort();
   }, [courseId]);
 
   if (loading) {

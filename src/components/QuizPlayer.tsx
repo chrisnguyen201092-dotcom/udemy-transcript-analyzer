@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Eye } from "lucide-react";
 
@@ -25,9 +25,21 @@ interface Answer {
 }
 
 export function QuizPlayer({ markdown, onComplete }: QuizPlayerProps) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [showResult, setShowResult] = useState(false);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
   const [showAllAnswers, setShowAllAnswers] = useState(false);
   const [score, setScore] = useState<number | null>(null);
+
+  // Reset state when markdown prop changes
+  useEffect(() => {
+    setSelected(null);
+    setAnswers([]);
+    setCurrentQuestion(0);
+    setShowResult(false);
+  }, [markdown]);
 
   const parsed = parseQuiz(markdown);
 

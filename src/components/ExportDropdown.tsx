@@ -56,44 +56,37 @@ export function ExportDropdown({
 
     if (activeTab === "summary" && hasData.summary) {
       options.push(
-        { label: "Tóm tắt (Markdown)", type: "summary", format: "md", icon: FileText, scope: "lesson" },
-        { label: "Tóm tắt (Text)", type: "summary", format: "txt", icon: FileText, scope: "lesson" },
+        { label: "Tóm tắt (Markdown)", type: "summary", format: "markdown", icon: FileText, scope: "lesson" },
+        { label: "Tóm tắt (Text)", type: "summary", format: "csv", icon: FileText, scope: "lesson" },
       );
     }
 
     if (activeTab === "explain" && hasData.explanation) {
       options.push(
-        { label: "Giải thích (Markdown)", type: "explanation", format: "md", icon: FileText, scope: "lesson" },
-        { label: "Giải thích (Text)", type: "explanation", format: "txt", icon: FileText, scope: "lesson" },
+        { label: "Giải thích (Markdown)", type: "explanation", format: "markdown", icon: FileText, scope: "lesson" },
+        { label: "Giải thích (Text)", type: "explanation", format: "csv", icon: FileText, scope: "lesson" },
       );
     }
 
     if (activeTab === "practice") {
       if (practiceMode === "quiz" && hasData.quiz) {
         options.push(
-          { label: "Quiz (Markdown)", type: "quiz", format: "md", icon: FileSpreadsheet, scope: "lesson" },
-          { label: "Quiz (Text)", type: "quiz", format: "txt", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Quiz (Markdown)", type: "quiz", format: "markdown", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Quiz (Text)", type: "quiz", format: "csv", icon: FileSpreadsheet, scope: "lesson" },
         );
       }
       if (practiceMode === "flashcards" && hasData.flashcards) {
         options.push(
-          { label: "Flashcard (Markdown)", type: "flashcards", format: "md", icon: FileSpreadsheet, scope: "lesson" },
-          { label: "Flashcard (Text)", type: "flashcards", format: "txt", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Flashcard (Markdown)", type: "flashcards", format: "markdown", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Flashcard (Text)", type: "flashcards", format: "csv", icon: FileSpreadsheet, scope: "lesson" },
         );
       }
       if (practiceMode === "exercises" && hasData.exercises) {
         options.push(
-          { label: "Bài tập (Markdown)", type: "exercises", format: "md", icon: FileSpreadsheet, scope: "lesson" },
-          { label: "Bài tập (Text)", type: "exercises", format: "txt", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Bài tập (Markdown)", type: "exercises", format: "markdown", icon: FileSpreadsheet, scope: "lesson" },
+          { label: "Bài tập (Text)", type: "exercises", format: "csv", icon: FileSpreadsheet, scope: "lesson" },
         );
       }
-    }
-
-    if (activeTab === "roadmap") {
-      options.push(
-        { label: "Lộ trình (Markdown)", type: "roadmap", format: "md", icon: FileText, scope: "course" },
-        { label: "Lộ trình (Text)", type: "roadmap", format: "txt", icon: FileText, scope: "course" },
-      );
     }
 
     return options;
@@ -103,10 +96,10 @@ export function ExportDropdown({
     const key = `${option.type}-${option.format}`;
     setExporting(key);
     try {
-      const url = option.scope === "lesson"
+      const exportUrl = option.scope === "lesson"
         ? `/api/export/lesson/${lessonId}`
         : `/api/export/course/${courseId}`;
-      const res = await fetch(url, {
+      const res = await fetch(exportUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: option.type, format: option.format }),
@@ -120,13 +113,14 @@ export function ExportDropdown({
 
       const blob = await res.blob();
       const filename = `${option.type}.${option.format}`;
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(`Đã xuất ${option.label}`);
     } catch {
       toast.error("Lỗi khi xuất file");

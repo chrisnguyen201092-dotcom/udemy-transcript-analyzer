@@ -106,6 +106,8 @@ export default function Home() {
     Record<string, { completed: boolean; quizScore: number | null }>
   >({});
   const lessonStartTimeRef = useRef<number>(Date.now());
+  // Ref to access selectedLesson inside pagehide handler without stale closure
+  const selectedLessonRef = useRef<Lesson | null>(null);
 
   useEffect(() => {
     const s = loadStore();
@@ -178,15 +180,21 @@ export default function Home() {
   };
 
   const handleAddManualCourse = async (title: string) => {
-    const res = await fetch("/api/courses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "", title }),
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: "", title }),
+      });
+      if (!res.ok) {
+        toast.error("Lỗi khi tạo khóa học");
+        return;
+      }
+      const data = await res.json();
       setCourses((prev) => [data, ...prev]);
       setSelectedCourse(data);
+    } catch {
+      toast.error("Lỗi khi tạo khóa học");
     }
   };
 
@@ -226,17 +234,23 @@ export default function Home() {
 
   const handleAddLesson = async (title: string) => {
     if (!selectedCourse) return;
-    const res = await fetch(`/api/courses/${selectedCourse.id}/lessons`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/courses/${selectedCourse.id}/lessons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        toast.error("Lỗi khi thêm bài học");
+        return;
+      }
+      const data = await res.json();
       setSelectedCourse({
         ...selectedCourse,
         lessons: [...selectedCourse.lessons, data],
       });
+    } catch {
+      toast.error("Lỗi khi thêm bài học");
     }
   };
 
@@ -352,6 +366,30 @@ export default function Home() {
       // Silently fail
     }
   };
+
+  // Keep ref in sync with selectedLesson for use in pagehide handler
+  useEffect(() => {
+    selectedLessonRef.current = selectedLesson;
+  }, [selectedLesson]);
+
+  // C-15: Save study time on page close using sendBeacon (survives page unload)
+  useEffect(() => {
+    const handlePageHide = () => {
+      const lesson = selectedLessonRef.current;
+      if (!lesson) return;
+      const deltaMs = Date.now() - lessonStartTimeRef.current;
+      if (deltaMs <= 5000) return;
+      navigator.sendBeacon(
+        `/api/lessons/${lesson.id}/progress`,
+        new Blob(
+          [JSON.stringify({ deltaTimeMs: deltaMs })],
+          { type: "application/json" }
+        )
+      );
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, []); // empty deps — reads from refs only
 
   const handleSelectLesson = (lesson: Lesson) => {
     // Track study time for current lesson before switching
@@ -786,7 +824,10 @@ export default function Home() {
         }}
       />
 
-      <AlertDialog open={showLessonWarning} onOpenChange={setShowLessonWarning}>
+      <AlertDialog open={showLessonWarning} onOpenChange={(open) => {
+        if (!open) setPendingLesson(null);
+        setShowLessonWarning(open);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Chuyển bài học?</AlertDialogTitle>
