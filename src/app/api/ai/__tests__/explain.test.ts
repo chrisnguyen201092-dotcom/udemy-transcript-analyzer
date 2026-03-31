@@ -4,6 +4,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+// ─── Streaming helper ─────────────────────────────────────────────────────────
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 const { mockCreate, mockPrisma } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockPrisma: {
@@ -14,6 +31,9 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
     course: {
       findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(),
       findUnique: vi.fn(), delete: vi.fn(), update: vi.fn(),
+    },
+    learnerProfile: {
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -48,11 +68,14 @@ function makeRequest(body: unknown): NextRequest {
 }
 
 describe("POST /api/ai/explain", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+  });
 
   it("returns 400 when lesson has no transcript", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: null, course: { title: "C" },
+      id: "l1", title: "L", transcript: null, course: { title: "C", contentType: "course" },
     });
 
     const req = makeRequest(VALID_BODY);
@@ -70,33 +93,29 @@ describe("POST /api/ai/explain", () => {
 
   it("strips <think> tags from AI response", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "Transcript", course: { title: "C" },
+      id: "l1", title: "L", transcript: "Transcript", course: { title: "C", contentType: "course" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "<think>reasoning</think>Explanation here" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("<think>reasoning</think>Explanation here"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
-    const res = await explainPost(req);
-    const json = await res.json();
+    const res = await readStream(await explainPost(req));
 
-    expect(res.status).toBe(200);
-    expect(json.explanation).toBe("Explanation here");
-    expect(json.explanation).not.toContain("<think>");
+    expect(res).toBe("Explanation here");
+    expect(res).not.toContain("<think>");
   });
 
   it("persists explanation to DB via lesson.update with explanation field", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "T", course: { title: "C" },
+      id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Detailed explanation" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Detailed explanation"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
-    await explainPost(req);
+    const apiRes = await explainPost(req);
+    await readStream(apiRes);
+    await new Promise((r) => setTimeout(r, 0)); // flush fullText.then() microtask
 
     expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
       where: { id: "l1" },
@@ -106,35 +125,32 @@ describe("POST /api/ai/explain", () => {
 
   it("returns 200 with explanation field in response", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "T", course: { title: "C" },
+      id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "My explanation" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("My explanation"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
-    const res = await explainPost(req);
-    const json = await res.json();
+    const apiRes = await explainPost(req);
 
-    expect(res.status).toBe(200);
-    expect(json).toHaveProperty("explanation");
+    expect(apiRes.status).toBe(200);
+    expect(apiRes.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+
+    const text = await readStream(apiRes);
+    expect(text).toBe("My explanation");
   });
 
   it("strips multiple <think> blocks", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "T", course: { title: "C" },
+      id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "<think>a</think>Part one<think>b</think>Part two" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("<think>a</think>Part one<think>b</think>Part two"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
-    const res = await explainPost(req);
-    const json = await res.json();
+    const text = await readStream(await explainPost(req));
 
-    expect(json.explanation).toBe("Part onePart two");
+    expect(text).toBe("Part onePart two");
   });
 
   it("returns 400 when apiKey is empty", async () => {

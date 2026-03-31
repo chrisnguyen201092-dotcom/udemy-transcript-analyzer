@@ -93,7 +93,7 @@ describe("SUMMARY_SYSTEM_PROMPT", () => {
 
 describe("CHAT_SYSTEM_PROMPT", () => {
   it("contains multi-turn conversation instructions", () => {
-    expect(CHAT_SYSTEM_PROMPT).toMatch(/MULTI-TURN|multi-turn/i);
+    expect(CHAT_SYSTEM_PROMPT).toMatch(/HỘI THOẠI NHIỀU LƯỢT|MULTI-TURN|multi-turn/i);
   });
 });
 

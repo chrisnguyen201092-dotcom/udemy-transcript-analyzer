@@ -11,7 +11,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     course: { count: vi.fn(), findUnique: vi.fn() },
     lesson: { findMany: vi.fn() },
     lessonProgress: { count: vi.fn(), aggregate: vi.fn(), findMany: vi.fn() },
-    flashcardReview: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },
+    flashcardReview: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn() },
     courseProgress: { findUnique: vi.fn() },
   },
 }));
@@ -48,12 +48,27 @@ const baseCourse = {
   ],
 };
 
+/** Default aggregate return values — route crashes without these */
+const DEFAULT_TIME_AGG = { _sum: { timeSpentMs: null } };
+const DEFAULT_QUIZ_AGG = { _avg: { quizScore: null }, _count: { quizScore: 0 } };
+const DEFAULT_EF_AGG = { _avg: { easinessFactor: null } };
+
 beforeEach(() => {
   vi.clearAllMocks();
   // Default: course found, no progress, no reviews
   mockPrisma.course.findUnique.mockResolvedValue(baseCourse);
+  mockPrisma.lessonProgress.count.mockResolvedValue(0);
+  // Route calls aggregate twice in Promise.all: first _sum timeSpentMs, then _avg quizScore.
+  // Use mockImplementation so individual tests can override with mockResolvedValueOnce.
+  let aggregateCallCount = 0;
+  mockPrisma.lessonProgress.aggregate.mockImplementation(() => {
+    aggregateCallCount++;
+    return Promise.resolve(aggregateCallCount === 1 ? DEFAULT_TIME_AGG : DEFAULT_QUIZ_AGG);
+  });
   mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-  mockPrisma.flashcardReview.findMany.mockResolvedValue([]);
+  mockPrisma.flashcardReview.count.mockResolvedValue(0);
+  mockPrisma.flashcardReview.aggregate.mockResolvedValue(DEFAULT_EF_AGG);
+  mockPrisma.flashcardReview.groupBy.mockResolvedValue([]);
 });
 
 // ==============================
@@ -62,6 +77,22 @@ beforeEach(() => {
 
 describe("GET /api/analytics/course/[id]", () => {
   it("returns full data when all lessons have progress and flashcard reviews", async () => {
+    // ── aggregate/count mocks ──────────────────────────────────────────────
+    mockPrisma.lessonProgress.count.mockResolvedValue(2); // completed: 2 of 3
+    mockPrisma.lessonProgress.aggregate
+      // First call: _sum timeSpentMs
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 6000000 } })
+      // Second call: _avg quizScore
+      .mockResolvedValueOnce({ _avg: { quizScore: 80 }, _count: { quizScore: 2 } });
+    mockPrisma.flashcardReview.count
+      .mockResolvedValueOnce(3)  // totalReviews
+      .mockResolvedValueOnce(2)  // masteredCardCount (interval > 7)
+      .mockResolvedValueOnce(1); // dueCardCount
+    mockPrisma.flashcardReview.aggregate.mockResolvedValue({
+      _avg: { easinessFactor: 2.43 },
+    });
+
+    // ── per-lesson detail mocks ────────────────────────────────────────────
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       {
         lessonId: "l1",
@@ -69,8 +100,6 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: new Date("2026-03-10T10:00:00Z"),
         timeSpentMs: 3600000,
         quizScore: 90,
-        flashcardsMastered: 8,
-        flashcardsTotal: 10,
       },
       {
         lessonId: "l2",
@@ -78,8 +107,6 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: new Date("2026-03-11T10:00:00Z"),
         timeSpentMs: 1800000,
         quizScore: 70,
-        flashcardsMastered: 5,
-        flashcardsTotal: 10,
       },
       {
         lessonId: "l3",
@@ -87,46 +114,19 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: null,
         timeSpentMs: 600000,
         quizScore: null,
-        flashcardsMastered: 0,
-        flashcardsTotal: 0,
       },
     ]);
 
-    mockPrisma.flashcardReview.findMany.mockResolvedValue([
-      {
-        id: "r1",
-        lessonId: "l1",
-        cardIndex: 0,
-        easinessFactor: 2.5,
-        interval: 10,
-        repetitions: 3,
-        nextReviewAt: new Date("2026-04-01T00:00:00Z"),
-        lastQuality: 4,
-        totalReviews: 5,
-      },
-      {
-        id: "r2",
-        lessonId: "l1",
-        cardIndex: 1,
-        easinessFactor: 2.0,
-        interval: 3,
-        repetitions: 2,
-        nextReviewAt: new Date("2026-03-28T00:00:00Z"),
-        lastQuality: 3,
-        totalReviews: 3,
-      },
-      {
-        id: "r3",
-        lessonId: "l2",
-        cardIndex: 0,
-        easinessFactor: 2.8,
-        interval: 15,
-        repetitions: 5,
-        nextReviewAt: new Date("2026-04-10T00:00:00Z"),
-        lastQuality: 5,
-        totalReviews: 7,
-      },
-    ]);
+    // groupBy: mastered per lesson (interval > 7)
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        { lessonId: "l1", _count: { _all: 1 } },
+      ])
+      // total per lesson
+      .mockResolvedValueOnce([
+        { lessonId: "l1", _count: { _all: 2 } },
+        { lessonId: "l2", _count: { _all: 1 } },
+      ]);
 
     const res = await GET(makeReq(), makeParams("c1"));
     const data = await res.json();
@@ -135,8 +135,8 @@ describe("GET /api/analytics/course/[id]", () => {
     expect(data.courseId).toBe("c1");
     expect(data.courseName).toBe("Python for Beginners");
     expect(data.completionRate).toBeCloseTo(66.67, 1);
-    expect(data.totalTimeSeconds).toBe(6000); // (3600000+1800000+600000)/1000
-    expect(data.averageQuizScore).toBe(80); // (90+70)/2
+    expect(data.totalTimeSeconds).toBe(6000); // 6000000/1000
+    expect(data.averageQuizScore).toBe(80);
     expect(data.lessons).toHaveLength(3);
 
     // Lesson 1 details
@@ -146,8 +146,8 @@ describe("GET /api/analytics/course/[id]", () => {
       completed: true,
       timeSeconds: 3600,
       quizScore: 90,
-      flashcardsMastered: 1, // from reviews: interval>7 → r1
-      flashcardsTotal: 2,
+      flashcardsMastered: 1, // from groupBy mastered mock
+      flashcardsTotal: 2,    // from groupBy total mock
     });
     expect(data.lessons[0].completedAt).toBeTruthy();
 
@@ -165,7 +165,7 @@ describe("GET /api/analytics/course/[id]", () => {
     expect(bins.find((b: { bin: string }) => b.bin === "81-100").count).toBe(1);
     expect(bins.find((b: { bin: string }) => b.bin === "0-20").count).toBe(0);
 
-    // Flashcard aggregate: 2 mastered (r1 interval=10, r3 interval=15), 3 total
+    // Flashcard aggregate
     expect(data.masteredCardCount).toBe(2);
     expect(data.retentionRate).toBeCloseTo(66.67, 1);
     expect(data.averageEaseFactor).toBeCloseTo(2.43, 1);
@@ -208,6 +208,11 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("handles partial progress — some lessons completed, others not", async () => {
+    mockPrisma.lessonProgress.count.mockResolvedValue(1);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 1000000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 60 }, _count: { quizScore: 1 } });
+
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       {
         lessonId: "l1",
@@ -215,8 +220,6 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: new Date("2026-03-10T10:00:00Z"),
         timeSpentMs: 1000000,
         quizScore: 60,
-        flashcardsMastered: 0,
-        flashcardsTotal: 0,
       },
     ]);
 
@@ -232,6 +235,10 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("returns null averageQuizScore when no lessons have quiz scores", async () => {
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 500000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null }, _count: { quizScore: 0 } });
+
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       {
         lessonId: "l1",
@@ -239,8 +246,6 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: new Date(),
         timeSpentMs: 500000,
         quizScore: null,
-        flashcardsMastered: 0,
-        flashcardsTotal: 0,
       },
     ]);
 
@@ -255,6 +260,10 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("returns null retention and ease when no flashcard reviews", async () => {
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 100000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 80 }, _count: { quizScore: 1 } });
+
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       {
         lessonId: "l1",
@@ -262,8 +271,6 @@ describe("GET /api/analytics/course/[id]", () => {
         completedAt: new Date(),
         timeSpentMs: 100000,
         quizScore: 80,
-        flashcardsMastered: 0,
-        flashcardsTotal: 0,
       },
     ]);
 
@@ -277,46 +284,28 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("correctly counts due cards based on nextReviewAt", async () => {
-    const past = new Date("2026-03-01T00:00:00Z");
-    const future = new Date("2099-01-01T00:00:00Z");
-
-    mockPrisma.flashcardReview.findMany.mockResolvedValue([
-      {
-        id: "r1",
-        lessonId: "l1",
-        cardIndex: 0,
-        easinessFactor: 2.5,
-        interval: 1,
-        repetitions: 1,
-        nextReviewAt: past, // due
-        lastQuality: 3,
-        totalReviews: 1,
-      },
-      {
-        id: "r2",
-        lessonId: "l1",
-        cardIndex: 1,
-        easinessFactor: 2.5,
-        interval: 20,
-        repetitions: 5,
-        nextReviewAt: future, // not due
-        lastQuality: 5,
-        totalReviews: 5,
-      },
-    ]);
+    mockPrisma.flashcardReview.count
+      .mockResolvedValueOnce(2)  // totalReviews
+      .mockResolvedValueOnce(1)  // masteredCardCount (interval > 7): r2 interval=20
+      .mockResolvedValueOnce(1); // dueCardCount: r1 nextReviewAt in past
 
     const res = await GET(makeReq(), makeParams("c1"));
     const data = await res.json();
 
     expect(data.dueCardCount).toBe(1);
-    expect(data.masteredCardCount).toBe(1); // r2 interval=20 > 7
+    expect(data.masteredCardCount).toBe(1);
   });
 
   it("quiz score distribution bins correctly", async () => {
+    mockPrisma.lessonProgress.count.mockResolvedValue(3);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 0 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 50 }, _count: { quizScore: 3 } });
+
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
-      { lessonId: "l1", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 15, flashcardsMastered: 0, flashcardsTotal: 0 },
-      { lessonId: "l2", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 35, flashcardsMastered: 0, flashcardsTotal: 0 },
-      { lessonId: "l3", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 100, flashcardsMastered: 0, flashcardsTotal: 0 },
+      { lessonId: "l1", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 15 },
+      { lessonId: "l2", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 35 },
+      { lessonId: "l3", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 100 },
     ]);
 
     const res = await GET(makeReq(), makeParams("c1"));
