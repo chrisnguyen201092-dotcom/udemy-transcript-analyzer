@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
 
     // Resolve or create the course
     let resolvedCourseId: string;
+    // M-2: track whether we created a new course to enable orphan cleanup if all files fail
+    let isNewCourse = false;
 
     if (parsed.courseId) {
       const course = await prisma.course.findUnique({ where: { id: parsed.courseId } });
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
         data: { title: parsed.courseTitle!, url: `manual:${randomUUID()}` },
       });
       resolvedCourseId = newCourse.id;
+      isNewCourse = true;
     }
 
     // Get current lesson count for ordering
@@ -83,6 +86,12 @@ export async function POST(req: NextRequest) {
           fileError instanceof Error ? fileError.message : String(fileError);
         errors.push({ fileName: file.name, reason });
       }
+    }
+
+    // M-2: if we created a new course and all files failed, delete the orphan course
+    if (isNewCourse && created.length === 0) {
+      await prisma.course.delete({ where: { id: resolvedCourseId } }).catch(() => {});
+      return NextResponse.json({ error: "Không parse được file nào" }, { status: 400 });
     }
 
     return NextResponse.json({ courseId: resolvedCourseId, created, errors });

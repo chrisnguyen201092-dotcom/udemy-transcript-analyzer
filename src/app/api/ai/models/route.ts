@@ -20,9 +20,21 @@ export async function POST(req: NextRequest) {
     }
 
     const url = `${safeBaseUrl.replace(/\/$/, "")}/models`;
-    const upstream = await fetch(url, {
-      headers: getCleanHeaders(apiKey),
-    });
+    let upstream: Response;
+    try {
+      // M-4: 10s timeout prevents hanging on slow/unreachable providers
+      upstream = await fetch(url, {
+        headers: getCleanHeaders(apiKey),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (fetchErr) {
+      const isTimeout =
+        fetchErr instanceof DOMException && fetchErr.name === "TimeoutError";
+      if (isTimeout) {
+        return Response.json({ error: "provider_timeout" }, { status: 504 });
+      }
+      throw fetchErr;
+    }
 
     if (!upstream.ok) {
       return Response.json({ error: "provider_error" }, { status: 502 });

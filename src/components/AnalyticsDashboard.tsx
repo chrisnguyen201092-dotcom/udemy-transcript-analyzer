@@ -33,7 +33,9 @@ export function AnalyticsDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/analytics/overview", { signal: controller.signal });
+        // M-28: Send timezone offset so server can bucket dates in user's local time
+        const tzOffset = new Date().getTimezoneOffset();
+        const res = await fetch(`/api/analytics/overview?tzOffset=${tzOffset}`, { signal: controller.signal });
         if (!res.ok) throw new Error("Không thể tải dữ liệu thống kê");
         const json = await res.json();
         setData(json);

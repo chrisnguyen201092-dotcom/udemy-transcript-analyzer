@@ -50,28 +50,31 @@ export async function POST(
       );
     }
 
-    const existing = await prisma.learnerProfile.findUnique({
-      where: { courseId: id },
-    });
-    if (existing) {
-      return NextResponse.json(
-        { error: "Profile already exists for this course. Use PUT to update." },
-        { status: 409 }
-      );
-    }
-
     const { level, goal, dailyTimeMin, knownTopics, learningStyle } = parsed.data;
 
-    const profile = await prisma.learnerProfile.create({
-      data: {
-        courseId: id,
-        level,
-        goal,
-        dailyTimeMin,
-        knownTopics: knownTopics ? JSON.stringify(knownTopics) : null,
-        learningStyle,
-      },
-    });
+    // M-9: Remove check-then-create pattern; use DB unique constraint as guard.
+    // Catch P2002 (unique violation) atomically instead of racing findUnique+create.
+    let profile;
+    try {
+      profile = await prisma.learnerProfile.create({
+        data: {
+          courseId: id,
+          level,
+          goal,
+          dailyTimeMin,
+          knownTopics: knownTopics ? JSON.stringify(knownTopics) : null,
+          learningStyle,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        return NextResponse.json(
+          { error: "Profile already exists for this course. Use PUT to update." },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
 
     return NextResponse.json(formatProfile(profile), { status: 201 });
   } catch (error) {

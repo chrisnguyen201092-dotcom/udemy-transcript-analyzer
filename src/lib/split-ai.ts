@@ -50,7 +50,30 @@ const SLICE_COUNT = 3;
 /** Default max tokens for completion. */
 const DEFAULT_MAX_TOKENS = 2000;
 
-// ── Slice sampling ─────────────────────────────────────────────────────────
+/** Max characters of book content to send to AI (prevents prompt flooding). */
+const MAX_CONTENT_CHARS = 100_000;
+
+/** Regex for obvious prompt injection markers (lines starting with these). */
+const PROMPT_INJECTION_PATTERN = /^(<<<SYSTEM|\[SYSTEM\])/im;
+
+/**
+ * Sanitize book text before injecting into AI prompt.
+ * M-22: Truncate oversized content and strip prompt injection markers.
+ */
+function sanitizeContent(text: string): string {
+  // Truncate to max length
+  let sanitized = text.length > MAX_CONTENT_CHARS
+    ? text.slice(0, MAX_CONTENT_CHARS)
+    : text;
+  // Strip lines that look like prompt injection attempts
+  sanitized = sanitized
+    .split("\n")
+    .filter((line) => !PROMPT_INJECTION_PATTERN.test(line))
+    .join("\n");
+  return sanitized;
+}
+
+
 
 /**
  * Extract representative slices from text for LLM analysis.
@@ -289,7 +312,9 @@ export async function detectChaptersWithAI(
   config: AISplitConfig
 ): Promise<AISplitResult> {
   const lines = text.split("\n");
-  const slices = sampleSlices(lines);
+  const safeText = sanitizeContent(text); // M-22: truncate + strip injection markers
+  const safeLines = safeText.split("\n");
+  const slices = sampleSlices(safeLines);
 
   if (slices.length === 0) {
     return { chapters: [], confidence: 0, tokensUsed: 0 };

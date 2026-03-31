@@ -32,18 +32,20 @@ export function useUrlState() {
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
+      // M-16: read from window.location.search instead of React searchParams to avoid
+      // stale closure clobbering rapid successive updates
+      const currentParams = new URLSearchParams(window.location.search);
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
-          params.delete(key);
+          currentParams.delete(key);
         } else {
-          params.set(key, value);
+          currentParams.set(key, value);
         }
       }
-      const qs = params.toString();
+      const qs = currentParams.toString();
       router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
     },
-    [searchParams, router, pathname]
+    [router, pathname]
   );
 
   const setCourseId = useCallback(

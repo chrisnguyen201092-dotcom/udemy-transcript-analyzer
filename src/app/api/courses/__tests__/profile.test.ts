@@ -92,7 +92,10 @@ describe("POST /api/courses/[id]/profile", () => {
 
   it("returns 409 when profile already exists", async () => {
     mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    // M-9: Route now uses create + P2002 catch instead of findUnique check
+    const p2002Error = new Error("Unique constraint failed");
+    (p2002Error as any).code = "P2002";
+    mockPrisma.learnerProfile.create.mockRejectedValue(p2002Error);
 
     const req = makeRequest(COURSE_ID, "POST", validBody);
     const res = await POST(req, makeParams(COURSE_ID));

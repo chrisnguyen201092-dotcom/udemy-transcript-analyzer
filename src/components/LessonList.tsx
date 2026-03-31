@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle, RefreshCw, AlertTriangle, Loader2, ChevronsDown, Scissors } from "lucide-react";
+import { SplitChapterDialog } from "@/components/SplitChapterDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,7 +53,11 @@ interface LessonListProps {
   onToggleComplete?: (lessonId: string, completed: boolean) => void;
   /** When provided, shows a "Re-split" button for book courses. */
   onReSplit?: () => Promise<void>;
-  /** Course content type — re-split button only shows for 'book'. */
+  /** Merge two adjacent lessons into one. */
+  onMerge?: (lessonId1: string, lessonId2: string) => Promise<void>;
+  /** Split a lesson at the given character index. */
+  onSplit?: (lessonId: string, splitIndex: number, newTitle: string) => Promise<void>;
+  /** Course content type — merge/split/re-split buttons only show for 'book'. */
   contentType?: string;
 }
 
@@ -63,6 +68,10 @@ function SortableLessonItem({
   onDelete,
   progressMap,
   onToggleComplete,
+  nextLesson,
+  onMerge,
+  onSplit,
+  contentType,
 }: {
   lesson: Lesson;
   isSelected: boolean;
@@ -70,7 +79,13 @@ function SortableLessonItem({
   onDelete?: (lessonId: string) => void;
   progressMap?: Record<string, { completed: boolean }>;
   onToggleComplete?: (lessonId: string, completed: boolean) => void;
+  nextLesson?: Lesson;
+  onMerge?: (lessonId1: string, lessonId2: string) => Promise<void>;
+  onSplit?: (lessonId: string, splitIndex: number, newTitle: string) => Promise<void>;
+  contentType?: string;
 }) {
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
   const {
     attributes,
     listeners,
@@ -138,6 +153,74 @@ function SortableLessonItem({
         </p>
       </div>
 
+      {/* Split button — requires transcript */}
+      {onSplit && lesson.transcript && (
+        <>
+          <button
+            type="button"
+            title="Tách chương"
+            className="h-6 w-6 shrink-0 ml-0.5 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-[#A435F0] hover:bg-purple-50 dark:hover:bg-purple-950 rounded-md transition-all flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSplitOpen(true);
+            }}
+          >
+            <Scissors className="w-3 h-3" />
+          </button>
+          <SplitChapterDialog
+            lesson={lesson}
+            open={splitOpen}
+            onOpenChange={setSplitOpen}
+            onConfirm={(splitIndex, newTitle) => onSplit(lesson.id, splitIndex, newTitle)}
+          />
+        </>
+      )}
+
+      {/* Merge down button — not last lesson */}
+      {onMerge && nextLesson && (
+        <AlertDialog>
+          <AlertDialogTrigger
+            className="h-6 w-6 shrink-0 ml-0.5 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 rounded-md transition-all flex items-center justify-center"
+            title="Gộp xuống"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {mergeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronsDown className="w-3 h-3" />}
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Gộp chương</AlertDialogTitle>
+              <AlertDialogDescription>
+                Gộp &ldquo;{lesson.title}&rdquo; với &ldquo;{nextLesson.title}&rdquo;? Nội dung sẽ được nối. Dữ liệu học tập của chương sau sẽ bị xóa.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">Hủy</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={mergeLoading}
+                onClick={async () => {
+                  setMergeLoading(true);
+                  try {
+                    await onMerge(lesson.id, nextLesson.id);
+                  } finally {
+                    setMergeLoading(false);
+                  }
+                }}
+                className="bg-amber-600 hover:bg-amber-700 cursor-pointer"
+              >
+                {mergeLoading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    Đang gộp...
+                  </>
+                ) : (
+                  "Gộp"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       {onDelete && (
         <AlertDialog>
           <AlertDialogTrigger
@@ -169,7 +252,7 @@ function SortableLessonItem({
   );
 }
 
-export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder, progressMap, onToggleComplete, onReSplit, contentType }: LessonListProps) {
+export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder, progressMap, onToggleComplete, onReSplit, onMerge, onSplit, contentType }: LessonListProps) {
   const [newLessonTitle, setNewLessonTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [reSplitLoading, setReSplitLoading] = useState(false);
@@ -235,7 +318,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
             // When filtering, don't show DnD — just a plain list
             <ScrollArea className="flex-1">
               <ul className="flex flex-col gap-0.5">
-                {filtered.map((lesson) => (
+                {filtered.map((lesson, i) => (
                   <SortableLessonItem
                     key={lesson.id}
                     lesson={lesson}
@@ -244,6 +327,10 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
                     onDelete={onDelete}
                     progressMap={progressMap}
                     onToggleComplete={onToggleComplete}
+                    nextLesson={filtered[i + 1]}
+                    onMerge={onMerge}
+                    onSplit={onSplit}
+                    contentType={contentType}
                   />
                 ))}
               </ul>
@@ -254,7 +341,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
               <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
                 <ScrollArea className="flex-1">
                   <ul className="flex flex-col gap-0.5">
-                    {lessons.map((lesson) => (
+                    {lessons.map((lesson, i) => (
                       <SortableLessonItem
                         key={lesson.id}
                         lesson={lesson}
@@ -263,6 +350,10 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
                         onDelete={onDelete}
                         progressMap={progressMap}
                         onToggleComplete={onToggleComplete}
+                        nextLesson={lessons[i + 1]}
+                        onMerge={onMerge}
+                        onSplit={onSplit}
+                        contentType={contentType}
                       />
                     ))}
                   </ul>

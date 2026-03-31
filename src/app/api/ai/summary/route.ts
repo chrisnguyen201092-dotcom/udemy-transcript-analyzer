@@ -6,6 +6,9 @@ import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
+// M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
+const inFlightGenerations = new Map<string, Promise<void>>();
+
 const SummarySchema = z.object({
   lessonId: z.string(),
   apiKey: z.string().min(1),
@@ -45,6 +48,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ summary: lesson.summary });
     }
 
+    // M-11: If another request is already generating this summary, wait for it then re-check cache
+    const cacheKey = `summary-${lessonId}`;
+    if (inFlightGenerations.has(cacheKey)) {
+      await inFlightGenerations.get(cacheKey)!.catch(() => {});
+      const refreshed = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { summary: true } });
+      if (refreshed?.summary) {
+        return NextResponse.json({ summary: refreshed.summary, cached: true });
+      }
+    }
+
     const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
     const client = createAIClient(apiKey, safeBaseUrl);
@@ -72,7 +85,7 @@ export async function POST(req: NextRequest) {
     const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
     // Best-effort DB persistence after stream completes
-    fullText.then(async (summary) => {
+    const generationPromise = fullText.then(async (summary) => {
       if (!summary) return;
       try {
         await prisma.lesson.update({
@@ -82,7 +95,10 @@ export async function POST(req: NextRequest) {
       } catch (dbError) {
         console.error("[summary] DB persistence failed:", dbError);
       }
+    }).finally(() => {
+      inFlightGenerations.delete(cacheKey);
     });
+    inFlightGenerations.set(cacheKey, generationPromise);
 
     return new Response(stream, { headers: STREAM_HEADERS });
   } catch (err) {

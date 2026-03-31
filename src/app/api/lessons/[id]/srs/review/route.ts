@@ -56,7 +56,8 @@ export async function POST(
         interval: sm2Result.interval,
         nextReviewAt: sm2Result.nextReviewAt,
         lastQuality: quality,
-        totalReviews: review.totalReviews + 1,
+        // H-4: Atomic increment at DB level to avoid lost updates under concurrency
+        totalReviews: { increment: 1 },
       },
     });
 

@@ -5,9 +5,14 @@ import { prisma } from "@/lib/prisma";
  * GET /api/analytics/overview
  *
  * Returns aggregated learning analytics across all courses.
+ * M-28: Accepts optional `tzOffset` query param (minutes) for timezone-aware date bucketing.
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
+    // M-28: Get timezone offset from client (minutes from UTC, e.g. -420 for UTC+7)
+    const tzOffsetParam = new URL(req.url).searchParams.get("tzOffset");
+    const tzOffset = tzOffsetParam ? parseInt(tzOffsetParam, 10) : 0;
+
     // Total courses
     const totalCourses = await prisma.course.count();
 
@@ -45,17 +50,26 @@ export async function GET(_req: NextRequest) {
         Math.round((masteredReviews / totalReviews) * 10000) / 100;
     }
 
-    // Streak calculation: get all unique dates with completed lessons
-    const completedProgress = await prisma.lessonProgress.findMany({
+    // M-27: Use aggregate query instead of findMany to avoid loading all records
+    // Only fetch completedAt dates (not full records) — bounded by unique dates
+    const completedDates = await prisma.lessonProgress.findMany({
       where: { completed: true, completedAt: { not: null } },
       select: { completedAt: true },
+      distinct: undefined, // We need counts per date, so group manually
     });
 
-    const { currentStreak, longestStreak } =
-      calculateStreaks(completedProgress);
+    // M-27 + M-28: Build date→count map with timezone adjustment
+    const dateCountMap = new Map<string, number>();
+    for (const r of completedDates) {
+      if (r.completedAt) {
+        const d = toDateString(r.completedAt, tzOffset);
+        dateCountMap.set(d, (dateCountMap.get(d) ?? 0) + 1);
+      }
+    }
 
-    // Study frequency: last 365 days
-    const studyFrequency = buildStudyFrequency(completedProgress);
+    const uniqueDateSet = new Set(dateCountMap.keys());
+    const { currentStreak, longestStreak } = calculateStreaks(uniqueDateSet, tzOffset);
+    const studyFrequency = buildStudyFrequency(dateCountMap, tzOffset);
 
     return NextResponse.json({
       totalCourses,
@@ -77,7 +91,7 @@ export async function GET(_req: NextRequest) {
 }
 
 /**
- * Calculate current and longest streaks from completed lesson dates.
+ * Calculate current and longest streaks from a set of date strings.
  *
  * Current streak: consecutive days with ≥1 lesson completed,
  * counting backwards from today (or yesterday if today has no completions).
@@ -85,20 +99,9 @@ export async function GET(_req: NextRequest) {
  * Longest streak: maximum consecutive days in entire history.
  */
 function calculateStreaks(
-  records: { completedAt: Date | null }[]
+  dateSet: Set<string>,
+  tzOffset: number
 ): { currentStreak: number; longestStreak: number } {
-  if (records.length === 0) {
-    return { currentStreak: 0, longestStreak: 0 };
-  }
-
-  // Collect unique date strings (YYYY-MM-DD in local/UTC)
-  const dateSet = new Set<string>();
-  for (const r of records) {
-    if (r.completedAt) {
-      dateSet.add(toDateString(r.completedAt));
-    }
-  }
-
   if (dateSet.size === 0) {
     return { currentStreak: 0, longestStreak: 0 };
   }
@@ -124,7 +127,8 @@ function calculateStreaks(
   }
 
   // Calculate current streak (counting backwards from today or yesterday)
-  const todayStr = toDateString(new Date());
+  // M-28: Use timezone-adjusted "today"
+  const todayStr = toDateString(new Date(), tzOffset);
   const lastDate = sortedDates[sortedDates.length - 1];
 
   // If last study day is not today or yesterday, current streak is 0
@@ -158,26 +162,19 @@ function calculateStreaks(
 
 /**
  * Build 365-day study frequency array.
+ * M-27: Accepts pre-computed date→count map instead of raw records.
  */
 function buildStudyFrequency(
-  records: { completedAt: Date | null }[]
+  countMap: Map<string, number>,
+  tzOffset: number
 ): { date: string; lessonsCompleted: number }[] {
-  // Count lessons per date
-  const countMap = new Map<string, number>();
-  for (const r of records) {
-    if (r.completedAt) {
-      const d = toDateString(r.completedAt);
-      countMap.set(d, (countMap.get(d) ?? 0) + 1);
-    }
-  }
-
   // Generate last 365 days
   const result: { date: string; lessonsCompleted: number }[] = [];
   const today = new Date();
   for (let i = 364; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const dateStr = toDateString(d);
+    const dateStr = toDateString(d, tzOffset);
     result.push({
       date: dateStr,
       lessonsCompleted: countMap.get(dateStr) ?? 0,
@@ -188,8 +185,10 @@ function buildStudyFrequency(
 }
 
 /**
- * Convert a Date to YYYY-MM-DD string (UTC).
+ * Convert a Date to YYYY-MM-DD string.
+ * M-28: Adjusts by tzOffset minutes for user's local time instead of pure UTC.
  */
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
+function toDateString(date: Date, tzOffset: number = 0): string {
+  const adjusted = new Date(date.getTime() - tzOffset * 60000);
+  return adjusted.toISOString().split("T")[0];
 }

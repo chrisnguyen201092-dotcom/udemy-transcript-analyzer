@@ -6,6 +6,9 @@ import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
+// M-11: Module-level map to deduplicate concurrent AI calls for the same course
+const inFlightGenerations = new Map<string, Promise<void>>();
+
 const RoadmapSchema = z.object({
   courseId: z.string(),
   apiKey: z.string().min(1),
@@ -45,6 +48,16 @@ export async function POST(req: NextRequest) {
     // Cache guard — return JSON for cached results
     if (course.roadmap && !force) {
       return NextResponse.json({ roadmap: course.roadmap });
+    }
+
+    // M-11: If another request is already generating this roadmap, wait then re-check cache
+    const cacheKey = `roadmap-${courseId}`;
+    if (inFlightGenerations.has(cacheKey)) {
+      await inFlightGenerations.get(cacheKey)!.catch(() => {});
+      const refreshed = await prisma.course.findUnique({ where: { id: courseId }, select: { roadmap: true } });
+      if (refreshed?.roadmap) {
+        return NextResponse.json({ roadmap: refreshed.roadmap, cached: true });
+      }
     }
 
     const lessonsWithTranscript = course.lessons.filter((l) => l.transcript);
@@ -141,7 +154,7 @@ export async function POST(req: NextRequest) {
     const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
     // Best-effort DB persistence after stream completes
-    fullText.then(async (roadmap) => {
+    const generationPromise = fullText.then(async (roadmap) => {
       if (!roadmap) return;
       try {
         await prisma.course.update({
@@ -151,7 +164,10 @@ export async function POST(req: NextRequest) {
       } catch (dbError) {
         console.error("[roadmap] DB persistence failed:", dbError);
       }
+    }).finally(() => {
+      inFlightGenerations.delete(cacheKey);
     });
+    inFlightGenerations.set(cacheKey, generationPromise);
 
     return new Response(stream, { headers: STREAM_HEADERS });
   } catch (err) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Trash2, BookOpen, Search, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +50,8 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  // M-15: Prevent double rename when Enter triggers blur
+  const isSubmittingRef = useRef(false);
 
   const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -116,14 +118,19 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
                               if (e.key === "Enter") {
                                 const trimmed = editTitle.trim();
                                 if (trimmed && trimmed !== course.title && onRename) {
+                                  // M-15: Mark submitting to prevent blur from double-firing
+                                  isSubmittingRef.current = true;
                                   onRename(course.id, trimmed);
                                 }
                                 setEditingId(null);
+                                isSubmittingRef.current = false;
                               } else if (e.key === "Escape") {
                                 setEditingId(null);
                               }
                             }}
                             onBlur={() => {
+                              // M-15: Skip if Enter already handled rename
+                              if (isSubmittingRef.current) return;
                               const trimmed = editTitle.trim();
                               if (trimmed && trimmed !== course.title && onRename) {
                                 onRename(course.id, trimmed);

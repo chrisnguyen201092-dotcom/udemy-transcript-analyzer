@@ -45,16 +45,25 @@ export function NotesEditor({
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // H-9: AbortController for user-initiated refetch
+  const refetchAbortRef = useRef<AbortController | null>(null);
+  // M-17: AbortController for in-flight search requests
+  const searchAbortRef = useRef<AbortController | null>(null);
 
-  // Fetch notes when lesson changes
+  // Fetch notes when lesson changes (H-9: abort previous in-flight refetch)
   const refetchNotes = () => {
+    // Abort any previous in-flight refetch before starting a new one
+    if (refetchAbortRef.current) refetchAbortRef.current.abort();
+    const controller = new AbortController();
+    refetchAbortRef.current = controller;
+
     setIsLoading(true);
     setSaveStatus("idle");
     setLastSaved(null);
     setFetchError(false);
     skipAutoSaveRef.current = true;
 
-    fetch(`/api/lessons/${lessonId}/notes`)
+    fetch(`/api/lessons/${lessonId}/notes`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) {
           setFetchError(true);
@@ -75,7 +84,9 @@ export function NotesEditor({
           }, 100);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        // Suppress AbortError — a new refetch is already in flight
+        if (err instanceof Error && err.name === "AbortError") return;
         setFetchError(true);
         setAutosaveEnabled(false);
         setIsLoading(false);
@@ -184,25 +195,37 @@ export function NotesEditor({
     };
   }, [content, saveNotes, autosaveEnabled]);
 
-  // Cross-lesson search with debounce
+  // Cross-lesson search with debounce (M-17: cancel in-flight request on new search/clear)
   useEffect(() => {
     if (!courseId || !searchQuery.trim()) {
+      // Cancel any in-flight search when query is cleared
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+        searchAbortRef.current = null;
+      }
       setSearchResults([]);
       return;
     }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(async () => {
+      // Abort previous in-flight search before starting a new one
+      if (searchAbortRef.current) searchAbortRef.current.abort();
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
       setSearchLoading(true);
       try {
         const res = await fetch(
-          `/api/courses/${courseId}/notes/search?q=${encodeURIComponent(searchQuery.trim())}`
+          `/api/courses/${courseId}/notes/search?q=${encodeURIComponent(searchQuery.trim())}`,
+          { signal: controller.signal }
         );
         if (res.ok) {
           const data = await res.json();
           setSearchResults(data.results ?? []);
         }
-      } catch {
-        // Silently fail
+      } catch (err) {
+        // Suppress AbortError — superseded by a newer search
+        if (err instanceof Error && err.name === "AbortError") return;
       } finally {
         setSearchLoading(false);
       }

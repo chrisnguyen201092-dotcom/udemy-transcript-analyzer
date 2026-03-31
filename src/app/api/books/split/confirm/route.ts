@@ -29,35 +29,43 @@ export async function POST(req: NextRequest) {
     // Verify book exists
     const book = await prisma.course.findUnique({
       where: { id: parsed.bookId },
+      select: { id: true, contentType: true },
     });
     if (!book) {
       return NextResponse.json({ error: "Sách không tồn tại" }, { status: 404 });
     }
-
-    // Check for existing lessons (409 conflict)
-    const existingCount = await prisma.lesson.count({
-      where: { courseId: parsed.bookId },
-    });
-    if (existingCount > 0) {
-      return NextResponse.json(
-        { error: "Sách đã có bài học. Xóa bài học hiện tại trước khi chia lại chương." },
-        { status: 409 }
-      );
+    // H-19: Ensure only book-type courses can be confirmed
+    if (book.contentType !== "book") {
+      return NextResponse.json({ error: "Not a book course" }, { status: 400 });
     }
 
-    // Create Lesson records atomically
-    const lessonData = parsed.chapters.map((ch, i) => ({
-      courseId: parsed.bookId,
-      title: ch.title,
-      order: i + 1,
-      transcript: ch.content || null,
-      chapterNumber: ch.chapterNumber,
-      ...(ch.pageRange ? { pageRange: ch.pageRange } : {}),
-    }));
+    // H-7: Move existingCount check INSIDE interactive transaction so the
+    // check and lesson creation are atomic — prevents duplicate chapters
+    // if two confirm requests race for the same bookId.
+    const lessons = await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.lesson.count({
+        where: { courseId: parsed.bookId },
+      });
+      if (existingCount > 0) {
+        throw Object.assign(new Error("Sách đã có bài học. Xóa bài học hiện tại trước khi chia lại chương."), { status: 409 });
+      }
 
-    const lessons = await prisma.$transaction(
-      lessonData.map((data) => prisma.lesson.create({ data }))
-    );
+      // Create Lesson records within the same transaction
+      return Promise.all(
+        parsed.chapters.map((ch, i) =>
+          tx.lesson.create({
+            data: {
+              courseId: parsed.bookId,
+              title: ch.title,
+              order: i + 1,
+              transcript: ch.content || null,
+              chapterNumber: ch.chapterNumber,
+              ...(ch.pageRange ? { pageRange: ch.pageRange } : {}),
+            },
+          })
+        )
+      );
+    });
 
     const created = lessons.map((lesson) => ({
       id: lesson.id,
@@ -67,9 +75,13 @@ export async function POST(req: NextRequest) {
     }));
 
     return NextResponse.json({ created, courseId: parsed.bookId });
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    // Re-surface 409 thrown from within the transaction
+    if (error?.status === 409) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("Split confirm error:", error);
     return NextResponse.json(

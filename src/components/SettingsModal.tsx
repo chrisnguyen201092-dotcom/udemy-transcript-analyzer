@@ -58,6 +58,7 @@ const DEFAULT_STORE: SettingsStore = {
   activeId: "",
 };
 
+// SECURITY NOTE: API keys stored in localStorage. Acceptable for single-user local app. Do not deploy publicly.
 export function loadStore(): SettingsStore {
   if (typeof window === "undefined") return DEFAULT_STORE;
   try {

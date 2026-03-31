@@ -6,6 +6,9 @@ import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
+// M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
+const inFlightGenerations = new Map<string, Promise<void>>();
+
 const ExplainSchema = z
   .object({
     lessonId: z.string(),
@@ -80,6 +83,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // M-11: If another request is already generating explanation for this lesson, wait then re-check cache
+    const cacheKey = `explain-${lessonId}`;
+    if (!selectedText && inFlightGenerations.has(cacheKey)) {
+      await inFlightGenerations.get(cacheKey)!.catch(() => {});
+      const refreshed = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { explanation: true } });
+      if (refreshed?.explanation) {
+        return NextResponse.json({ explanation: refreshed.explanation, depthActual: depth, cached: true });
+      }
+    }
+
     // Auto-downgrade: deep → standard if transcript < 200 words
     const wordCount = lesson.transcript.split(/\s+/).length;
     if (depth === "deep" && wordCount < 200) {
@@ -137,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     // Best-effort DB persistence after stream completes (only when NOT in selectedText mode)
     if (!selectedText) {
-      fullText.then(async (explanation) => {
+      const generationPromise = fullText.then(async (explanation) => {
         if (!explanation) return;
         try {
           await prisma.lesson.update({
@@ -147,7 +160,10 @@ export async function POST(req: NextRequest) {
         } catch (dbError) {
           console.error("[explain] DB persistence failed:", dbError);
         }
+      }).finally(() => {
+        inFlightGenerations.delete(cacheKey);
       });
+      inFlightGenerations.set(cacheKey, generationPromise);
     }
 
     return new Response(stream, { headers: STREAM_HEADERS });

@@ -19,6 +19,8 @@ const { mockPrisma, mockDetectChapters, mockParsePdf, mockParseDocx } = vi.hoist
       count: vi.fn(),
       findMany: vi.fn(),
     },
+    // H-7: Route now uses interactive $transaction(async (tx) => {...})
+    // Mock executes the callback, passing mockPrisma as tx so sub-mocks work
     $transaction: vi.fn(),
   },
   mockDetectChapters: vi.fn(),
@@ -250,16 +252,18 @@ describe("POST /api/books/split/confirm", () => {
     mockPrisma.lesson.count.mockResolvedValue(0);
     mockPrisma.lesson.findMany.mockResolvedValue([]);
     mockPrisma.lesson.create.mockImplementation(
-      ({ data }: { data: Record<string, unknown> }) => ({
-        id: `lesson-${data.order}`,
-        title: data.title,
-        order: data.order,
-        chapterNumber: data.chapterNumber ?? null,
-      })
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: `lesson-${data.order}`,
+          title: data.title,
+          order: data.order,
+          chapterNumber: data.chapterNumber ?? null,
+        })
     );
-    // $transaction receives an array of prisma.lesson.create() results and resolves them
+    // H-7: Route now uses interactive $transaction(async (tx) => {...})
+    // Execute the callback, passing mockPrisma as tx so lesson.count/create work
     mockPrisma.$transaction.mockImplementation(
-      (promises: Array<unknown>) => Promise.resolve(promises)
+      async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma)
     );
   });
 

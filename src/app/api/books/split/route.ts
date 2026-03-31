@@ -67,9 +67,14 @@ export async function POST(req: NextRequest) {
     // ── Verify book exists ───────────────────────────────────────────────
     const book = await prisma.course.findUnique({
       where: { id: parsed.bookId },
+      select: { id: true, contentType: true },
     });
     if (!book) {
       return NextResponse.json({ error: "Sách không tồn tại" }, { status: 404 });
+    }
+    // H-19: Ensure only book-type courses can be split
+    if (book.contentType !== "book") {
+      return NextResponse.json({ error: "Not a book course" }, { status: 400 });
     }
 
     // ── Parse file content into plain text ───────────────────────────────

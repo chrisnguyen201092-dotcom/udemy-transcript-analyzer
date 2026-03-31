@@ -15,6 +15,7 @@ const { mockPrisma, mockParsePdf, mockParseDocx, mockParseMarkdownChapters } =
       course: {
         findUnique: vi.fn(),
         create: vi.fn(),
+        delete: vi.fn().mockResolvedValue(undefined),
       },
       lesson: {
         create: vi.fn(),

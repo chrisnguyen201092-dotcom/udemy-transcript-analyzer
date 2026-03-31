@@ -17,6 +17,10 @@ function sanitizeFilename(name: string): string {
 }
 
 function escapeCSVField(value: string): string {
+  // M-19: Prevent spreadsheet formula injection (=, +, -, @, tab, CR)
+  if (/^[=+\-@\t\r]/.test(value)) {
+    value = "'" + value;
+  }
   const escaped = value.replace(/"/g, '""');
   return `"${escaped}"`;
 }

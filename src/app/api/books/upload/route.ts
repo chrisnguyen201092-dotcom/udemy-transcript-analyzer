@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
 
     // ── Resolve or create course ───────────────────────────────────────
     let resolvedCourseId: string;
+    // M-1: track whether we created a new course to enable orphan cleanup on failure
+    let isNewCourse = false;
 
     if (parsed.courseId) {
       const course = await prisma.course.findUnique({ where: { id: parsed.courseId } });
@@ -80,12 +82,8 @@ export async function POST(req: NextRequest) {
         },
       });
       resolvedCourseId = newCourse.id;
+      isNewCourse = true;
     }
-
-    // ── Get current lesson count for ordering ──────────────────────────
-    const existingCount = await prisma.lesson.count({
-      where: { courseId: resolvedCourseId },
-    });
 
     // ── Parse file content ─────────────────────────────────────────────
     const warnings: Array<{ type: string; message: string }> = [];
@@ -149,6 +147,10 @@ export async function POST(req: NextRequest) {
       }
     } catch (parseError) {
       // File is corrupt or unparseable
+      // M-1: cleanup orphan course created in this request (has 0 lessons, safe to delete)
+      if (isNewCourse) {
+        await prisma.course.delete({ where: { id: resolvedCourseId } }).catch(() => {});
+      }
       const reason = parseError instanceof Error ? parseError.message : String(parseError);
       return NextResponse.json(
         { error: `Không thể đọc file: ${reason}` },
@@ -160,6 +162,11 @@ export async function POST(req: NextRequest) {
     const created: Array<{ id: string; title: string; order: number }> = [];
 
     await prisma.$transaction(async (tx) => {
+      // H-6: Count existing lessons INSIDE transaction to prevent duplicate
+      // order values when concurrent uploads race against the same courseId.
+      const existingCount = await tx.lesson.count({
+        where: { courseId: resolvedCourseId },
+      });
       for (let i = 0; i < chapters.length; i++) {
         const order = existingCount + i + 1;
         const lesson = await tx.lesson.create({

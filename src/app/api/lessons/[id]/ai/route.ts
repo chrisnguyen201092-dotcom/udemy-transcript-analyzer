@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+
+// M-21: Zod validation for AI data update
+const AiUpdateSchema = z.object({
+  summary: z.string().optional(),
+  explanation: z.string().optional(),
+  quiz: z.string().optional(),
+  flashcards: z.string().optional(),
+  exercises: z.string().optional(),
+}).refine(
+  (data) => Object.values(data).some((v) => v !== undefined),
+  { message: "At least one AI field must be provided" }
+);
 
 export async function PUT(
   req: NextRequest,
@@ -8,6 +21,15 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
+
+    // M-21: Validate with Zod before processing
+    const parsed = AiUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues },
+        { status: 400 }
+      );
+    }
 
     // Only allow updating specific AI fields
     const allowedFields = ["summary", "explanation", "quiz", "flashcards", "exercises"] as const;

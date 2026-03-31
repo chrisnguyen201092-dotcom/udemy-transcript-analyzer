@@ -100,6 +100,9 @@ export function createThinkFilteredStream(
           settled = true;
           rejectFullText!(err);
         }
+        // M-8: enqueue structured error chunk before closing so client sees the error message
+        const errorMsg = err instanceof Error ? err.message : "Unknown streaming error";
+        try { controller.enqueue(encoder.encode(`\n\n[ERROR] ${errorMsg}`)); } catch { /* stream may already be closing */ }
         controller.error(err);
       }
     },

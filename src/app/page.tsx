@@ -108,6 +108,8 @@ export default function Home() {
   const lessonStartTimeRef = useRef<number>(Date.now());
   // Ref to access selectedLesson inside pagehide handler without stale closure
   const selectedLessonRef = useRef<Lesson | null>(null);
+  // H-11: Guard against double-counting study time (pagehide + lesson switch in same tick)
+  const timeSavedForLessonRef = useRef<string | null>(null);
 
   useEffect(() => {
     const s = loadStore();
@@ -293,6 +295,56 @@ export default function Home() {
     }
   };
 
+  const handleMergeLessons = async (lessonId1: string, lessonId2: string) => {
+    if (!selectedCourse) return;
+    try {
+      const res = await fetch(`/api/courses/${selectedCourse.id}/lessons/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonId1, lessonId2 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Lỗi khi gộp chương");
+      }
+      const { merged, lessons } = await res.json();
+      setSelectedCourse({ ...selectedCourse, lessons });
+      // If selected lesson was the deleted one, switch to merged
+      if (selectedLesson?.id === lessonId2) {
+        setSelectedLesson(merged);
+      } else if (selectedLesson?.id === lessonId1) {
+        setSelectedLesson(merged);
+      }
+      toast.success("Đã gộp 2 chương thành công");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi gộp chương");
+    }
+  };
+
+  const handleSplitLesson = async (lessonId: string, splitIndex: number, newTitle: string) => {
+    if (!selectedCourse) return;
+    try {
+      const res = await fetch(`/api/courses/${selectedCourse.id}/lessons/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonId, splitIndex, newTitle }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Lỗi khi tách chương");
+      }
+      const { original, lessons } = await res.json();
+      setSelectedCourse({ ...selectedCourse, lessons });
+      // Refresh to show the updated original (top half)
+      if (selectedLesson?.id === lessonId) {
+        setSelectedLesson(original);
+      }
+      toast.success("Đã tách chương thành công");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi tách chương");
+    }
+  };
+
   const handleReorderLessons = async (lessonIds: string[]) => {
     if (!selectedCourse) return;
 
@@ -397,6 +449,8 @@ export default function Home() {
     const handlePageHide = () => {
       const lesson = selectedLessonRef.current;
       if (!lesson) return;
+      // H-11: Skip if time was already saved for this lesson (e.g. during lesson switch)
+      if (timeSavedForLessonRef.current === lesson.id) return;
       const deltaMs = Date.now() - lessonStartTimeRef.current;
       if (deltaMs <= 5000) return;
       navigator.sendBeacon(
@@ -411,11 +465,24 @@ export default function Home() {
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, []); // empty deps — reads from refs only
 
+  // H-21: Warn on browser back/forward when unsaved changes exist
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (chatMessageCount > 0 || transcriptDirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [chatMessageCount, transcriptDirty]);
+
   const handleSelectLesson = (lesson: Lesson) => {
     // Track study time for current lesson before switching
     if (selectedLesson && selectedLesson.id !== lesson.id) {
       const deltaMs = Date.now() - lessonStartTimeRef.current;
       if (deltaMs > 5000) { // Only track if > 5 seconds
+        // H-11: Mark time as saved to prevent pagehide double-counting
+        timeSavedForLessonRef.current = selectedLesson.id;
         fetch(`/api/lessons/${selectedLesson.id}/progress`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -431,6 +498,8 @@ export default function Home() {
       setSelectedLesson(lesson);
       setShowCollection(false);
       lessonStartTimeRef.current = Date.now();
+      // H-11: Reset guard for new lesson
+      timeSavedForLessonRef.current = null;
     }
   };
 
@@ -439,6 +508,8 @@ export default function Home() {
     if (selectedLesson) {
       const deltaMs = Date.now() - lessonStartTimeRef.current;
       if (deltaMs > 5000) {
+        // H-11: Mark time as saved to prevent pagehide double-counting
+        timeSavedForLessonRef.current = selectedLesson.id;
         fetch(`/api/lessons/${selectedLesson.id}/progress`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -453,6 +524,8 @@ export default function Home() {
     setPendingLesson(null);
     setShowLessonWarning(false);
     lessonStartTimeRef.current = Date.now();
+    // H-11: Reset guard for new lesson
+    timeSavedForLessonRef.current = null;
   };
 
   const cancelLessonSwitch = () => {
@@ -462,11 +535,16 @@ export default function Home() {
 
   const handleSaveTranscript = async (lessonId: string, transcript: string) => {
     try {
-      await fetch(`/api/lessons/${lessonId}/transcript`, {
+      const res = await fetch(`/api/lessons/${lessonId}/transcript`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript }),
       });
+      // H-22: Check res.ok before treating as success
+      if (!res.ok) {
+        toast.error("Lỗi khi lưu transcript");
+        return;
+      }
       const updatedLesson = { ...selectedLesson!, transcript };
       setSelectedLesson(updatedLesson);
       if (selectedCourse) {
@@ -680,6 +758,8 @@ export default function Home() {
                   onReorder={handleReorderLessons}
                   progressMap={lessonProgressMap}
                   onToggleComplete={handleToggleLessonComplete}
+                  onMerge={handleMergeLessons}
+                  onSplit={handleSplitLesson}
                   onReSplit={handleReSplit}
                   contentType={selectedCourse.contentType}
                 />

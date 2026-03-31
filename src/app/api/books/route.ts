@@ -55,31 +55,33 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    // Only delete if the record is a book stub (contentType="book") with no lessons
-    const course = await prisma.course.findUnique({
-      where: { id },
-      select: { contentType: true, _count: { select: { lessons: true } } },
+    // M-10: Replace TOCTOU (findUnique → check → delete) with atomic deleteMany.
+    // All conditions are evaluated in a single WHERE clause; no race window.
+    const result = await prisma.course.deleteMany({
+      where: {
+        id,
+        contentType: "book",
+        lessons: { none: {} },
+      },
     });
 
-    if (!course) {
-      return NextResponse.json({ error: "Không tìm thấy sách" }, { status: 404 });
+    if (result.count === 0) {
+      // Deletion was rejected — diagnose why (post-hoc, non-critical read)
+      const course = await prisma.course.findUnique({
+        where: { id },
+        select: { contentType: true, _count: { select: { lessons: true } } },
+      });
+      if (!course) {
+        return NextResponse.json({ error: "Không tìm thấy sách" }, { status: 404 });
+      }
+      if (course.contentType !== "book") {
+        return NextResponse.json({ error: "Chỉ có thể xóa bản ghi loại sách" }, { status: 403 });
+      }
+      if (course._count.lessons > 0) {
+        return NextResponse.json({ error: "Không thể xóa sách đã có bài học" }, { status: 409 });
+      }
     }
 
-    if (course.contentType !== "book") {
-      return NextResponse.json(
-        { error: "Chỉ có thể xóa bản ghi loại sách" },
-        { status: 403 }
-      );
-    }
-
-    if (course._count.lessons > 0) {
-      return NextResponse.json(
-        { error: "Không thể xóa sách đã có bài học" },
-        { status: 409 }
-      );
-    }
-
-    await prisma.course.delete({ where: { id } });
     return NextResponse.json({ deleted: true });
   } catch (error) {
     console.error("Delete book stub error:", error);

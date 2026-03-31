@@ -54,6 +54,8 @@ describe("PATCH /api/courses/[id]/lessons/reorder", () => {
   it("reorders lessons successfully and returns 200", async () => {
     const course = { id: "c1", title: "Course 1" };
     mockPrisma.course.findUnique.mockResolvedValue(course);
+    // H-8: ownership check expects count to match lessonIds length
+    mockPrisma.lesson.count.mockResolvedValue(3);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l3", "l1", "l2"] });
@@ -81,6 +83,7 @@ describe("PATCH /api/courses/[id]/lessons/reorder", () => {
   it("passes correct order (index + 1) to each lesson update", async () => {
     const course = { id: "c1", title: "Course 1" };
     mockPrisma.course.findUnique.mockResolvedValue(course);
+    mockPrisma.lesson.count.mockResolvedValue(2);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l2", "l1"] });
@@ -122,6 +125,7 @@ describe("PATCH /api/courses/[id]/lessons/reorder — edge cases", () => {
   it("reorder single lesson in course", async () => {
     const course = { id: "c1", title: "Course 1" };
     mockPrisma.course.findUnique.mockResolvedValue(course);
+    mockPrisma.lesson.count.mockResolvedValue(1);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l1"] });
@@ -140,6 +144,8 @@ describe("PATCH /api/courses/[id]/lessons/reorder — edge cases", () => {
   it("returns 400 for duplicate IDs in array", async () => {
     const course = { id: "c1", title: "Course 1" };
     mockPrisma.course.findUnique.mockResolvedValue(course);
+    // H-8: count returns 2 unique lessons, but array has 3 (duplicates) → ownership check fails
+    mockPrisma.lesson.count.mockResolvedValue(2);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l1", "l1", "l2"] });
@@ -153,6 +159,7 @@ describe("PATCH /api/courses/[id]/lessons/reorder — edge cases", () => {
   it("handles concurrent reorder by using $transaction", async () => {
     const course = { id: "c1", title: "Course 1" };
     mockPrisma.course.findUnique.mockResolvedValue(course);
+    mockPrisma.lesson.count.mockResolvedValue(3);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l1", "l2", "l3"] });

@@ -162,13 +162,22 @@ export function AIAssistantPanel({
 
   // AI generation progress
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // [Fix H-3] Per-action abort controllers (keyed by action name)
+  const abortControllersRef = useRef<Record<string, AbortController>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // [Fix CRIT-1] Track current lessonId via ref so streaming closures can detect lesson switches
+  const lessonIdRef = useRef(lesson.id);
 
   // Ref for auto-scroll in chat
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const hasTranscript = !!lesson.transcript;
+
+  // [Fix CRIT-1] Keep lessonIdRef in sync with the current lesson prop
+  useEffect(() => {
+    lessonIdRef.current = lesson.id;
+  }, [lesson.id]);
 
   // ── Generation timer helpers ──
 
@@ -189,18 +198,31 @@ export function AIAssistantPanel({
   };
 
   const cancelGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    // [Fix H-3] Abort ALL active controllers
+    Object.values(abortControllersRef.current).forEach((c) => c.abort());
+    abortControllersRef.current = {};
     stopGenTimer();
+  };
+
+  // [Fix H-3] Create (and cancel any existing) controller for a given action key
+  const createAbortController = (key: string): AbortController => {
+    abortControllersRef.current[key]?.abort();
+    const controller = new AbortController();
+    abortControllersRef.current[key] = controller;
+    return controller;
+  };
+
+  const clearAbortController = (key: string) => {
+    delete abortControllersRef.current[key];
   };
 
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (abortControllerRef.current) abortControllerRef.current.abort();
+      // [Fix H-3] Abort all active controllers on unmount
+      Object.values(abortControllersRef.current).forEach((c) => c.abort());
+      abortControllersRef.current = {};
     };
   }, []);
 
@@ -348,6 +370,8 @@ export function AIAssistantPanel({
   // ── Handle external explain request (from TranscriptPanel highlight-to-explain) ──
   useEffect(() => {
     if (!externalExplainText || !isConfigured || explainLoading) return;
+    // [Fix H-2] AbortController so fetch is cancelled if effect re-runs or component unmounts
+    const controller = new AbortController();
     setActiveTab("explain");
     setExplainLoading(true);
     setExplainResult("");
@@ -361,18 +385,23 @@ export function AIAssistantPanel({
             selectedText: externalExplainText,
             force: true,
           }),
+          signal: controller.signal,
         });
         const result = await readStreamOrJson(
-          res, "explanation", setExplainResult,
+          res, "explanation", setExplainResult, controller.signal,
         );
         if (!result) setExplainResult("Không có kết quả.");
-      } catch {
+      } catch (err) {
+        // [Fix H-2] Suppress abort errors — expected on cleanup
+        if (err instanceof Error && err.name === "AbortError") return;
         setExplainResult("Lỗi khi giải thích.");
       }
       setExplainLoading(false);
       onExternalExplainHandled?.();
     };
     doExplain();
+    // [Fix H-2] Cancel in-flight fetch on cleanup
+    return () => controller.abort();
   }, [externalExplainText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── API helpers ──
@@ -436,8 +465,8 @@ export function AIAssistantPanel({
 
   const handleSummary = async () => {
     if (!hasTranscript || !isConfigured || summaryLoading) return;
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // [Fix H-3] Per-action abort controller
+    const controller = createAbortController('summary');
     setSummaryLoading(true);
     setSummaryResult("");
     startGenTimer();
@@ -461,15 +490,15 @@ export function AIAssistantPanel({
         toast.error("Lỗi khi tạo tóm tắt");
       }
     }
-    abortControllerRef.current = null;
+    clearAbortController('summary');
     stopGenTimer();
     setSummaryLoading(false);
   };
 
   const handleExplain = async () => {
     if (!hasTranscript || !isConfigured || explainLoading) return;
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // [Fix H-3] Per-action abort controller
+    const controller = createAbortController('explain');
     setExplainLoading(true);
     setExplainResult("");
     startGenTimer();
@@ -493,15 +522,15 @@ export function AIAssistantPanel({
         toast.error("Lỗi khi giải thích");
       }
     }
-    abortControllerRef.current = null;
+    clearAbortController('explain');
     stopGenTimer();
     setExplainLoading(false);
   };
 
   const handleRoadmap = async () => {
     if (!isConfigured || roadmapLoading) return;
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // [Fix H-3] Per-action abort controller
+    const controller = createAbortController('roadmap');
     setRoadmapLoading(true);
     setRoadmapResult("");
     startGenTimer();
@@ -530,7 +559,7 @@ export function AIAssistantPanel({
         toast.error("Lỗi khi tạo lộ trình");
       }
     }
-    abortControllerRef.current = null;
+    clearAbortController('roadmap');
     stopGenTimer();
     setRoadmapLoading(false);
   };
@@ -560,8 +589,8 @@ export function AIAssistantPanel({
 
     if (isCurrentlyLoading) return;
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // [Fix H-3] Per-action abort controller (keyed by practice mode)
+    const controller = createAbortController(`practice-${practiceMode}`);
     setLoading(true);
     setResult("");
     startGenTimer();
@@ -585,7 +614,7 @@ export function AIAssistantPanel({
         toast.error("Lỗi khi tạo nội dung luyện tập");
       }
     }
-    abortControllerRef.current = null;
+    clearAbortController(`practice-${practiceMode}`);
     stopGenTimer();
     setLoading(false);
   };
@@ -606,6 +635,8 @@ export function AIAssistantPanel({
     const assistantMsg: ChatMessage = { role: "assistant", content: "" };
     setChatMessages([...updatedMessages, assistantMsg]);
 
+    // [Fix H-3] Per-action abort controller for chat
+    const controller = createAbortController('chat');
     let finalResponse = "";
 
     try {
@@ -617,6 +648,7 @@ export function AIAssistantPanel({
           messages: updatedMessages,
           socraticMode,
         }),
+        signal: controller.signal,
       });
 
       const reader = res.body?.getReader();
@@ -625,6 +657,11 @@ export function AIAssistantPanel({
 
       if (reader) {
         while (true) {
+          // [Fix CRIT-1] Guard: if lesson switched mid-stream, cancel and discard
+          if (lessonIdRef.current !== currentLessonId) {
+            reader.cancel();
+            break;
+          }
           const { done, value } = await reader.read();
           if (done) break;
           response += decoder.decode(value);
@@ -637,7 +674,8 @@ export function AIAssistantPanel({
         }
       }
       finalResponse = response;
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setChatMessages((prev) => {
         const copy = [...prev];
         copy[copy.length - 1] = {
@@ -649,10 +687,11 @@ export function AIAssistantPanel({
       toast.error("Lỗi khi chat");
     }
 
+    clearAbortController('chat');
     setChatLoading(false);
 
-    // Discard results if lessonId changed (race condition prevention)
-    if (currentLessonId !== lesson.id) {
+    // [Fix CRIT-1] Discard DB persistence if lessonId changed during streaming
+    if (lessonIdRef.current !== currentLessonId) {
       return;
     }
 

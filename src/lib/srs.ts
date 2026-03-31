@@ -46,6 +46,9 @@ export function calculateSM2(input: SM2Input, now?: Date): SM2Output {
     newInterval = 1;
   }
 
+  // M-32: Guarantee minimum 1-day interval to prevent infinite review loops
+  newInterval = Math.max(1, newInterval);
+
   // Adjust easiness factor (always applied regardless of quality)
   const q = quality;
   const newEF = Math.max(

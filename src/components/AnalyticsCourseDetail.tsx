@@ -67,7 +67,8 @@ export function AnalyticsCourseDetail({ courseId }: AnalyticsCourseDetailProps) 
         if (err instanceof Error && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Lỗi không xác định");
       } finally {
-        setLoading(false);
+        // M-14: Only clear loading if this request was not aborted (avoid stale state for next request)
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     fetchData();

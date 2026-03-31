@@ -8,6 +8,17 @@
 
 ## Trạng thái hiện tại
 
+### ✅ Codebase Stabilization & Bug Fixes (2026-03-31 → 2026-04-01) — COMPLETE
+Resolved 43 validated issues across race conditions, security validation, and data integrity:
+- **Race conditions:** Interactive Prisma transactions, atomic increments, WHERE-gated deletes (H-6, H-7, H-4, M-9, M-10)
+- **Security hardening:** SSRF validation (private IP rejection), prompt injection guards, CSV formula injection protection (H-13, H-15, H-19, M-19, M-21, M-22)
+- **Data integrity:** Timezone-aware analytics, stream AbortController cleanup, SRS interval floor (H-8, M-4, M-32)
+- **Test coverage:** 829/829 passing (100%), zero regressions
+
+**Status:** ✅ Ready for Phase 2 backend-to-UI integration without blocking issues.
+
+---
+
 ### ✅ Đã hoàn thành (Phase 1–5): 38/38 core features + 18 backend features (F-57..F-74)
 Core app hoạt động đầy đủ: Course/Lesson CRUD, Upload, Transcript, 6 AI features (Summary, Explain, Chat, Practice, Roadmap, Persistence), Multi-Profile Settings, Docker deploy.
 Backend Feature Layer (v1.2): Notes, Progress Tracking, SRS, Analytics, Export, Learner Profile, Chat Persistence — tất cả đã verified COMPLETE.

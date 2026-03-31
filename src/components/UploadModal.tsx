@@ -4,9 +4,10 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   FileUp, X, CheckCircle2, AlertCircle, Loader2,
   FolderOpen, Upload, BookOpen, FileText,
-  GripVertical, ChevronLeft, TriangleAlert,
+  GripVertical, ChevronLeft, TriangleAlert, Scissors, ChevronsDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SplitChapterDialog } from "@/components/SplitChapterDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -109,6 +110,7 @@ export function UploadModal({
   const [splitWarnings, setSplitWarnings] = useState<string[]>([]);
   const [splitBookId, setSplitBookId] = useState<string | null>(null);
   const [splitMethod, setSplitMethod] = useState<"heuristic" | "fallback" | null>(null);
+  const [splitDialogIdx, setSplitDialogIdx] = useState<number | null>(null);
 
   // ── Shared state ──────────────────────────────────────────────────────
   const [uploading, setUploading] = useState(false);
@@ -118,6 +120,8 @@ export function UploadModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const bookInputRef = useRef<HTMLInputElement>(null);
+  // M-13: AbortController for in-flight transcript upload
+  const transcriptAbortRef = useRef<AbortController | null>(null);
   const dragCounterRef = useRef(0);
   // Track in-flight book stub id so we can clean it up on close/abort
   const pendingStubIdRef = useRef<string | null>(null);
@@ -162,6 +166,11 @@ export function UploadModal({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // M-13: Abort any in-flight transcript upload
+    if (transcriptAbortRef.current) {
+      transcriptAbortRef.current.abort();
+      transcriptAbortRef.current = null;
+    }
     // Clean up uncommitted stub created during analysis (fire-and-forget)
     if (pendingStubIdRef.current) {
       const stubId = pendingStubIdRef.current;
@@ -186,6 +195,7 @@ export function UploadModal({
     setSplitWarnings([]);
     setSplitBookId(null);
     setSplitMethod(null);
+    setSplitDialogIdx(null);
     setUploading(false);
     setResult(null);
     setIsDragging(false);
@@ -320,6 +330,10 @@ export function UploadModal({
     setResult(null);
     setFiles((prev) => prev.map((f) => ({ ...f, status: "processing" as FileStatus })));
 
+    // M-13: Create AbortController so close/reset can cancel this upload
+    const controller = new AbortController();
+    transcriptAbortRef.current = controller;
+
     try {
       const fileContents: Array<{ name: string; content: string; type: string }> = [];
       for (const { file } of files) {
@@ -335,6 +349,7 @@ export function UploadModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -351,7 +366,9 @@ export function UploadModal({
       setResult({ message: `Đã upload thành công ${data.created.length} file`, isError: false });
       toast.success(`Đã upload thành công ${data.created.length} file`);
       onUploadComplete(data.courseId as string);
-    } catch {
+    } catch (err) {
+      // M-13: Suppress AbortError — modal was closed while uploading
+      if (err instanceof Error && err.name === "AbortError") return;
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: "error" as FileStatus, error: "Lỗi kết nối" }))
       );
@@ -504,6 +521,48 @@ export function UploadModal({
 
   const handleDeleteChapter = useCallback((index: number) => {
     setSplitChapters((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  /** Merge chapter at `index` with the next one (client-side only) */
+  const handleMergeChapterDown = useCallback((index: number) => {
+    setSplitChapters((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const a = prev[index];
+      const b = prev[index + 1];
+      const mergedContent = [a.content, b.content].filter(Boolean).join("\n\n");
+      const merged: SplitChapter = {
+        ...a,
+        content: mergedContent,
+        wordCount: mergedContent.split(/\s+/).filter(Boolean).length,
+      };
+      const next = [...prev];
+      next.splice(index, 2, merged);
+      return next;
+    });
+  }, []);
+
+  /** Split chapter at `index` at character position `splitIdx` (client-side only) */
+  const handleSplitChapterAt = useCallback((index: number, splitIdx: number, newTitle: string) => {
+    setSplitChapters((prev) => {
+      const ch = prev[index];
+      if (!ch || splitIdx <= 0 || splitIdx >= ch.content.length) return prev;
+      const topContent = ch.content.slice(0, splitIdx).trimEnd();
+      const bottomContent = ch.content.slice(splitIdx).trimStart();
+      const updated: SplitChapter = {
+        ...ch,
+        content: topContent,
+        wordCount: topContent.split(/\s+/).filter(Boolean).length,
+      };
+      const created: SplitChapter = {
+        index: ch.index + 1,
+        title: newTitle,
+        content: bottomContent,
+        wordCount: bottomContent.split(/\s+/).filter(Boolean).length,
+      };
+      const next = [...prev];
+      next.splice(index, 1, updated, created);
+      return next;
+    });
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────
@@ -882,6 +941,28 @@ export function UploadModal({
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 w-14 text-right tabular-nums">
                       {ch.wordCount.toLocaleString()} từ
                     </span>
+                    {/* Split button */}
+                    {ch.content && splitStep !== "confirming" && (
+                      <button
+                        type="button"
+                        title="Tách chương"
+                        onClick={() => setSplitDialogIdx(i)}
+                        className="p-0.5 hover:bg-purple-50 dark:hover:bg-purple-950 rounded cursor-pointer"
+                      >
+                        <Scissors className="w-3 h-3 text-slate-400 hover:text-[#A435F0]" />
+                      </button>
+                    )}
+                    {/* Merge down button */}
+                    {i < splitChapters.length - 1 && splitStep !== "confirming" && (
+                      <button
+                        type="button"
+                        title="Gộp với chương kế tiếp"
+                        onClick={() => handleMergeChapterDown(i)}
+                        className="p-0.5 hover:bg-amber-50 dark:hover:bg-amber-950 rounded cursor-pointer"
+                      >
+                        <ChevronsDown className="w-3 h-3 text-slate-400 hover:text-amber-600" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDeleteChapter(i)}
@@ -894,6 +975,23 @@ export function UploadModal({
                 ))}
               </ul>
             </ScrollArea>
+
+            {/* Split chapter dialog */}
+            {splitDialogIdx !== null && splitChapters[splitDialogIdx] && (
+              <SplitChapterDialog
+                lesson={{
+                  id: String(splitDialogIdx),
+                  title: splitChapters[splitDialogIdx].title,
+                  transcript: splitChapters[splitDialogIdx].content,
+                }}
+                open={true}
+                onOpenChange={(open) => { if (!open) setSplitDialogIdx(null); }}
+                onConfirm={async (splitIndex, newTitle) => {
+                  handleSplitChapterAt(splitDialogIdx, splitIndex, newTitle);
+                  setSplitDialogIdx(null);
+                }}
+              />
+            )}
           </div>
         )}
 

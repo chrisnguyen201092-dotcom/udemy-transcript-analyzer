@@ -20,6 +20,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
+    // H-8: Verify ALL lesson IDs actually belong to this course
+    const verifiedCount = await prisma.lesson.count({
+      where: { id: { in: lessonIds }, courseId: id },
+    });
+    if (verifiedCount !== lessonIds.length) {
+      return NextResponse.json(
+        { error: "Some lessons don't belong to this course" },
+        { status: 400 }
+      );
+    }
+
     // Update order for each lesson in a transaction
     await prisma.$transaction(
       lessonIds.map((lessonId, index) =>

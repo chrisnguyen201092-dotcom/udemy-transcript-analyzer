@@ -60,6 +60,8 @@ export function CollectionPanel({
   const [activeTab, setActiveTab] = useState<CollectionTab>("notes");
   const [data, setData] = useState<CollectionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // M-6: Distinguish fetch error from empty state
+  const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(
     new Set()
@@ -67,12 +69,15 @@ export function CollectionPanel({
 
   const fetchCollection = useCallback(async () => {
     setIsLoading(true);
+    setFetchError(false);
     try {
       const res = await fetch(`/api/courses/${courseId}/collection`);
       if (!res.ok) throw new Error("Failed to fetch");
       const json: CollectionData = await res.json();
       setData(json);
     } catch {
+      // M-6: Set error flag so UI can distinguish error from empty
+      setFetchError(true);
       setData(null);
     } finally {
       setIsLoading(false);
@@ -239,6 +244,20 @@ export function CollectionPanel({
                   <Skeleton className="h-20 w-full rounded-lg" />
                 </div>
               ))}
+            </div>
+          ) : fetchError ? (
+            // M-6: Show distinct error message with retry button
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <p className="text-sm text-red-500 dark:text-red-400 font-medium">
+                Lỗi tải dữ liệu. Thử lại?
+              </p>
+              <button
+                type="button"
+                onClick={fetchCollection}
+                className="text-xs text-[#A435F0] underline underline-offset-2 hover:no-underline cursor-pointer"
+              >
+                Thử lại
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">

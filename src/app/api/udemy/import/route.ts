@@ -9,6 +9,7 @@ const Schema = z.object({
 
 const UDEMY_API_ORIGIN = "https://www.udemy.com";
 
+// H-12/H-20: validates pagination URLs stay on udemy.com
 function validateUdemyNextUrl(nextUrl: string | null | undefined): string | null {
   if (!nextUrl) return null;
   try {
@@ -20,6 +21,19 @@ function validateUdemyNextUrl(nextUrl: string | null | undefined): string | null
     return nextUrl;
   } catch {
     return null;
+  }
+}
+
+// H-17: only fetch captions from udemy.com or udemycdn.com over HTTPS
+function isAllowedCaptionUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname.endsWith(".udemy.com") || parsed.hostname.endsWith(".udemycdn.com"))
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -95,12 +109,57 @@ export async function POST(req: NextRequest) {
       nextPage = validateUdemyNextUrl(d.next ?? null);
     }
 
-    // 3. Filter only lectures
+    // Filter only lectures
     const lectures = allItems.filter((item) => item._class === "lecture");
 
-    // 4-5. Upsert course + create lessons atomically
+    // --- PHASE A (outside transaction): fetch all transcripts into memory ---
+    // H-12: all network I/O happens here, keeping the DB transaction short
+
+    // H-20: guard against empty or suspicious data before touching the DB
+    if (lectures.length === 0) {
+      return NextResponse.json({ error: "No lectures found — import aborted." }, { status: 400 });
+    }
+
+    // Build transcript map keyed by lecture array index
+    const transcriptMap = new Map<number, string | null>();
+    for (let i = 0; i < lectures.length; i++) {
+      const lecture = lectures[i];
+      const captions = lecture.asset?.captions ?? [];
+      // Prefer English, then any
+      const caption =
+        captions.find((c) => c.locale_id === "en_US") ??
+        captions.find((c) => c.locale_id?.startsWith("en")) ??
+        captions[0] ??
+        null;
+
+      if (caption?.url) {
+        // H-17: validate caption URL origin before fetching
+        if (!isAllowedCaptionUrl(caption.url)) {
+          console.warn("[Udemy Import] Skipping non-Udemy caption URL:", caption.url);
+          transcriptMap.set(i, null);
+        } else {
+          transcriptMap.set(i, await fetchTranscript(caption.url));
+        }
+      } else {
+        transcriptMap.set(i, null);
+      }
+    }
+
+    // --- PHASE B (inside transaction): pure DB ops only ---
+    // H-12: transaction now only does DB work — no network I/O inside
     const { importedCount, dbCourseId } = await prisma.$transaction(async (tx) => {
       const existingCourse = await tx.course.findFirst({ where: { url: courseUrl } });
+
+      // H-20: if re-importing, guard against partial pagination wiping full data
+      if (existingCourse) {
+        const existingLessonCount = await tx.lesson.count({ where: { courseId: existingCourse.id } });
+        if (existingLessonCount > 0 && lectures.length < existingLessonCount * 0.5) {
+          throw new Error(
+            `Suspicious reduction: new fetch returned ${lectures.length} lectures but DB has ${existingLessonCount}. Import aborted.`
+          );
+        }
+      }
+
       const dbCourse = existingCourse
         ? await tx.course.update({ where: { id: existingCourse.id }, data: { title: courseTitle } })
         : await tx.course.create({ data: { url: courseUrl, title: courseTitle } });
@@ -111,27 +170,14 @@ export async function POST(req: NextRequest) {
       }
 
       let count = 0;
-      for (const lecture of lectures) {
-        let transcript: string | null = null;
-
-        const captions = lecture.asset?.captions ?? [];
-        // Prefer English, then any
-        const caption =
-          captions.find((c) => c.locale_id === "en_US") ??
-          captions.find((c) => c.locale_id?.startsWith("en")) ??
-          captions[0] ??
-          null;
-
-        if (caption?.url) {
-          transcript = await fetchTranscript(caption.url);
-        }
-
+      for (let i = 0; i < lectures.length; i++) {
+        const lecture = lectures[i];
         await tx.lesson.create({
           data: {
             courseId: dbCourse.id,
             title: lecture.title,
             order: lecture.object_index,
-            transcript,
+            transcript: transcriptMap.get(i) ?? null,
           },
         });
         count++;
@@ -148,6 +194,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    // Surface H-20 guard message to the client
+    if (error instanceof Error && error.message.startsWith("Suspicious reduction")) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error(error);
     return NextResponse.json({ error: "Lỗi server khi import" }, { status: 500 });

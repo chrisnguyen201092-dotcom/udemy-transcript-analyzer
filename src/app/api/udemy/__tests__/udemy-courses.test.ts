@@ -36,7 +36,7 @@ describe("POST /api/udemy/courses", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when Udemy API returns 401", async () => {
+  it("returns 401 when Udemy API returns 401", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -46,10 +46,11 @@ describe("POST /api/udemy/courses", () => {
     const req = makeRequest({ cookie: "invalid-token" });
     const res = await udemyCourses(req);
 
-    expect(res.status).toBe(400);
+    // M-5: route now passes through Udemy's status code
+    expect(res.status).toBe(401);
   });
 
-  it("returns 400 when Udemy API returns non-ok status", async () => {
+  it("returns 403 when Udemy API returns 403", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 403,
@@ -59,7 +60,8 @@ describe("POST /api/udemy/courses", () => {
     const req = makeRequest({ cookie: "some-token" });
     const res = await udemyCourses(req);
 
-    expect(res.status).toBe(400);
+    // M-5: route now passes through Udemy's status code
+    expect(res.status).toBe(403);
   });
 
   it("returns mapped course list on success", async () => {
