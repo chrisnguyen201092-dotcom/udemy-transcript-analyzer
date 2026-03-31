@@ -3,6 +3,18 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["http://strategylab.io.vn"],
   output: "standalone",
+  // Prevent aggressive caching of HTML pages — ensures new builds are
+  // picked up without hard refresh.
+  async headers() {
+    return [
+      {
+        source: "/",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
+  },
   // tesseract.js uses dynamic Worker + WASM; pdf-to-png-converter uses @napi-rs/canvas
   // (native addon) — neither can be bundled by Next.js.
   // pdf-parse + pdfjs-dist: pdfjs dynamically imports pdf.worker.mjs at runtime (not

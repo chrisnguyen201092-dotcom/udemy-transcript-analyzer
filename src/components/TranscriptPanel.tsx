@@ -106,6 +106,24 @@ export function TranscriptPanel({
   const isDirty = editing && draft !== (lesson.transcript || "");
   const currentText = editing ? draft : (lesson.transcript || "");
 
+  // ── Refs for auto-save on unmount ──
+  const draftRef = useRef(draft);
+  const isDirtyRef = useRef(isDirty);
+  const lessonIdRef = useRef(lesson.id);
+  draftRef.current = draft;
+  isDirtyRef.current = isDirty;
+  lessonIdRef.current = lesson.id;
+
+  // ── Auto-save on unmount (course/lesson switch) ──
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current && draftRef.current.trim()) {
+        onSaveTranscript(lessonIdRef.current, draftRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Notify parent of dirty state ──
   useEffect(() => {
     onDirtyChange?.(isDirty);

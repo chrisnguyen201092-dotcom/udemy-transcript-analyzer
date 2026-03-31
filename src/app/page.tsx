@@ -83,6 +83,8 @@ export default function Home() {
   const [transcriptDirty, setTranscriptDirty] = useState(false);
   const [pendingLesson, setPendingLesson] = useState<Lesson | null>(null);
   const [showLessonWarning, setShowLessonWarning] = useState(false);
+  const [pendingCourse, setPendingCourse] = useState<Course | null>(null);
+  const [showCourseWarning, setShowCourseWarning] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -533,6 +535,23 @@ export default function Home() {
     setShowLessonWarning(false);
   };
 
+  const confirmCourseSwitch = () => {
+    if (pendingCourse) {
+      setSelectedCourse(pendingCourse);
+      setSelectedLesson(null);
+      setShowCollection(false);
+    }
+    setPendingCourse(null);
+    setShowCourseWarning(false);
+    lessonStartTimeRef.current = Date.now();
+    timeSavedForLessonRef.current = null;
+  };
+
+  const cancelCourseSwitch = () => {
+    setPendingCourse(null);
+    setShowCourseWarning(false);
+  };
+
   const handleSaveTranscript = async (lessonId: string, transcript: string) => {
     try {
       const res = await fetch(`/api/lessons/${lessonId}/transcript`, {
@@ -699,9 +718,14 @@ export default function Home() {
               loading={coursesLoading}
               selectedCourseId={selectedCourse?.id ?? null}
               onSelect={(c) => {
-                setSelectedCourse(c);
-                setSelectedLesson(null);
-                setShowCollection(false);
+                if ((chatMessageCount > 0 || transcriptDirty) && selectedLesson && c.id !== selectedCourse?.id) {
+                  setPendingCourse(c);
+                  setShowCourseWarning(true);
+                } else {
+                  setSelectedCourse(c);
+                  setSelectedLesson(null);
+                  setShowCollection(false);
+                }
               }}
               onDelete={handleDeleteCourse}
               onRename={handleRenameCourse}
@@ -945,6 +969,31 @@ export default function Home() {
             <AlertDialogCancel onClick={cancelLessonSwitch} className="cursor-pointer">Ở lại</AlertDialogCancel>
             <AlertDialogAction onClick={confirmLessonSwitch} className="bg-[#A435F0] hover:bg-[#8710D8] cursor-pointer">
               Chuyển bài học
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Course switch warning dialog */}
+      <AlertDialog open={showCourseWarning} onOpenChange={(open) => {
+        if (!open) setPendingCourse(null);
+        setShowCourseWarning(open);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chuyển khóa học?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transcriptDirty && chatMessageCount > 0
+                ? "Bạn có thay đổi transcript chưa lưu và cuộc trò chuyện AI đang diễn ra. Chuyển khóa học sẽ mất tất cả."
+                : transcriptDirty
+                  ? "Bạn có thay đổi transcript chưa lưu. Chuyển khóa học sẽ mất các thay đổi này."
+                  : "Bạn đang có cuộc trò chuyện với AI. Chuyển khóa học sẽ mất toàn bộ lịch sử chat hiện tại."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelCourseSwitch} className="cursor-pointer">Ở lại</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmCourseSwitch} className="bg-[#A435F0] hover:bg-[#8710D8] cursor-pointer">
+              Chuyển khóa học
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
