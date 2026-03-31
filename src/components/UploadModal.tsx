@@ -945,11 +945,11 @@ export function UploadModal({
                     {ch.content && splitStep !== "confirming" && (
                       <button
                         type="button"
-                        title="Tách chương"
+                        title="Tách chương tại vị trí con trỏ"
                         onClick={() => setSplitDialogIdx(i)}
-                        className="p-0.5 hover:bg-purple-50 dark:hover:bg-purple-950 rounded cursor-pointer"
+                        className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900 rounded-md cursor-pointer transition-colors"
                       >
-                        <Scissors className="w-3 h-3 text-slate-400 hover:text-[#A435F0]" />
+                        <Scissors className="w-3.5 h-3.5 text-purple-400 hover:text-[#A435F0]" />
                       </button>
                     )}
                     {/* Merge down button */}
@@ -958,9 +958,9 @@ export function UploadModal({
                         type="button"
                         title="Gộp với chương kế tiếp"
                         onClick={() => handleMergeChapterDown(i)}
-                        className="p-0.5 hover:bg-amber-50 dark:hover:bg-amber-950 rounded cursor-pointer"
+                        className="p-1 hover:bg-amber-100 dark:hover:bg-amber-900 rounded-md cursor-pointer transition-colors"
                       >
-                        <ChevronsDown className="w-3 h-3 text-slate-400 hover:text-amber-600" />
+                        <ChevronsDown className="w-3.5 h-3.5 text-amber-500 hover:text-amber-600" />
                       </button>
                     )}
                     <button
