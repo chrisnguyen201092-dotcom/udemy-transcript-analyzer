@@ -99,7 +99,7 @@ describe("POST /api/ai/chat", () => {
     const res = await chatPost(req);
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("text/plain");
+    expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
   });
 
   it("strips <think> blocks from streamed content", async () => {

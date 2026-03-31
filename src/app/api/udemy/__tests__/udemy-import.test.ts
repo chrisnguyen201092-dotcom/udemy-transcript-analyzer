@@ -5,8 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockPrisma } = vi.hoisted(() => ({
-  mockPrisma: {
+const { mockPrisma } = vi.hoisted(() => {
+  const db = {
     course: {
       findFirst: vi.fn(),
       create: vi.fn(),
@@ -23,8 +23,13 @@ const { mockPrisma } = vi.hoisted(() => ({
       update: vi.fn(),
       count: vi.fn(),
     },
-  },
-}));
+    // Route wraps lesson creation in $transaction; callback receives db itself.
+    $transaction: vi.fn().mockImplementation(
+      async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)
+    ),
+  };
+  return { mockPrisma: db };
+});
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 

@@ -10,8 +10,8 @@ import { NextRequest } from "next/server";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 const { mockPrisma, mockParsePdf, mockParseDocx, mockParseMarkdownChapters } =
-  vi.hoisted(() => ({
-    mockPrisma: {
+  vi.hoisted(() => {
+    const db = {
       course: {
         findUnique: vi.fn(),
         create: vi.fn(),
@@ -20,11 +20,19 @@ const { mockPrisma, mockParsePdf, mockParseDocx, mockParseMarkdownChapters } =
         create: vi.fn(),
         count: vi.fn(),
       },
-    },
-    mockParsePdf: vi.fn(),
-    mockParseDocx: vi.fn(),
-    mockParseMarkdownChapters: vi.fn(),
-  }));
+      // Route wraps course.create + lesson.create(s) in $transaction.
+      // Callback receives db itself so all sub-mocks remain active.
+      $transaction: vi.fn().mockImplementation(
+        async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)
+      ),
+    };
+    return {
+      mockPrisma: db,
+      mockParsePdf: vi.fn(),
+      mockParseDocx: vi.fn(),
+      mockParseMarkdownChapters: vi.fn(),
+    };
+  });
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/lib/parse-book", () => ({
@@ -353,6 +361,64 @@ describe("POST /api/books/upload", () => {
       const json = await res.json();
 
       expect(json.created[0].order).toBe(1);
+    });
+  });
+
+  // ── C-8 regression: lesson creation failure → course rolled back ───────────
+
+  describe("C-8 regression: atomic lesson creation", () => {
+    it("returns 500 when lesson.create throws inside $transaction", async () => {
+      // The route uses prisma.$transaction to create all lessons atomically.
+      // If any lesson.create fails, the transaction is aborted.
+      // The course was already created BEFORE the transaction — this test verifies
+      // the route returns a 500 (not 200 with partial data) when the tx fails.
+      mockPrisma.lesson.create.mockRejectedValue(new Error("DB constraint violation"));
+
+      const req = makeUploadRequest({
+        title: "Failing Book",
+        file: { name: "book.pdf", content: Buffer.from("fake-pdf-bytes").toString("base64"), type: "application/pdf" },
+      });
+
+      const res = await POST(req);
+
+      // Must not return 200 with partial created array
+      expect(res.status).not.toBe(200);
+      // Should be 500 (transaction failed)
+      expect(res.status).toBe(500);
+    });
+
+    it("does not return partial created list when only some lessons succeed", async () => {
+      // First lesson succeeds, second throws — transaction rolls back
+      let callCount = 0;
+      mockPrisma.lesson.create.mockImplementation(
+        (args: { data: { title: string; transcript: string | null; order: number; courseId: string } }) => {
+          callCount++;
+          if (callCount === 2) {
+            return Promise.reject(new Error("Lesson 2 failed"));
+          }
+          return Promise.resolve({ id: `l-${args.data.order}`, ...args.data });
+        }
+      );
+
+      // Use markdown with 2 chapters so 2 lessons are attempted
+      mockParseMarkdownChapters.mockReturnValue([
+        { title: "Chapter 1", content: "Content 1" },
+        { title: "Chapter 2", content: "Content 2" },
+      ]);
+
+      const req = makeUploadRequest({
+        title: "Partial Book",
+        file: {
+          name: "book.md",
+          content: "# Chapter 1\nContent 1\n# Chapter 2\nContent 2",
+          type: "text/markdown",
+        },
+      });
+
+      const res = await POST(req);
+
+      // Must not return 200 with partial data
+      expect(res.status).not.toBe(200);
     });
   });
 });

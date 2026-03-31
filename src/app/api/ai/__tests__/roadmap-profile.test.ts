@@ -5,6 +5,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+// ─── Streaming helpers ─────────────────────────────────────────────────────
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 const { mockCreate, mockPrisma } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockPrisma: {
@@ -92,16 +109,14 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
     mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.roadmap).toBe("## Roadmap");
+    expect(text).toBe("## Roadmap");
     // No profile context in prompt
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
     expect(userContent).not.toContain("Hồ sơ người học");
@@ -121,16 +136,14 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
       learningStyle: "hands_on",
     });
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Personalized Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Personalized Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.roadmap).toBe("## Personalized Roadmap");
+    expect(text).toBe("## Personalized Roadmap");
 
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
     expect(userContent).toContain("Hồ sơ người học");
@@ -148,12 +161,11 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
     mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Generic Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Generic Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
+    await readStream(res);
 
     expect(res.status).toBe(200);
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
@@ -169,16 +181,14 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       { lessonId: "l1", completed: true },
     ]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Progress Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Progress Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.roadmap).toBe("## Progress Roadmap");
+    expect(text).toBe("## Progress Roadmap");
 
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
     expect(userContent).toContain("Tiến độ hiện tại");
@@ -193,12 +203,11 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
     mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
-    await roadmapPost(makeRequest(VALID_BODY));
+    const res = await roadmapPost(makeRequest(VALID_BODY));
+    await readStream(res);
 
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
     expect(userContent).not.toContain("Tiến độ hiện tại");
@@ -222,12 +231,11 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
       { lessonId: "l1", completed: true },
       { lessonId: "l2", completed: true },
     ]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Full Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Full Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
+    await readStream(res);
 
     expect(res.status).toBe(200);
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
@@ -251,12 +259,11 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
       learningStyle: "balanced",
     });
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
+    await readStream(res);
 
     expect(res.status).toBe(200);
     const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
@@ -288,18 +295,16 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     );
     mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## New Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## New Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const res = await roadmapPost(
       makeRequest({ ...VALID_BODY, force: true })
     );
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.roadmap).toBe("## New Roadmap");
+    expect(text).toBe("## New Roadmap");
     expect(mockCreate).toHaveBeenCalled();
   });
 

@@ -247,3 +247,68 @@ describe("PUT /api/courses/[id]/profile", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ─── C-3 regression: knownTopicIds field is rejected ─────────────────────────
+
+describe("C-3 regression: knownTopicIds field is not accepted", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("POST: ignores unknown field knownTopicIds (does not crash, uses knownTopics)", async () => {
+    // The old field name was 'knownTopicIds' (array of IDs).
+    // The route's Zod schema only accepts 'knownTopics' (array of strings).
+    // Sending 'knownTopicIds' should either be ignored (extra field stripped by Zod)
+    // or cause a 400 if it replaces the required field pattern.
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.create.mockResolvedValue(mockProfile);
+
+    // Send body with knownTopicIds (old field) instead of knownTopics
+    const bodyWithOldField = {
+      level: "beginner",
+      goal: "career_change",
+      dailyTimeMin: 60,
+      knownTopicIds: ["topic-id-1", "topic-id-2"], // old field — should be ignored
+      learningStyle: "hands_on",
+      // knownTopics is optional — omitted
+    };
+
+    const req = makeRequest(COURSE_ID, "POST", bodyWithOldField);
+    const res = await POST(req, makeParams(COURSE_ID));
+
+    // Route must not return 500 — either 201 (field ignored) or 400 (not a 500)
+    expect(res.status).not.toBe(500);
+
+    // knownTopicIds must NOT be stored — verify create was called with
+    // knownTopics as a JSON string of an array, not with knownTopicIds
+    if (res.status === 201 && mockPrisma.learnerProfile.create.mock.calls.length > 0) {
+      const createCall = mockPrisma.learnerProfile.create.mock.calls[0][0];
+      expect(createCall.data).not.toHaveProperty("knownTopicIds");
+    }
+  });
+
+  it("PUT: sending knownTopicIds does not update the profile incorrectly", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.learnerProfile.update.mockResolvedValue(mockProfile);
+
+    const bodyWithOldField = {
+      level: "beginner",
+      goal: "career_change",
+      dailyTimeMin: 60,
+      knownTopicIds: ["topic-id-1"], // old field
+      learningStyle: "hands_on",
+    };
+
+    const req = makeRequest(COURSE_ID, "PUT", bodyWithOldField);
+    const res = await PUT(req, makeParams(COURSE_ID));
+
+    // Must not 500
+    expect(res.status).not.toBe(500);
+
+    // If update was called, verify knownTopicIds is not in the data
+    if (res.status === 200 && mockPrisma.learnerProfile.update.mock.calls.length > 0) {
+      const updateCall = mockPrisma.learnerProfile.update.mock.calls[0][0];
+      expect(updateCall.data).not.toHaveProperty("knownTopicIds");
+    }
+  });
+});

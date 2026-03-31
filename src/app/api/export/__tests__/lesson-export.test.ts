@@ -268,4 +268,34 @@ describe("POST /api/export/lesson/[id]", () => {
     const res = await POST(req, { params: Promise.resolve({ id: "l1" }) });
     expect(res.status).toBe(400);
   });
+
+  // ── Deprecated format regression (finding M-5) ─────────────────────────────
+
+  it("returns 400 for deprecated format value 'md' (must use 'markdown')", async () => {
+    const res = await POST(makeReq({ type: "summary", format: "md" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBeDefined();
+  });
+
+  it("returns 400 for deprecated format value 'txt' (must use 'markdown')", async () => {
+    const res = await POST(makeReq({ type: "summary", format: "txt" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBeDefined();
+  });
+
+  it("returns 400 for deprecated format value 'text'", async () => {
+    const res = await POST(makeReq({ type: "summary", format: "text" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    expect(res.status).toBe(400);
+  });
 });

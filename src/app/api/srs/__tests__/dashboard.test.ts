@@ -1,5 +1,6 @@
 /**
  * Integration tests for GET /api/srs/dashboard.
+ * Updated to match Phase 05 refactor: groupBy aggregation instead of findMany.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
@@ -9,13 +10,10 @@ import { NextRequest } from "next/server";
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     flashcardReview: {
-      findMany: vi.fn(),
       groupBy: vi.fn(),
-      count: vi.fn(),
     },
     lesson: {
       findMany: vi.fn(),
-      findUnique: vi.fn(),
     },
   },
 }));
@@ -42,36 +40,27 @@ beforeEach(() => {
 
 describe("GET /api/srs/dashboard", () => {
   it("returns lessons with due counts, total cards, and mastered counts", async () => {
-    // findMany returns all FlashcardReview records
-    mockPrisma.flashcardReview.findMany.mockResolvedValue([
-      {
-        lessonId: "lesson-1",
-        cardIndex: 0,
-        interval: 1,
-        nextReviewAt: new Date("2026-03-29T00:00:00Z"), // due (past)
-        lesson: { id: "lesson-1", title: "React Hooks" },
-      },
-      {
-        lessonId: "lesson-1",
-        cardIndex: 1,
-        interval: 25,
-        nextReviewAt: new Date("2026-04-15T00:00:00Z"), // not due, mastered
-        lesson: { id: "lesson-1", title: "React Hooks" },
-      },
-      {
-        lessonId: "lesson-1",
-        cardIndex: 2,
-        interval: 6,
-        nextReviewAt: new Date("2026-03-30T00:00:00Z"), // due (today)
-        lesson: { id: "lesson-1", title: "React Hooks" },
-      },
-      {
-        lessonId: "lesson-2",
-        cardIndex: 0,
-        interval: 30,
-        nextReviewAt: new Date("2026-03-28T00:00:00Z"), // due, mastered
-        lesson: { id: "lesson-2", title: "State Management" },
-      },
+    // groupBy returns are called in order: totalByLesson, dueByLesson, masteredByLesson
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        // totalByLesson
+        { lessonId: "lesson-1", _count: { _all: 3 } },
+        { lessonId: "lesson-2", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        // dueByLesson
+        { lessonId: "lesson-1", _count: { _all: 2 } },
+        { lessonId: "lesson-2", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        // masteredByLesson (interval >= MASTERED_THRESHOLD)
+        { lessonId: "lesson-1", _count: { _all: 1 } },
+        { lessonId: "lesson-2", _count: { _all: 1 } },
+      ]);
+
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      { id: "lesson-1", title: "React Hooks" },
+      { id: "lesson-2", title: "State Management" },
     ]);
 
     const req = makeGetRequest("http://localhost/api/srs/dashboard");
@@ -79,7 +68,7 @@ describe("GET /api/srs/dashboard", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.totalDue).toBe(3); // 3 cards due across all lessons
+    expect(data.totalDue).toBe(3); // 2 + 1
     expect(data.lessons).toHaveLength(2);
 
     const lesson1 = data.lessons.find(
@@ -90,7 +79,7 @@ describe("GET /api/srs/dashboard", () => {
       lessonTitle: "React Hooks",
       dueCount: 2,
       totalCards: 3,
-      masteredCount: 1, // interval >= 21
+      masteredCount: 1,
     });
 
     const lesson2 = data.lessons.find(
@@ -106,7 +95,12 @@ describe("GET /api/srs/dashboard", () => {
   });
 
   it("returns empty lessons array when no FlashcardReview exists", async () => {
-    mockPrisma.flashcardReview.findMany.mockResolvedValue([]);
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([]) // totalByLesson
+      .mockResolvedValueOnce([]) // dueByLesson
+      .mockResolvedValueOnce([]); // masteredByLesson
+
+    mockPrisma.lesson.findMany.mockResolvedValue([]);
 
     const req = makeGetRequest("http://localhost/api/srs/dashboard");
     const res = await getDashboard(req);
@@ -118,14 +112,16 @@ describe("GET /api/srs/dashboard", () => {
   });
 
   it("excludes lessons with no due cards from due count but includes in list", async () => {
-    mockPrisma.flashcardReview.findMany.mockResolvedValue([
-      {
-        lessonId: "lesson-1",
-        cardIndex: 0,
-        interval: 10,
-        nextReviewAt: new Date("2026-04-15T00:00:00Z"), // not due
-        lesson: { id: "lesson-1", title: "No Due Cards" },
-      },
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        // totalByLesson — 1 lesson with 1 card
+        { lessonId: "lesson-1", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([]) // dueByLesson — none due
+      .mockResolvedValueOnce([]); // masteredByLesson — none mastered
+
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      { id: "lesson-1", title: "No Due Cards" },
     ]);
 
     const req = makeGetRequest("http://localhost/api/srs/dashboard");
@@ -137,5 +133,30 @@ describe("GET /api/srs/dashboard", () => {
     // Lesson still included since it has FlashcardReview records
     expect(data.lessons).toHaveLength(1);
     expect(data.lessons[0].dueCount).toBe(0);
+  });
+
+  it("uses groupBy aggregation (not findMany) for counting — P-5 regression", async () => {
+    // Arrange
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mockPrisma.lesson.findMany.mockResolvedValue([]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    await getDashboard(req);
+
+    // groupBy should be called 3 times (total, due, mastered)
+    expect(mockPrisma.flashcardReview.groupBy).toHaveBeenCalledTimes(3);
+
+    // Verify due-cards query filters by nextReviewAt
+    const dueCall = mockPrisma.flashcardReview.groupBy.mock.calls[1][0];
+    expect(dueCall.where).toHaveProperty("nextReviewAt");
+    expect(dueCall.where.nextReviewAt).toHaveProperty("lte");
+
+    // Verify mastered query filters by interval
+    const masteredCall = mockPrisma.flashcardReview.groupBy.mock.calls[2][0];
+    expect(masteredCall.where).toHaveProperty("interval");
+    expect(masteredCall.where.interval).toHaveProperty("gte");
   });
 });

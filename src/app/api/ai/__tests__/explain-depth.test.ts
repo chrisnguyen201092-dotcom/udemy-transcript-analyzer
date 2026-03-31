@@ -76,10 +76,26 @@ function setupLessonMock(overrides: Record<string, unknown> = {}) {
   return lesson;
 }
 
+/** Create an async generator that yields a single chunk */
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+/** Consume a streaming response body and return the accumulated text */
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 function setupAIMock(content: string = "AI explanation content") {
-  mockCreate.mockResolvedValue({
-    choices: [{ message: { content } }],
-  });
+  mockCreate.mockResolvedValue(makeChunkStream(content));
   mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 }
 
@@ -97,11 +113,13 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       setupAIMock();
 
       const res = await explainPost(makeRequest(VALID_BODY));
-      const json = await res.json();
-
+      // cache guard returns JSON with depthActual for cached; AI path streams
+      // For fresh AI call, the route streams. The depthActual is only in the JSON
+      // cache path. For the streaming path we check status and that AI was called.
       expect(res.status).toBe(200);
-      expect(json.depthActual).toBe("standard");
-      expect(json.explanation).toBeDefined();
+      // Consume stream (AI path)
+      await readStream(res);
+      expect(mockCreate).toHaveBeenCalled();
     });
 
     it('depth="simple" uses simple prompt and returns depthActual=simple', async () => {
@@ -111,10 +129,9 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const res = await explainPost(
         makeRequest({ ...VALID_BODY, depth: "simple" })
       );
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.depthActual).toBe("simple");
+      await readStream(res);
       // Verify the system prompt passed to AI contains simple-specific text
       const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
       expect(systemMsg).toContain("ELI5");
@@ -127,10 +144,9 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const res = await explainPost(
         makeRequest({ ...VALID_BODY, depth: "deep" })
       );
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.depthActual).toBe("deep");
+      await readStream(res);
       const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
       expect(systemMsg).toContain("edge cases");
     });
@@ -142,10 +158,9 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const res = await explainPost(
         makeRequest({ ...VALID_BODY, depth: "deep" })
       );
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.depthActual).toBe("standard");
+      await readStream(res);
       // System prompt should NOT contain deep-specific markers
       const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
       expect(systemMsg).not.toContain("edge cases");
@@ -162,11 +177,11 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const res = await explainPost(
         makeRequest({ ...VALID_BODY, selectedText: "some selected text" })
       );
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.explanation).toBe("Focused explanation");
-      expect(json.depthActual).toBe("standard");
+      const text = await readStream(res);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(text).toBe("Focused explanation");
       // Should NOT persist to DB
       expect(mockPrisma.lesson.update).not.toHaveBeenCalled();
     });
@@ -210,9 +225,9 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       });
 
       const res = await explainPost(makeRequest(VALID_BODY));
-      const json = await res.json();
 
       expect(res.status).toBe(200);
+      await readStream(res);
       const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
       expect(systemMsg).toContain("beginner");
       expect(systemMsg).toContain("Người học có trình độ");
@@ -224,10 +239,9 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
 
       const res = await explainPost(makeRequest(VALID_BODY));
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.explanation).toBeDefined();
+      await readStream(res);
       // System prompt should NOT contain learner level line
       const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
       expect(systemMsg).not.toContain("Người học có trình độ");
@@ -255,10 +269,10 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const res = await explainPost(
         makeRequest({ ...VALID_BODY, force: true })
       );
-      const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json.explanation).toBe("fresh result");
+      const text = await readStream(res);
+      expect(text).toBe("fresh result");
       expect(mockCreate).toHaveBeenCalled();
     });
   });
@@ -270,8 +284,8 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
     setupAIMock("<think>reasoning</think>Clean output");
 
     const res = await explainPost(makeRequest(VALID_BODY));
-    const json = await res.json();
+    const text = await readStream(res);
 
-    expect(json.explanation).toBe("Clean output");
+    expect(text).toBe("Clean output");
   });
 });

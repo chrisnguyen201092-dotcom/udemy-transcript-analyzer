@@ -4,6 +4,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+// ─── Streaming helpers ─────────────────────────────────────────────────────
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 const { mockCreate, mockPrisma } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockPrisma: {
@@ -87,17 +104,15 @@ describe("POST /api/ai/roadmap", () => {
         { title: "Variables", order: 2, transcript: null },
       ],
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "## Roadmap content" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("## Roadmap content"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const req = makeRequest(VALID_BODY);
     const res = await roadmapPost(req);
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.roadmap).toBe("## Roadmap content");
+    expect(text).toBe("## Roadmap content");
   });
 
   it("persists roadmap to Course (not Lesson)", async () => {
@@ -105,13 +120,13 @@ describe("POST /api/ai/roadmap", () => {
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: "Text" }],
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Roadmap here" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Roadmap here"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const req = makeRequest(VALID_BODY);
-    await roadmapPost(req);
+    const res = await roadmapPost(req);
+    await readStream(res);
+    await new Promise((r) => setTimeout(r, 0)); // flush fullText.then()
 
     expect(mockPrisma.course.update).toHaveBeenCalledWith({
       where: { id: "c1" },
@@ -126,13 +141,12 @@ describe("POST /api/ai/roadmap", () => {
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: longTranscript }],
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const req = makeRequest(VALID_BODY);
-    await roadmapPost(req);
+    const res = await roadmapPost(req);
+    await readStream(res);
 
     const aiCallArgs = mockCreate.mock.calls[0][0];
     const userContent = aiCallArgs.messages[1].content as string;
@@ -150,17 +164,15 @@ describe("POST /api/ai/roadmap", () => {
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: "T" }],
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "<think>analysis</think>Clean roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("<think>analysis</think>Clean roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const req = makeRequest(VALID_BODY);
     const res = await roadmapPost(req);
-    const json = await res.json();
+    const text = await readStream(res);
 
-    expect(json.roadmap).toBe("Clean roadmap");
-    expect(json.roadmap).not.toContain("<think>");
+    expect(text).toBe("Clean roadmap");
+    expect(text).not.toContain("<think>");
   });
 
   it("includes lesson list in AI prompt user message", async () => {
@@ -171,13 +183,12 @@ describe("POST /api/ai/roadmap", () => {
         { title: "Advanced", order: 2, transcript: null },
       ],
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Roadmap" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
 
     const req = makeRequest(VALID_BODY);
-    await roadmapPost(req);
+    const res = await roadmapPost(req);
+    await readStream(res);
 
     const aiCallArgs = mockCreate.mock.calls[0][0];
     const userContent = aiCallArgs.messages[1].content as string;

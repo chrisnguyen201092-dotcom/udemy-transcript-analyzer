@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createAIClient, getCleanHeaders } from "@/lib/ai/client";
+import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 
 // Spy that captures every constructor call's config argument
 const mockOpenAIConstructor = vi.fn();
@@ -111,5 +112,52 @@ describe("createAIClient", () => {
     createAIClient("sk-test", "https://custom.provider.com/api/v2");
     const callArgs = mockOpenAIConstructor.mock.calls[0][0] as { baseURL: string };
     expect(callArgs.baseURL).toBe("https://custom.provider.com/api/v2");
+  });
+});
+
+// ── SSRF Prevention — validateBaseUrl (S-1 regression) ─────────────────────
+
+describe("validateBaseUrl — SSRF prevention", () => {
+  it("accepts known-good OpenAI URL", () => {
+    expect(() => validateBaseUrl("https://api.openai.com/v1/")).not.toThrow();
+  });
+
+  it("accepts generic https custom endpoints (e.g., Ollama)", () => {
+    expect(() => validateBaseUrl("https://my-llm-proxy.example.com/v1")).not.toThrow();
+  });
+
+  it("rejects http:// (non-TLS) URLs", () => {
+    expect(() => validateBaseUrl("http://api.openai.com/v1/")).toThrow();
+  });
+
+  it("rejects AWS metadata SSRF vector", () => {
+    expect(() => validateBaseUrl("http://169.254.169.254/latest/meta-data/")).toThrow();
+  });
+
+  it("rejects localhost SSRF vector", () => {
+    expect(() => validateBaseUrl("http://localhost:8080/internal/")).toThrow();
+  });
+
+  it("rejects ftp:// protocol", () => {
+    expect(() => validateBaseUrl("ftp://evil.com/v1/")).toThrow();
+  });
+
+  it("rejects javascript: protocol", () => {
+    expect(() => validateBaseUrl("javascript:alert(1)")).toThrow();
+  });
+
+  it("rejects empty string", () => {
+    // empty string → returns default fallback (no throw)
+    const result = validateBaseUrl("");
+    expect(result).toBe("https://api.openai.com/v1/");
+  });
+
+  it("rejects null/undefined → returns default fallback", () => {
+    expect(validateBaseUrl(null)).toBe("https://api.openai.com/v1/");
+    expect(validateBaseUrl(undefined)).toBe("https://api.openai.com/v1/");
+  });
+
+  it("rejects URLs with path injection containing special chars", () => {
+    expect(() => validateBaseUrl("https://evil.com/v1/<script>")).toThrow();
   });
 });

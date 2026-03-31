@@ -657,4 +657,91 @@ describe("TranscriptPanel", () => {
       expect(dirtyDot).not.toBeInTheDocument();
     });
   });
+
+  // ── 9. Clipboard: navigator.clipboard.writeText mock ──────────────────────
+
+  describe("Clipboard API mock stability", () => {
+    it("uses navigator.clipboard.writeText — not execCommand fallback", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+        writable: true,
+      });
+
+      renderPanel();
+      const findCopyBtn = () =>
+        screen
+          .getAllByRole("button")
+          .find((b) => b.getAttribute("title") === "Sao chép toàn bộ transcript");
+
+      await act(async () => {
+        fireEvent.click(findCopyBtn()!);
+      });
+
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText).toHaveBeenCalledWith(mockLesson.transcript);
+    });
+
+    it("does not call writeText after component unmounts (no stale closure)", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+        writable: true,
+      });
+
+      const { unmount } = renderPanel();
+
+      // Unmount before the async click resolves
+      unmount();
+
+      // writeText should not have been called (never clicked)
+      expect(writeText).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── 10. Component lifecycle: no state updates after unmount ───────────────
+
+  describe("Lifecycle: unmount safety", () => {
+    it("does not throw when unmounted during edit mode", async () => {
+      const { unmount } = renderPanel();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Chỉnh sửa"));
+      });
+
+      // Should not throw
+      expect(() => unmount()).not.toThrow();
+    });
+
+    it("does not throw when lesson changes while debounce timer is pending", async () => {
+      const { rerender, unmount } = renderPanel();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Chỉnh sửa"));
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole("textbox"), {
+          target: { value: "typing fast" },
+        });
+      });
+
+      // Rerender with different lesson before debounce fires
+      rerender(
+        <TranscriptPanel
+          lesson={{ ...mockLesson, id: "lesson-2", title: "New Lesson" }}
+          onSaveTranscript={mockSaveTranscript}
+          onDirtyChange={mockOnDirtyChange}
+        />
+      );
+
+      // Advance timers — should not throw
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+
+      expect(() => unmount()).not.toThrow();
+    });
+  });
 });

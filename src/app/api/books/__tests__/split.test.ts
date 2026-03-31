@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
-const { mockPrisma, mockDetectChapters } = vi.hoisted(() => ({
+const { mockPrisma, mockDetectChapters, mockParsePdf, mockParseDocx } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
@@ -21,11 +21,18 @@ const { mockPrisma, mockDetectChapters } = vi.hoisted(() => ({
     $transaction: vi.fn(),
   },
   mockDetectChapters: vi.fn(),
+  mockParsePdf: vi.fn(),
+  mockParseDocx: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/lib/split-chapters", () => ({
   detectChapters: mockDetectChapters,
+}));
+vi.mock("@/lib/parse-book", () => ({
+  parsePdf: mockParsePdf,
+  parseDocx: mockParseDocx,
+  parseMarkdownChapters: vi.fn(),
 }));
 
 // ─── Import AFTER mocks ──────────────────────────────────────────────────────
@@ -62,7 +69,7 @@ const MOCK_CHAPTERS = [
 
 const VALID_SPLIT_BODY = {
   bookId: "book-1",
-  format: "pdf",
+  format: "txt",
   content: "Chapter 1\nContent of chapter one\n\nChapter 2\nContent of chapter two",
 };
 
@@ -74,6 +81,8 @@ describe("POST /api/books/split", () => {
     vi.clearAllMocks();
     mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
     mockDetectChapters.mockReturnValue(MOCK_CHAPTERS);
+    mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
+    mockParseDocx.mockResolvedValue({ text: "parsed text" });
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -125,7 +134,7 @@ describe("POST /api/books/split", () => {
       const req = makeSplitRequest(VALID_SPLIT_BODY);
       await splitPost(req);
 
-      expect(mockDetectChapters).toHaveBeenCalledWith(VALID_SPLIT_BODY.content);
+      expect(mockDetectChapters).toHaveBeenCalledWith(VALID_SPLIT_BODY.content.trim());
     });
 
     it("includes content in chapter response", async () => {
@@ -184,13 +193,16 @@ describe("POST /api/books/split", () => {
 
   // ── Format-specific ───────────────────────────────────────────────────────
   describe("format handling", () => {
-    it("accepts all supported formats: pdf, epub, docx, txt, md", async () => {
-      for (const format of ["pdf", "epub", "docx", "txt", "md"]) {
+    it("accepts all supported formats: pdf, docx, txt, md", async () => {
+      for (const format of ["pdf", "docx", "txt", "md"]) {
         vi.clearAllMocks();
         mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
         mockDetectChapters.mockReturnValue(MOCK_CHAPTERS);
+        // Mock binary parsers for pdf/docx — content field is treated as base64
+        mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
+        mockParseDocx.mockResolvedValue({ text: "parsed text" });
 
-        const req = makeSplitRequest({ bookId: "book-1", format, content: "text" });
+        const req = makeSplitRequest({ bookId: "book-1", format, content: "dGV4dA==" }); // base64 "text"
         const res = await splitPost(req);
         expect(res.status).toBe(200);
       }

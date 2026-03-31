@@ -62,6 +62,24 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
+/** Create an async generator that yields a single chunk */
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+/** Consume a streaming response body and return the accumulated text */
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 describe("POST /api/ai/summary — mode parameter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,17 +87,15 @@ describe("POST /api/ai/summary — mode parameter", () => {
 
   it("uses detailed prompt when no mode param is provided (default)", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Detailed summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Detailed summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
     const res = await summaryPost(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe("Detailed summary");
+    const text = await readStream(res);
+    expect(text).toBe("Detailed summary");
 
     // Verify the system prompt used is the "summary" (detailed) prompt
     const callArgs = mockCreate.mock.calls[0][0];
@@ -89,17 +105,15 @@ describe("POST /api/ai/summary — mode parameter", () => {
 
   it("uses quick prompt when mode='quick'", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Quick summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Quick summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick" });
     const res = await summaryPost(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe("Quick summary");
+    const text = await readStream(res);
+    expect(text).toBe("Quick summary");
 
     // Verify the system prompt used is the "summary-quick" prompt
     const callArgs = mockCreate.mock.calls[0][0];
@@ -109,17 +123,15 @@ describe("POST /api/ai/summary — mode parameter", () => {
 
   it("uses detailed prompt when mode='detailed' (explicit)", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Detailed summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Detailed summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "detailed" });
     const res = await summaryPost(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe("Detailed summary");
+    const text = await readStream(res);
+    expect(text).toBe("Detailed summary");
 
     // Verify the system prompt used is the "summary" (detailed) prompt
     const callArgs = mockCreate.mock.calls[0][0];
@@ -155,17 +167,16 @@ describe("POST /api/ai/summary — mode parameter", () => {
       ...LESSON_WITH_TRANSCRIPT,
       summary: "Old cached summary",
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "New quick summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("New quick summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick", force: true });
     const res = await summaryPost(req);
-    const json = await res.json();
+    const text = await readStream(res);
+    await new Promise((r) => setTimeout(r, 0)); // flush fullText.then()
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe("New quick summary");
+    expect(text).toBe("New quick summary");
     expect(mockCreate).toHaveBeenCalled();
     expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
       where: { id: "l1" },

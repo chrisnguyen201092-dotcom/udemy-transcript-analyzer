@@ -534,4 +534,57 @@ describe("PATCH /api/lessons/[id]/progress", () => {
 
     expect(res.status).toBe(200);
   });
+
+  // ── C-4 regression: atomic increment ──────────────────────────────────────
+
+  it("C-4 regression: upsert uses { increment: delta } for atomic time tracking", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1",
+      courseId: "c1",
+      course: { id: "c1" },
+    });
+
+    mockPrisma.lessonProgress.findUnique.mockResolvedValue({
+      id: "lp1",
+      lessonId: "l1",
+      completed: false,
+      completedAt: null,
+      quizScore: null,
+      timeSpentMs: 10000,
+      flashcardsMastered: 0,
+      flashcardsTotal: 0,
+    });
+
+    mockPrisma.lessonProgress.upsert.mockResolvedValue({
+      id: "lp1",
+      lessonId: "l1",
+      completed: false,
+      completedAt: null,
+      quizScore: null,
+      timeSpentMs: 12500,
+      flashcardsMastered: 0,
+      flashcardsTotal: 0,
+    });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      { lessonId: "l1", timeSpentMs: 12500 },
+    ]);
+    mockPrisma.courseProgress.findFirst.mockResolvedValue(null);
+    mockPrisma.courseProgress.upsert.mockResolvedValue({
+      id: "cp1",
+      courseId: "c1",
+      totalTimeSpentMs: 12500,
+    });
+
+    const req = makePatchRequest("l1", { deltaTimeMs: 2500 });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "l1" }) });
+
+    expect(res.status).toBe(200);
+
+    // The critical assertion: update.timeSpentMs must be { increment: delta }
+    // NOT a computed static value — this prevents the race condition
+    const upsertCall = mockPrisma.lessonProgress.upsert.mock.calls[0][0];
+    expect(upsertCall.update.timeSpentMs).toEqual({ increment: 2500 });
+    expect(typeof upsertCall.update.timeSpentMs).not.toBe("number");
+  });
 });

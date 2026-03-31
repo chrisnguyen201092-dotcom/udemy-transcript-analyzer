@@ -248,4 +248,34 @@ describe("POST /api/export/course/[id]", () => {
     expect(text).toContain("Has summary only");
     expect(text).not.toContain("### Giải thích");
   });
+
+  // ── Deprecated format regression (finding M-5) ─────────────────────────────
+
+  it("returns 400 for deprecated format value 'md' (must use 'markdown')", async () => {
+    const res = await POST(makeReq({ type: "full-notes", format: "md" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBeDefined();
+  });
+
+  it("returns 400 for deprecated format value 'txt'", async () => {
+    const res = await POST(makeReq({ type: "all-flashcards", format: "txt" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBeDefined();
+  });
+
+  it("returns 400 for unknown format value 'text'", async () => {
+    const res = await POST(makeReq({ type: "full-notes", format: "text" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(res.status).toBe(400);
+  });
 });

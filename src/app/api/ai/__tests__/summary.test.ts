@@ -52,6 +52,24 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
+/** Create an async generator that yields a single chunk */
+async function* makeChunkStream(content: string) {
+  yield { choices: [{ delta: { content } }] };
+}
+
+/** Consume a streaming response body and return the accumulated text */
+async function readStream(res: Response): Promise<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value);
+  }
+  return text;
+}
+
 describe("POST /api/ai/summary", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
@@ -94,31 +112,29 @@ describe("POST /api/ai/summary", () => {
       id: "l1", title: "Lesson", transcript: "Some transcript",
       course: { title: "Course" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "<think>internal thoughts</think>Actual summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("<think>internal thoughts</think>Actual summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
     const res = await summaryPost(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe("Actual summary");
-    expect(json.summary).not.toContain("<think>");
+    const text = await readStream(res);
+    expect(text).toBe("Actual summary");
+    expect(text).not.toContain("<think>");
   });
 
   it("persists summary to DB via lesson.update", async () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "Summary text" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("Summary text"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
-    await summaryPost(req);
+    const res = await summaryPost(req);
+    await readStream(res); // consume stream to trigger fullText.then()
+    await new Promise((r) => setTimeout(r, 0)); // flush microtask queue
 
     expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
       where: { id: "l1" },
@@ -147,16 +163,15 @@ describe("POST /api/ai/summary", () => {
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
       summary: "Old summary",
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: "New summary" } }],
-    });
+    mockCreate.mockResolvedValue(makeChunkStream("New summary"));
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1", summary: "New summary" });
 
     const req = makeRequest({ ...VALID_BODY, force: true });
     const res = await summaryPost(req);
-    const json = await res.json();
+    const text = await readStream(res);
+    await new Promise((r) => setTimeout(r, 0));
 
-    expect(json.summary).toBe("New summary");
+    expect(text).toBe("New summary");
     expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { summary: "New summary" } })
     );
@@ -166,17 +181,19 @@ describe("POST /api/ai/summary", () => {
     mockPrisma.lesson.findUnique.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: null } }],
-    });
+    // null delta content → stream produces empty string
+    async function* makeNullContentStream() {
+      yield { choices: [{ delta: { content: null } }] };
+    }
+    mockCreate.mockResolvedValue(makeNullContentStream());
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest(VALID_BODY);
     const res = await summaryPost(req);
-    const json = await res.json();
+    const text = await readStream(res);
 
     expect(res.status).toBe(200);
-    expect(json.summary).toBe(""); // null ?? "" → ""
+    expect(text).toBe(""); // null content → skipped in stream
   });
 
   it("returns 400 when model field is missing", async () => {

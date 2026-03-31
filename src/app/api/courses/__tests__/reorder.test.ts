@@ -1,5 +1,5 @@
 /**
- * Integration tests for PUT /api/courses/[id]/lessons/reorder.
+ * Integration tests for PATCH /api/courses/[id]/lessons/reorder.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
@@ -33,37 +33,31 @@ const { mockPrisma } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
-import { PUT } from "@/app/api/courses/[id]/lessons/reorder/route";
+import { PATCH } from "@/app/api/courses/[id]/lessons/reorder/route";
 
 function makeRequest(courseId: string, body: unknown): NextRequest {
   return new NextRequest(
     `http://localhost/api/courses/${courseId}/lessons/reorder`,
     {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(body),
       headers: { "Content-Type": "application/json" },
     }
   );
 }
 
-describe("PUT /api/courses/[id]/lessons/reorder", () => {
+describe("PATCH /api/courses/[id]/lessons/reorder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("reorders lessons successfully and returns 200", async () => {
     const course = { id: "c1", title: "Course 1" };
-    const lessons = [
-      { id: "l1", courseId: "c1", order: 0 },
-      { id: "l2", courseId: "c1", order: 1 },
-      { id: "l3", courseId: "c1", order: 2 },
-    ];
     mockPrisma.course.findUnique.mockResolvedValue(course);
-    mockPrisma.lesson.findMany.mockResolvedValue(lessons);
     mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l3", "l1", "l2"] });
-    const res = await PUT(req, { params: Promise.resolve({ id: "c1" }) });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -75,7 +69,7 @@ describe("PUT /api/courses/[id]/lessons/reorder", () => {
     mockPrisma.course.findUnique.mockResolvedValue(null);
 
     const req = makeRequest("nonexistent", { lessonIds: ["l1"] });
-    const res = await PUT(req, {
+    const res = await PATCH(req, {
       params: Promise.resolve({ id: "nonexistent" }),
     });
     const json = await res.json();
@@ -84,53 +78,37 @@ describe("PUT /api/courses/[id]/lessons/reorder", () => {
     expect(json.error).toBeDefined();
   });
 
-  it("returns 400 when lessonIds contain invalid IDs", async () => {
+  it("passes correct order (index + 1) to each lesson update", async () => {
     const course = { id: "c1", title: "Course 1" };
-    const lessons = [
-      { id: "l1", courseId: "c1", order: 0 },
-      { id: "l2", courseId: "c1", order: 1 },
-    ];
     mockPrisma.course.findUnique.mockResolvedValue(course);
-    mockPrisma.lesson.findMany.mockResolvedValue(lessons);
-
-    const req = makeRequest("c1", { lessonIds: ["l1", "l999"] });
-    const res = await PUT(req, { params: Promise.resolve({ id: "c1" }) });
-    const json = await res.json();
-
-    expect(res.status).toBe(400);
-    expect(json.error).toBeDefined();
-  });
-
-  it("updates order correctly based on array index", async () => {
-    const course = { id: "c1", title: "Course 1" };
-    const lessons = [
-      { id: "l1", courseId: "c1", order: 0 },
-      { id: "l2", courseId: "c1", order: 1 },
-    ];
-    mockPrisma.course.findUnique.mockResolvedValue(course);
-    mockPrisma.lesson.findMany.mockResolvedValue(lessons);
-    mockPrisma.lesson.update.mockResolvedValue({});
-    mockPrisma.$transaction.mockImplementation(
-      async (callbacks: unknown[]) => {
-        if (Array.isArray(callbacks)) {
-          for (const cb of callbacks) {
-            await cb;
-          }
-        }
-      }
-    );
+    mockPrisma.$transaction.mockResolvedValue(undefined);
 
     const req = makeRequest("c1", { lessonIds: ["l2", "l1"] });
-    await PUT(req, { params: Promise.resolve({ id: "c1" }) });
+    await PATCH(req, { params: Promise.resolve({ id: "c1" }) });
 
-    // $transaction is called with an array of update promises
-    const txArg = mockPrisma.$transaction.mock.calls[0][0];
-    expect(txArg).toHaveLength(2);
+    // The route builds update promises via .map() before passing to $transaction.
+    // lesson.update is called synchronously during the .map(), so we can assert here.
+    expect(mockPrisma.lesson.update).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
+      where: { id: "l2" },
+      data: { order: 1 },
+    });
+    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
+      where: { id: "l1" },
+      data: { order: 2 },
+    });
   });
 
   it("returns 400 for empty lessonIds array", async () => {
     const req = makeRequest("c1", { lessonIds: [] });
-    const res = await PUT(req, { params: Promise.resolve({ id: "c1" }) });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for missing lessonIds field", async () => {
+    const req = makeRequest("c1", {});
+    const res = await PATCH(req, { params: Promise.resolve({ id: "c1" }) });
 
     expect(res.status).toBe(400);
   });

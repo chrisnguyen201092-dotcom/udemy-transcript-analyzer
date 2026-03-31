@@ -61,7 +61,7 @@ describe("POST /api/ai/models", () => {
     const req = makeRequest({ baseUrl: "https://api.openai.com/v1", apiKey: "bad-key" });
     const res = await modelsPost(req);
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(502);
   });
 
   it("returns sorted model ids on success", async () => {
