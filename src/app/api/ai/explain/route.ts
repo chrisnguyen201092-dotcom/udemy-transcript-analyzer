@@ -27,13 +27,12 @@ const ExplainSchema = z
   });
 
 function classifyCodeRatio(transcript: string): CodeRatio {
-  const lines = transcript.split("\n");
-  const codeLines = lines.filter(
-    (l) => /^(\s{4,}|\t)|```|`[^`]+`/.test(l)
-  ).length;
-  const ratio = codeLines / lines.length;
-  if (ratio >= 0.4) return "code-heavy";
-  if (ratio <= 0.2) return "theory-heavy";
+  // Count characters inside fenced code blocks (``` ... ```)
+  const codeBlockMatches = transcript.match(/```[\s\S]*?```/g) || [];
+  const codeChars = codeBlockMatches.reduce((sum, b) => sum + b.length, 0);
+  const ratio = transcript.length > 0 ? codeChars / transcript.length : 0;
+  if (ratio > 0.3) return "code-heavy";
+  if (ratio < 0.1) return "theory-heavy";
   return "hybrid";
 }
 

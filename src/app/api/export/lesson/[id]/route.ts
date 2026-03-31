@@ -7,10 +7,13 @@ const VALID_FORMATS = ["markdown", "csv"] as const;
 type ExportFormat = (typeof VALID_FORMATS)[number];
 
 function sanitizeFilename(name: string): string {
-  return name
-    .replace(/[/\\:*?"<>|]/g, "")
-    .replace(/\s+/g, "-")
-    .slice(0, 100);
+  return (
+    name
+      .replace(/[^\x20-\x7E]/g, "")
+      .replace(/[/\\:*?"<>|]/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 100) || "export"
+  );
 }
 
 function escapeCSVField(value: string): string {

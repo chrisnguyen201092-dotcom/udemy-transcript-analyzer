@@ -11,7 +11,7 @@ export function parseVtt(text: string): string | null {
         l.trim() &&
         !l.startsWith("WEBVTT") &&
         !/^\d{2}:\d{2}/.test(l) &&
-        !/^-->/.test(l)
+        !/-->/.test(l)
     )
     .map((l) => l.replace(/<[^>]+>/g, "").trim())
     .filter(Boolean);

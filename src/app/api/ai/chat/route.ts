@@ -99,20 +99,24 @@ export async function POST(req: NextRequest) {
     const { stream, fullText } = createThinkFilteredStream(openaiStream);
 
     // Best-effort DB persistence after stream completes
-    fullText.then(async (fullAssistantResponse) => {
-      if (userContent && fullAssistantResponse) {
-        try {
-          await prisma.chatMessage.createMany({
-            data: [
-              { lessonId, role: "user", content: userContent },
-              { lessonId, role: "assistant", content: fullAssistantResponse },
-            ],
-          });
-        } catch (dbError) {
-          console.error("[chat] DB persistence failed:", dbError);
+    fullText
+      .then(async (fullAssistantResponse) => {
+        if (userContent && fullAssistantResponse) {
+          try {
+            await prisma.chatMessage.createMany({
+              data: [
+                { lessonId, role: "user", content: userContent },
+                { lessonId, role: "assistant", content: fullAssistantResponse },
+              ],
+            });
+          } catch (dbError) {
+            console.error("[chat] DB persistence failed:", dbError);
+          }
         }
-      }
-    });
+      })
+      .catch((err) => {
+        console.error("[chat] Stream error, skipping DB persistence:", err);
+      });
 
     return new Response(stream, { headers: STREAM_HEADERS });
   } catch (err) {

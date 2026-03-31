@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const CreateLessonSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().min(1).max(200),
   transcript: z.string().optional(),
 });
 
