@@ -317,4 +317,114 @@ describe("detectChapters", () => {
       expect(chapters).toHaveLength(2);
     });
   });
+
+  // ── Vietnamese PDF fixes ─────────────────────────────────────────────────
+  describe("Vietnamese PDF chapter detection (regression)", () => {
+    it("rejects bare 'Chương N.' TOC stubs with no body content", () => {
+      // Simulates a Table of Contents block followed by real chapters
+      const text = [
+        "Chương 1. Giới thiệu",         // TOC stub (no body between it and next)
+        "Chương 2. Phương pháp",         // TOC stub
+        "Chương 3. Kết quả",             // TOC stub
+        "",
+        "CHƯƠNG 1. GIỚI THIỆU VỀ DỰ ÁN",
+        "Nội dung chương 1 chi tiết và đầy đủ với nhiều từ để vượt qua ngưỡng.",
+        "Thêm nội dung để đảm bảo đủ số lượng từ cho chương đầu tiên.",
+        "",
+        "CHƯƠNG 2. PHƯƠNG PHÁP NGHIÊN CỨU",
+        "Nội dung chương 2 chi tiết về phương pháp và cách tiếp cận vấn đề.",
+        "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ hai này.",
+        "",
+        "CHƯƠNG 3. KẾT QUẢ VÀ PHÂN TÍCH",
+        "Nội dung chương 3 về kết quả nghiên cứu và phân tích số liệu thực tế.",
+        "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ ba cuối cùng.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      // Should detect the 3 real chapters. The discarded TOC stubs become
+      // a Preamble chapter since they appear before the first real heading.
+      // Total = 1 preamble + 3 real = 4 chapters.
+      expect(chapters).toHaveLength(4);
+      const realChapters = chapters.filter((c) => c.title !== "Preamble");
+      expect(realChapters).toHaveLength(3);
+      expect(realChapters[0].title).toContain("CHƯƠNG 1");
+      expect(realChapters[1].title).toContain("CHƯƠNG 2");
+      expect(realChapters[2].title).toContain("CHƯƠNG 3");
+    });
+
+    it("joins multi-line titles: 'CHƯƠNG 5.' on one line, subtitle on next", () => {
+      // Simulates PDF text extraction where a long chapter title wraps
+      const text = [
+        "CHƯƠNG 4. PHẦN MỞ ĐẦU ĐƠN GIẢN",
+        "Nội dung chương 4 đây là nội dung đầy đủ cho chương này đủ từ.",
+        "Thêm dòng nội dung để đảm bảo số lượng từ đủ nhiều cho chương.",
+        "",
+        // Title wraps: keyword line + subtitle on next line (no blank between)
+        "CHƯƠNG 5.",
+        "TẤT CẢ DỰ ÁN ĐỀU GIỐNG NHAU – BÍ MẬT THÀNH CÔNG",
+        "Nội dung chương 5 chi tiết về bí mật thành công của các dự án.",
+        "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ năm này.",
+        "",
+        "CHƯƠNG 6. CHỦ ĐẦU TƯ VÀ CÁC BÊN LIÊN QUAN",
+        "Nội dung chương 6 về các bên liên quan trong dự án xây dựng thực tế.",
+        "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ sáu cuối.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      expect(chapters).toHaveLength(3);
+      // Ch.2 should have the full joined title, not just "CHƯƠNG 5."
+      const ch5 = chapters.find((c) => c.title.includes("CHƯƠNG 5"));
+      expect(ch5).toBeDefined();
+      expect(ch5!.title).toContain("TẤT CẢ DỰ ÁN");
+    });
+
+    it("ignores back-references like 'Chương 2.' appearing after CHƯƠNG 5", () => {
+      // Body text contains a reference to an earlier chapter
+      const text = [
+        "CHƯƠNG 4. GIỚI THIỆU ĐẦY ĐỦ VỀ DỰ ÁN",
+        "Nội dung chương 4 chi tiết đầy đủ về giới thiệu dự án thực tế.",
+        "Thêm nội dung để đảm bảo số lượng từ đủ nhiều cho chương này.",
+        "",
+        "CHƯƠNG 5. PHÂN TÍCH CHI TIẾT DỰ ÁN",
+        "Như đã nói trong Chương 2, phương pháp này rất hiệu quả trong thực tế.",
+        "Nội dung thêm để đảm bảo số lượng từ đủ nhiều cho chương thứ năm này.",
+        "Thêm nhiều nội dung hơn để chương đủ dài và vượt qua ngưỡng tối thiểu.",
+        "",
+        "CHƯƠNG 6. KẾT LUẬN VÀ ĐỀ XUẤT",
+        "Kết luận và đề xuất cuối cùng cho toàn bộ nghiên cứu dự án xây dựng.",
+        "Thêm nội dung để đảm bảo số lượng từ đủ nhiều cho chương kết luận.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      expect(chapters).toHaveLength(3);
+      expect(chapters[0].chapterNumber).toBe(1);
+      expect(chapters[1].chapterNumber).toBe(2);
+      expect(chapters[2].chapterNumber).toBe(3);
+      // Titles should be monotonically increasing (4, 5, 6)
+      expect(chapters[0].title).toContain("CHƯƠNG 4");
+      expect(chapters[1].title).toContain("CHƯƠNG 5");
+      expect(chapters[2].title).toContain("CHƯƠNG 6");
+    });
+
+    it("handles Vietnamese chapter with dot separator: 'CHƯƠNG 5. Title'", () => {
+      const text = [
+        "CHƯƠNG 1. TỔNG QUAN VỀ QUẢN LÝ DỰ ÁN",
+        "Nội dung chương 1 về tổng quan quản lý dự án xây dựng hiện đại.",
+        "Thêm nội dung chi tiết để đảm bảo số lượng từ đủ nhiều cho chương.",
+        "",
+        "CHƯƠNG 2. CÁC PHƯƠNG PHÁP TIẾP CẬN",
+        "Nội dung chương 2 về các phương pháp tiếp cận khác nhau trong thực tế.",
+        "Thêm nội dung để đảm bảo số lượng từ đủ nhiều cho chương thứ hai này.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      expect(chapters).toHaveLength(2);
+      expect(chapters[0].title).toBe("CHƯƠNG 1. TỔNG QUAN VỀ QUẢN LÝ DỰ ÁN");
+      expect(chapters[1].title).toBe("CHƯƠNG 2. CÁC PHƯƠNG PHÁP TIẾP CẬN");
+    });
+  });
 });
