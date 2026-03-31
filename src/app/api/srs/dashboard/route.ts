@@ -2,75 +2,58 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MASTERED_THRESHOLD } from "@/lib/srs";
 
-interface ReviewWithLesson {
-  lessonId: string;
-  cardIndex: number;
-  interval: number;
-  nextReviewAt: Date;
-  lesson: {
-    id: string;
-    title: string;
-  };
-}
-
 export async function GET(_req: NextRequest) {
   try {
-    // Fetch all FlashcardReview records with their lesson info
-    const allReviews: ReviewWithLesson[] =
-      await prisma.flashcardReview.findMany({
-        include: {
-          lesson: {
-            select: { id: true, title: true },
-          },
-        },
-      });
-
-    // Group by lesson
-    const lessonMap = new Map<
-      string,
-      {
-        lessonTitle: string;
-        dueCount: number;
-        totalCards: number;
-        masteredCount: number;
-      }
-    >();
-
     const now = new Date();
 
-    for (const review of allReviews) {
-      const existing = lessonMap.get(review.lessonId);
-      const isDue = new Date(review.nextReviewAt) <= now;
-      const isMastered = review.interval >= MASTERED_THRESHOLD;
+    // All counts are computed in the database — no full row fetch.
+    const [totalByLesson, dueByLesson, masteredByLesson] = await Promise.all([
+      // Total cards per lesson
+      prisma.flashcardReview.groupBy({
+        by: ["lessonId"],
+        _count: { _all: true },
+      }),
+      // Due cards per lesson (nextReviewAt <= now)
+      prisma.flashcardReview.groupBy({
+        by: ["lessonId"],
+        where: { nextReviewAt: { lte: now } },
+        _count: { _all: true },
+      }),
+      // Mastered cards per lesson (interval >= MASTERED_THRESHOLD)
+      prisma.flashcardReview.groupBy({
+        by: ["lessonId"],
+        where: { interval: { gte: MASTERED_THRESHOLD } },
+        _count: { _all: true },
+      }),
+    ]);
 
-      if (existing) {
-        existing.totalCards++;
-        if (isDue) existing.dueCount++;
-        if (isMastered) existing.masteredCount++;
-      } else {
-        lessonMap.set(review.lessonId, {
-          lessonTitle: review.lesson.title,
-          dueCount: isDue ? 1 : 0,
-          totalCards: 1,
-          masteredCount: isMastered ? 1 : 0,
-        });
-      }
-    }
-
-    // Build response
-    let totalDue = 0;
-    const lessons = Array.from(lessonMap.entries()).map(
-      ([lessonId, stats]) => {
-        totalDue += stats.dueCount;
-        return {
-          lessonId,
-          lessonTitle: stats.lessonTitle,
-          dueCount: stats.dueCount,
-          totalCards: stats.totalCards,
-          masteredCount: stats.masteredCount,
-        };
-      }
+    // Build lookup maps
+    const dueMap = new Map(dueByLesson.map((r) => [r.lessonId, r._count._all]));
+    const masteredMap = new Map(
+      masteredByLesson.map((r) => [r.lessonId, r._count._all])
     );
+
+    // Fetch lesson titles for only the lessonIds that have cards (small set)
+    const lessonIds = totalByLesson.map((r) => r.lessonId);
+    const lessonRows = await prisma.lesson.findMany({
+      where: { id: { in: lessonIds } },
+      select: { id: true, title: true },
+    });
+    const titleMap = new Map(lessonRows.map((l) => [l.id, l.title]));
+
+    let totalDue = 0;
+    const lessons = totalByLesson.map((row) => {
+      const dueCount = dueMap.get(row.lessonId) ?? 0;
+      const masteredCount = masteredMap.get(row.lessonId) ?? 0;
+      totalDue += dueCount;
+      return {
+        lessonId: row.lessonId,
+        lessonTitle: titleMap.get(row.lessonId) ?? row.lessonId,
+        dueCount,
+        totalCards: row._count._all,
+        masteredCount,
+      };
+    });
 
     return NextResponse.json({ totalDue, lessons });
   } catch (error) {
