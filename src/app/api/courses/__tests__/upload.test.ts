@@ -281,3 +281,70 @@ describe("POST /api/courses/upload", () => {
     expect(createCall.data.title).toBe("My Lesson Title");
   });
 });
+
+// ─── Edge-case tests (gap analysis) ──────────────────────────────────────────
+
+describe("POST /api/courses/upload — edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.course.findUnique.mockResolvedValue(VALID_COURSE);
+    mockPrisma.lesson.count.mockResolvedValue(0);
+    mockPrisma.lesson.create.mockImplementation(
+      (args: { data: { title: string; transcript: string | null; order: number; courseId: string } }) =>
+        Promise.resolve({ id: "l1", ...args.data })
+    );
+  });
+
+  it("handles malformed VTT format gracefully (broken timestamps fallback to raw text)", async () => {
+    // VTT with broken timestamps — parser should handle gracefully
+    const malformedVtt = "WEBVTT\n\nNOT_A_TIMESTAMP\nSome content here\nAnother line";
+    const req = makeUploadRequest({
+      courseId: "c1",
+      files: [{ name: "malformed.vtt", content: malformedVtt, type: ".vtt" }],
+    });
+
+    const res = await uploadPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    // Should either parse what it can or treat as raw text
+    expect(json.created).toHaveLength(1);
+    const createCall = mockPrisma.lesson.create.mock.calls[0][0];
+    // Transcript should contain some content (not crash)
+    expect(typeof createCall.data.transcript === "string" || createCall.data.transcript === null).toBe(true);
+  });
+
+  it("handles empty file content (0 bytes)", async () => {
+    const req = makeUploadRequest({
+      courseId: "c1",
+      files: [{ name: "empty.txt", content: "", type: ".txt" }],
+    });
+
+    const res = await uploadPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    // Empty content should result in null transcript
+    if (json.created.length > 0) {
+      const createCall = mockPrisma.lesson.create.mock.calls[0][0];
+      expect(createCall.data.transcript).toBeNull();
+    }
+  });
+
+  it("handles whitespace-only file content", async () => {
+    const req = makeUploadRequest({
+      courseId: "c1",
+      files: [{ name: "whitespace.txt", content: "   \n\n   ", type: ".txt" }],
+    });
+
+    const res = await uploadPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    if (json.created.length > 0) {
+      const createCall = mockPrisma.lesson.create.mock.calls[0][0];
+      // Trimmed whitespace should result in null transcript
+      expect(createCall.data.transcript).toBeNull();
+    }
+  });
+});

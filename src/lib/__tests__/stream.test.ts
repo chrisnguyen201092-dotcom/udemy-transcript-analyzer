@@ -193,6 +193,41 @@ describe("createThinkFilteredStream", () => {
     expect(output).toBe("");
     expect(text).toBe("");
   });
+
+  it("handles stream with only think tags — returns empty content", async () => {
+    const input = makeChunks(["<think>all thinking</think>"]);
+    const { stream, fullText } = createThinkFilteredStream(input);
+
+    const output = await readStream(stream);
+    const text = await fullText;
+
+    expect(output).not.toContain("all thinking");
+    expect(text).not.toContain("all thinking");
+  });
+
+  it("handles very large chunk (>1MB)", async () => {
+    const largeContent = "x".repeat(1024 * 1024 + 1); // >1MB
+    const input = makeChunks([largeContent]);
+    const { stream, fullText } = createThinkFilteredStream(input);
+
+    const output = await readStream(stream);
+    const text = await fullText;
+
+    expect(output).toBe(largeContent);
+    expect(text).toBe(largeContent);
+  });
+
+  it("handles stream that ends mid-think-tag", async () => {
+    // Stream ends with partial "<thi" — no closing tag, so leftover should pass through
+    const input = makeChunks(["hello <thi"]);
+    const { stream, fullText } = createThinkFilteredStream(input);
+
+    const output = await readStream(stream);
+    const text = await fullText;
+
+    // Partial tag never completed — content should contain "hello" at minimum
+    expect(text).toContain("hello");
+  });
 });
 
 // ─── STREAM_HEADERS ───────────────────────────────────────────────────────────

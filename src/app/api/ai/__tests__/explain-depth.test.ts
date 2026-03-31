@@ -288,4 +288,86 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
 
     expect(text).toBe("Clean output");
   });
+
+  // ─── Edge case: code-ratio classification ─────────────────────────────────
+  describe("code-ratio classification", () => {
+    // classifyCodeRatio uses character-based code block detection (``` ... ```)
+    // >30% code chars → code-heavy → FORMAT_INSTRUCTIONS includes "Walkthrough"
+    it("code-heavy transcript (>30% code) triggers code-focused prompt format", async () => {
+      // Create a transcript with lots of code blocks (>30% code content)
+      const codeHeavyTranscript = `
+Here is how we define a function:
+\`\`\`javascript
+function add(a, b) {
+  return a + b;
+}
+const result = add(1, 2);
+console.log(result);
+function subtract(a, b) {
+  return a - b;
+}
+const diff = subtract(5, 3);
+console.log(diff);
+function multiply(a, b) {
+  return a * b;
+}
+const product = multiply(4, 5);
+console.log(product);
+\`\`\`
+This is a short explanation.
+      `.trim();
+
+      setupLessonMock({ transcript: codeHeavyTranscript });
+      setupAIMock();
+
+      const res = await explainPost(makeRequest(VALID_BODY));
+      await readStream(res);
+
+      // Verify the system prompt reflects code-heavy or hybrid classification
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      // For code-heavy transcripts, expect code-specific format instructions
+      expect(
+        systemMsg.includes("Walkthrough") || systemMsg.includes("HYBRID") || systemMsg.includes("code")
+      ).toBe(true);
+    });
+  });
+
+  // ─── Edge case: selectedText + depth=deep combination ─────────────────────
+  describe("selectedText + depth combination", () => {
+    it("selectedText + depth=deep uses both in prompt", async () => {
+      setupLessonMock(); // 300 words — enough for deep
+      setupAIMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, depth: "deep", selectedText: "closure concept" })
+      );
+
+      expect(res.status).toBe(200);
+      await readStream(res);
+
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      // deep prompt should contain deep-specific markers
+      expect(systemMsg).toContain("edge cases");
+      // selectedText should be injected into prompt
+      expect(systemMsg).toContain("closure concept");
+    });
+  });
+
+  // ─── Edge case: Feynman Technique reference ───────────────────────────────
+  describe("Feynman Technique in prompts", () => {
+    it("standard depth prompt mentions Feynman technique", async () => {
+      setupLessonMock();
+      setupAIMock();
+
+      const res = await explainPost(
+        makeRequest({ ...VALID_BODY, depth: "standard" })
+      );
+
+      expect(res.status).toBe(200);
+      await readStream(res);
+
+      const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(systemMsg).toContain("Feynman");
+    });
+  });
 });

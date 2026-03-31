@@ -171,3 +171,53 @@ describe("GET /api/courses/[id]/notes/search", () => {
     );
   });
 });
+
+// ─── Edge-case tests (gap analysis) ──────────────────────────────────────────
+
+describe("GET /api/courses/[id]/notes/search — edge cases", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("search handles special regex characters in query without crashing", async () => {
+    // The route uses Prisma `contains` (not regex), so special chars are safe
+    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      {
+        id: "l1",
+        title: "Lesson 1",
+        order: 1,
+        notes: "Use test.+value in your regex patterns",
+        updatedAt: now,
+      },
+    ]);
+
+    const res = await GET(makeSearchRequest("c1", "test.+value"), routeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Should not crash — Prisma `contains` treats query as literal string
+    expect(data.results).toHaveLength(1);
+    expect(data.results[0].snippet).toContain("test.+value");
+  });
+
+  it("search is case-insensitive (snippet extraction uses toLowerCase)", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
+    // Prisma `contains` on SQLite is case-insensitive by default
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      {
+        id: "l1",
+        title: "Lesson 1",
+        order: 1,
+        notes: "Learn about JAVASCRIPT and its ecosystem",
+        updatedAt: now,
+      },
+    ]);
+
+    const res = await GET(makeSearchRequest("c1", "javascript"), routeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.results).toHaveLength(1);
+    // Snippet should contain the original casing from the notes
+    expect(data.results[0].snippet).toContain("JAVASCRIPT");
+  });
+});

@@ -202,4 +202,51 @@ describe("POST /api/ai/summary", () => {
 
     expect(res.status).toBe(400);
   });
+
+  // ─── Edge case: cached summary when mode matches (no AI call) ───────────────
+  it("returns cached summary when summary field exists (cache guard)", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "T", course: { title: "C" },
+      summary: "Cached detailed summary",
+    });
+
+    const req = makeRequest({ ...VALID_BODY, mode: "detailed" });
+    const res = await summaryPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.summary).toBe("Cached detailed summary");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  // ─── Edge case: book contentType with Vietnamese labels ─────────────────────
+  it("handles book contentType with Vietnamese labels", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "Chapter 1", transcript: "Book content here",
+      course: { title: "My Book", contentType: "book" },
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("Book summary"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest(VALID_BODY);
+    const res = await summaryPost(req);
+
+    expect(res.status).toBe(200);
+    const text = await readStream(res);
+    expect(text).toBe("Book summary");
+    // Verify AI was called (book content should use book-specific prompt)
+    expect(mockCreate).toHaveBeenCalled();
+  });
+
+  // ─── Edge case: returns 400 when lessonId is missing ────────────────────────
+  it("returns 400 when lessonId is missing", async () => {
+    const req = makeRequest({
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+    });
+    const res = await summaryPost(req);
+
+    expect(res.status).toBe(400);
+  });
 });

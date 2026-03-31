@@ -206,3 +206,27 @@ Multiple lines of content.`;
     expect(chapters[0].content).toContain("All the content goes here");
   });
 });
+
+describe("parsePdf — edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles empty PDF content", async () => {
+    mockGetText.mockResolvedValue({ text: "", total: 0, pages: [] });
+
+    const result = await parsePdf(Buffer.from("empty-pdf"));
+
+    expect(result.text).toBe("");
+    expect(result.warning).toBe("scanned_pdf");
+  });
+
+  it("handles very short content (<50 chars)", async () => {
+    mockGetText.mockResolvedValue({ text: "Short.", total: 1, pages: [] });
+
+    const result = await parsePdf(Buffer.from("short-pdf"));
+
+    expect(result.text).toBe("Short.");
+    expect(result.warning).toBe("scanned_pdf");
+  });
+});

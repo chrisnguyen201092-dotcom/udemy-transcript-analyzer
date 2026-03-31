@@ -312,3 +312,98 @@ describe("C-3 regression: knownTopicIds field is not accepted", () => {
     }
   });
 });
+
+// ── Enum validation edge cases ───────────────────────────────────────────────
+
+describe("Profile enum validation edge cases", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("validates all level enum values: beginner, intermediate, advanced", async () => {
+    for (const level of ["beginner", "intermediate", "advanced"]) {
+      vi.clearAllMocks();
+      const profileForLevel = { ...mockProfile, level };
+      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.learnerProfile.create.mockResolvedValue(profileForLevel);
+
+      const req = makeRequest(COURSE_ID, "POST", { ...validBody, level });
+      const res = await POST(req, makeParams(COURSE_ID));
+
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it("rejects invalid level enum", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "POST", { ...validBody, level: "expert" });
+    const res = await POST(req, makeParams(COURSE_ID));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("validates all learningStyle enum values: theory_first, hands_on, mixed", async () => {
+    for (const learningStyle of ["theory_first", "hands_on", "mixed"]) {
+      vi.clearAllMocks();
+      const profileForStyle = { ...mockProfile, learningStyle };
+      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.learnerProfile.create.mockResolvedValue(profileForStyle);
+
+      const req = makeRequest(COURSE_ID, "POST", { ...validBody, learningStyle });
+      const res = await POST(req, makeParams(COURSE_ID));
+
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it("rejects invalid learningStyle enum", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "POST", { ...validBody, learningStyle: "visual" });
+    const res = await POST(req, makeParams(COURSE_ID));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("validates dailyTimeMin enum values: 30, 60, 120", async () => {
+    for (const dailyTimeMin of [30, 60, 120]) {
+      vi.clearAllMocks();
+      const profileForTime = { ...mockProfile, dailyTimeMin };
+      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.learnerProfile.create.mockResolvedValue(profileForTime);
+
+      const req = makeRequest(COURSE_ID, "POST", { ...validBody, dailyTimeMin });
+      const res = await POST(req, makeParams(COURSE_ID));
+
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it("rejects invalid dailyTimeMin value", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest(COURSE_ID, "POST", { ...validBody, dailyTimeMin: 45 });
+    const res = await POST(req, makeParams(COURSE_ID));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("PUT with empty knownTopics array", async () => {
+    const updatedProfile = { ...mockProfile, knownTopics: "[]" };
+    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.learnerProfile.update.mockResolvedValue(updatedProfile);
+
+    const req = makeRequest(COURSE_ID, "PUT", { ...validBody, knownTopics: [] });
+    const res = await PUT(req, makeParams(COURSE_ID));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.knownTopics).toEqual([]);
+  });
+});

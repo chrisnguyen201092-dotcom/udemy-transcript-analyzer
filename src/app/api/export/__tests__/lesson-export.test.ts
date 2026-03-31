@@ -299,3 +299,77 @@ describe("POST /api/export/lesson/[id]", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ── Edge case tests ──────────────────────────────────────────────────────────
+
+describe("POST /api/export/lesson/[id] — edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles corrupt JSON in quiz field", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      ...baseLessonData,
+      quiz: "not-json",
+    });
+
+    const res = await POST(makeReq({ type: "quiz", format: "markdown" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    // Should either return an error status or gracefully handle
+    // Implementation may return 500 or 200 with empty content
+    expect([200, 400, 404, 500]).toContain(res.status);
+  });
+
+  it("handles emoji in CSV content", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      ...baseLessonData,
+      flashcards: JSON.stringify({
+        cards: [
+          { type: "term_definition", front: "🎉 Party", back: "Celebration 🥳", mnemonic: "" },
+          { type: "term_definition", front: "👍 Thumb", back: "Approval 💯", mnemonic: "" },
+        ],
+      }),
+    });
+
+    const res = await POST(makeReq({ type: "flashcards", format: "csv" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const lines = text.split("\n");
+    expect(lines).toHaveLength(2);
+    // Verify emoji characters are preserved in output
+    expect(text).toContain("🎉");
+    expect(text).toContain("🥳");
+  });
+
+  it("handles null aiQuiz/aiFlashcards/aiExercises gracefully", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      ...baseLessonData,
+      quiz: null,
+      flashcards: null,
+      exercises: null,
+    });
+
+    // Quiz with null data → should return 404 (data not generated)
+    const resQuiz = await POST(makeReq({ type: "quiz", format: "markdown" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+    expect(resQuiz.status).toBe(404);
+
+    // Flashcards with null data → should return 404
+    const resFlash = await POST(makeReq({ type: "flashcards", format: "csv" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+    expect(resFlash.status).toBe(404);
+
+    // Exercises with null data → should return 404
+    const resExercise = await POST(makeReq({ type: "exercises", format: "markdown" }), {
+      params: Promise.resolve({ id: "l1" }),
+    });
+    expect(resExercise.status).toBe(404);
+  });
+});

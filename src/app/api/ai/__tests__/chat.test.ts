@@ -184,4 +184,71 @@ describe("POST /api/ai/chat", () => {
     expect(output).not.toContain("<think>");
     expect(output).not.toContain("hidden");
   });
+
+  // ─── Edge case: handles long conversation history (>20 messages) ────────────
+  it("handles conversation with 21+ messages gracefully", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "T", course: { title: "C" },
+    });
+    mockCreate.mockResolvedValue(makeStream(["Response"]));
+
+    // Build 22 messages (11 user + 11 assistant turns)
+    const messages = [];
+    for (let i = 0; i < 11; i++) {
+      messages.push({ role: "user", content: `Question ${i}` });
+      messages.push({ role: "assistant", content: `Answer ${i}` });
+    }
+
+    const req = makeRequest({
+      lessonId: "l1",
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      messages,
+    });
+
+    const res = await chatPost(req);
+    expect(res.status).toBe(200);
+  });
+
+  // ─── Edge case: returns 400 for empty message ──────────────────────────────
+  it("returns 400 for empty message string", async () => {
+    const req = makeRequest({
+      lessonId: "l1",
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      message: "",
+    });
+
+    const res = await chatPost(req);
+    // Empty message + no messages array → refine check fails
+    expect(res.status).toBe(400);
+  });
+
+  // ─── Edge case: lesson with no transcript ──────────────────────────────────
+  it("handles lesson with no transcript in chat context — returns 400", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: null, course: { title: "C" },
+    });
+
+    const req = makeRequest(VALID_BODY);
+    const res = await chatPost(req);
+
+    expect(res.status).toBe(400);
+  });
+
+  // ─── Edge case: message is not a string ────────────────────────────────────
+  it("returns 400 when message is a number instead of string", async () => {
+    const req = makeRequest({
+      lessonId: "l1",
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      message: 123,
+    });
+
+    const res = await chatPost(req);
+    expect(res.status).toBe(400);
+  });
 });

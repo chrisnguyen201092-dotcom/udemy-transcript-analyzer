@@ -160,4 +160,29 @@ describe("validateBaseUrl — SSRF prevention", () => {
   it("rejects URLs with path injection containing special chars", () => {
     expect(() => validateBaseUrl("https://evil.com/v1/<script>")).toThrow();
   });
+
+  it("validateBaseUrl rejects localhost URLs", () => {
+    expect(() => validateBaseUrl("http://localhost:3000")).toThrow();
+  });
+
+  it("validateBaseUrl rejects private IP ranges", () => {
+    expect(() => validateBaseUrl("http://10.0.0.1")).toThrow();
+  });
+
+  it("validateBaseUrl rejects file:// protocol", () => {
+    expect(() => validateBaseUrl("file:///etc/passwd")).toThrow();
+  });
+});
+
+describe("createAIClient — env key usage", () => {
+  beforeEach(() => {
+    mockOpenAIConstructor.mockClear();
+  });
+
+  it("createAIClient uses correct API key from env", () => {
+    const envKey = "sk-env-test-key-12345";
+    createAIClient(envKey, "https://api.openai.com/v1");
+    const callArgs = mockOpenAIConstructor.mock.calls[0][0] as { apiKey: string };
+    expect(callArgs.apiKey).toBe(envKey);
+  });
 });

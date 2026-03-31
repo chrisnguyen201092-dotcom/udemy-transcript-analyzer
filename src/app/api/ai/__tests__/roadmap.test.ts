@@ -203,4 +203,31 @@ describe("POST /api/ai/roadmap", () => {
 
     expect(res.status).toBe(400);
   });
+
+  // ─── Edge case: returns 400 when courseId is missing ────────────────────────
+  it("returns 400 when courseId is missing", async () => {
+    const req = makeRequest({
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+    });
+    const res = await roadmapPost(req);
+
+    expect(res.status).toBe(400);
+  });
+
+  // ─── Edge case: course with empty lessons array ─────────────────────────────
+  it("handles course with no lessons (empty array) — returns 400", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({
+      id: "c1",
+      title: "Empty Course",
+      lessons: [],
+    });
+
+    const req = makeRequest(VALID_BODY);
+    const res = await roadmapPost(req);
+
+    // No lessons with transcripts → 400
+    expect(res.status).toBe(400);
+  });
 });

@@ -77,6 +77,15 @@ describe("parseVtt", () => {
     const input = "WEBVTT\n\nFirst line\nSecond line\nThird line";
     expect(parseVtt(input)).toBe("First line Second line Third line");
   });
+
+  // parseVtt strips lines containing --> (VTT timestamp separator) anywhere in the line
+  it("parseVtt handles malformed timestamps gracefully", () => {
+    const input = "WEBVTT\n\nINVALID --> 00:00:01.000\nActual content here";
+    const result = parseVtt(input);
+    // Malformed timestamp line should be stripped (contains -->), content preserved
+    expect(result).toContain("Actual content here");
+    expect(result).not.toContain("INVALID");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -126,6 +135,14 @@ describe("parseSrt", () => {
     // "5 things to know" is NOT purely numeric — should NOT be stripped
     expect(parseSrt(input)).toBe("5 things to know");
   });
+
+  it("parseSrt handles missing sequence numbers", () => {
+    // SRT without "1\n" prefix, just timestamps + text
+    const input = "00:00:01,000 --> 00:00:03,000\nHello world\n\n00:00:04,000 --> 00:00:05,000\nNext line";
+    const result = parseSrt(input);
+    expect(result).toContain("Hello world");
+    expect(result).toContain("Next line");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -151,6 +168,14 @@ describe("parseTxt", () => {
   it("preserves internal whitespace and newlines", () => {
     const text = "First paragraph\n\nSecond paragraph";
     expect(parseTxt(text)).toBe("First paragraph\n\nSecond paragraph");
+  });
+
+  it("parseTxt handles empty input", () => {
+    expect(parseTxt("")).toBeNull();
+  });
+
+  it("handles file with only whitespace", () => {
+    expect(parseTxt("   \n\n  ")).toBeNull();
   });
 });
 

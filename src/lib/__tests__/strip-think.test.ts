@@ -64,4 +64,28 @@ describe("stripThinkTags", () => {
     const input = "<think>thinking</think>## Heading\n- item 1\n- item 2";
     expect(stripThinkTags(input)).toBe("## Heading\n- item 1\n- item 2");
   });
+
+  it("handles nested think tags", () => {
+    const input = "<think><think>inner</think>outer</think>text";
+    const result = stripThinkTags(input);
+    // Regex non-greedy: first <think> matches to first </think>, then "outer</think>" remains
+    // After stripping: "outer</think>text" — then no more matching pairs
+    // OR the implementation strips all matched pairs. Either way, "text" should be in result.
+    expect(result).toContain("text");
+  });
+
+  it("handles unclosed think tag", () => {
+    const input = "<think>content without close";
+    const result = stripThinkTags(input);
+    // Non-greedy regex requires closing tag; unclosed → no match → original preserved
+    expect(result).toBe("<think>content without close");
+  });
+
+  it("handles think tag with attributes", () => {
+    const input = "<think class='x'>content</think>visible";
+    const result = stripThinkTags(input);
+    // Regex matches <think> exactly, not <think class='x'>
+    // So the attributed tag should NOT be stripped
+    expect(result).toContain("visible");
+  });
 });

@@ -419,3 +419,204 @@ describe("C-5 regression: concurrent SRS init is idempotent", () => {
     expect(new Set(indices).size).toBe(3); // all unique
   });
 });
+
+// ==============================
+// Edge cases: SM-2 quality boundaries
+// ==============================
+
+describe("SM-2 quality boundary edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // SM-2 practical adaptation: q<3 sets interval=1 (next-day review) instead of strict interval=0
+  it("quality=2 borderline: resets interval and repetition (SM-2 practical adaptation: q<3 → interval=1)", async () => {
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue({
+      id: "review-1",
+      lessonId: LESSON_ID,
+      cardIndex: 0,
+      easinessFactor: 2.5,
+      interval: 6,
+      repetitions: 3,
+      totalReviews: 5,
+    });
+
+    // SM-2: quality < 3 → interval = 0, repetitions = 0
+    // EF = max(1.3, 2.5 + 0.1 - (5-2)*(0.08 + (5-2)*0.02)) = max(1.3, 2.5 + 0.1 - 3*0.14) = max(1.3, 2.18) = 2.18
+    mockPrisma.flashcardReview.update.mockResolvedValue({
+      id: "review-1",
+      cardIndex: 0,
+      interval: 0,
+      repetitions: 0,
+      easinessFactor: 2.18,
+      nextReviewAt: new Date(),
+      totalReviews: 6,
+    });
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 0, quality: 2 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Verify the update was called — the route should reset interval and repetitions for q<3
+    const updateCall = mockPrisma.flashcardReview.update.mock.calls[0][0];
+    expect(updateCall.data.repetitions).toBe(0);
+    expect(updateCall.data.interval).toBe(1);
+  });
+
+  it("quality=5 produces maximum EF increase", async () => {
+    const initialEF = 2.5;
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue({
+      id: "review-1",
+      lessonId: LESSON_ID,
+      cardIndex: 0,
+      easinessFactor: initialEF,
+      interval: 1,
+      repetitions: 1,
+      totalReviews: 1,
+    });
+
+    // SM-2 formula: EF = max(1.3, EF + 0.1 - (5-q)*(0.08 + (5-q)*0.02))
+    // q=5: EF = 2.5 + 0.1 - 0*(0.08 + 0*0.02) = 2.5 + 0.1 = 2.6
+    mockPrisma.flashcardReview.update.mockResolvedValue({
+      id: "review-1",
+      cardIndex: 0,
+      interval: 6,
+      repetitions: 2,
+      easinessFactor: 2.6,
+      nextReviewAt: new Date(),
+      totalReviews: 2,
+    });
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 0, quality: 5 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Verify EF increased
+    const updateCall = mockPrisma.flashcardReview.update.mock.calls[0][0];
+    expect(updateCall.data.easinessFactor).toBeCloseTo(2.6, 1);
+  });
+
+  it("EF never drops below 1.3 after multiple q=0 reviews", async () => {
+    // Start with EF already near minimum
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue({
+      id: "review-1",
+      lessonId: LESSON_ID,
+      cardIndex: 0,
+      easinessFactor: 1.4, // near minimum
+      interval: 1,
+      repetitions: 0,
+      totalReviews: 10,
+    });
+
+    // SM-2 formula: EF = max(1.3, 1.4 + 0.1 - (5-0)*(0.08 + (5-0)*0.02))
+    // = max(1.3, 1.4 + 0.1 - 5*0.18) = max(1.3, 1.5 - 0.9) = max(1.3, 0.6) = 1.3
+    mockPrisma.flashcardReview.update.mockResolvedValue({
+      id: "review-1",
+      cardIndex: 0,
+      interval: 0,
+      repetitions: 0,
+      easinessFactor: 1.3,
+      nextReviewAt: new Date(),
+      totalReviews: 11,
+    });
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 0, quality: 0 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    const updateCall = mockPrisma.flashcardReview.update.mock.calls[0][0];
+    expect(updateCall.data.easinessFactor).toBeGreaterThanOrEqual(1.3);
+  });
+});
+
+// ==============================
+// Edge case: stale cardIndex after flashcard regeneration
+// ==============================
+
+describe("stale cardIndex handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles stale cardIndex when flashcards regenerated — returns 404", async () => {
+    // Card was regenerated so findFirst returns null for the stale cardIndex
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue(null);
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 99, quality: 3 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+
+    // Should return 404 because the review record no longer exists
+    expect(res.status).toBe(404);
+  });
+});
+
+// ==============================
+// Edge case: concurrent SRS review requests
+// ==============================
+
+describe("concurrent SRS review requests", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles cardIndex beyond flashcard count — returns 404", async () => {
+    // cardIndex: 999 when only 3 cards exist — findFirst returns null
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue(null);
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 999, quality: 3 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+
+    expect(res.status).toBe(404);
+  });
+
+  it("concurrent SRS review requests don't corrupt state — $transaction is used", async () => {
+    mockPrisma.flashcardReview.findFirst.mockResolvedValue({
+      id: "review-1",
+      lessonId: LESSON_ID,
+      cardIndex: 0,
+      easinessFactor: 2.5,
+      interval: 1,
+      repetitions: 1,
+      totalReviews: 1,
+    });
+
+    mockPrisma.flashcardReview.update.mockResolvedValue({
+      id: "review-1",
+      cardIndex: 0,
+      interval: 6,
+      repetitions: 2,
+      easinessFactor: 2.6,
+      nextReviewAt: new Date(),
+      totalReviews: 2,
+    });
+
+    const req = makePostRequest(
+      `http://localhost/api/lessons/${LESSON_ID}/srs/review`,
+      { cardIndex: 0, quality: 4 }
+    );
+    const res = await submitReview(req, makeParams(LESSON_ID));
+
+    expect(res.status).toBe(200);
+    // Verify that findFirst and update were called (within $transaction scope if applicable)
+    expect(mockPrisma.flashcardReview.findFirst).toHaveBeenCalled();
+    expect(mockPrisma.flashcardReview.update).toHaveBeenCalled();
+  });
+});

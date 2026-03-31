@@ -402,3 +402,94 @@ describe("GET /api/courses/[id]/ai — hasProfile + progressPercent", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ─── Edge case: all learningStyle values ──────────────────────────────────────
+
+describe("POST /api/ai/roadmap — learningStyle + level enum coverage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeCourseWithLessonsLocal() {
+    return {
+      id: "c1",
+      title: "JS Course",
+      roadmap: null,
+      lessons: [
+        {
+          id: "l1",
+          title: "Intro",
+          order: 1,
+          transcript: "Welcome to JavaScript basics",
+        },
+      ],
+    };
+  }
+
+  function makeRoadmapRequest(body: unknown): NextRequest {
+    return new NextRequest("http://localhost/api/ai/roadmap", {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const VALID = {
+    courseId: "c1",
+    apiKey: "sk-test",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o",
+  };
+
+  it.each(["theory_first", "hands_on", "mixed"])(
+    "handles learningStyle=%s in profile prompt",
+    async (learningStyle) => {
+      mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessonsLocal());
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+        id: "p1",
+        courseId: "c1",
+        level: "beginner",
+        goal: "hobby",
+        dailyTimeMin: 30,
+        knownTopics: null,
+        learningStyle,
+      });
+      mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
+      mockPrisma.course.update.mockResolvedValue({ id: "c1" });
+
+      const res = await roadmapPost(makeRoadmapRequest(VALID));
+      await readStream(res);
+
+      expect(res.status).toBe(200);
+      const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
+      expect(userContent).toContain(learningStyle);
+    }
+  );
+
+  it.each(["beginner", "intermediate", "advanced"])(
+    "handles level=%s in profile prompt",
+    async (level) => {
+      mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessonsLocal());
+      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+        id: "p1",
+        courseId: "c1",
+        level,
+        goal: "hobby",
+        dailyTimeMin: 30,
+        knownTopics: null,
+        learningStyle: "mixed",
+      });
+      mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
+      mockPrisma.course.update.mockResolvedValue({ id: "c1" });
+
+      const res = await roadmapPost(makeRoadmapRequest(VALID));
+      await readStream(res);
+
+      expect(res.status).toBe(200);
+      const userContent = mockCreate.mock.calls[0][0].messages[1].content as string;
+      expect(userContent).toContain(level);
+    }
+  );
+});

@@ -159,4 +159,49 @@ describe("POST /api/ai/explain", () => {
 
     expect(res.status).toBe(400);
   });
+
+  // ─── Edge case: handles selectedText parameter ──────────────────────────────
+  it("handles selectedText parameter and includes it in prompt", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "Full transcript here", course: { title: "C", contentType: "course" },
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("Focused explanation"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BODY, selectedText: "specific concept" });
+    const res = await explainPost(req);
+
+    expect(res.status).toBe(200);
+    const text = await readStream(res);
+    expect(text).toBe("Focused explanation");
+
+    // Verify user message contains selectedText
+    const userMsg = mockCreate.mock.calls[0][0].messages[1].content;
+    expect(userMsg).toContain("specific concept");
+  });
+
+  // ─── Edge case: returns 400 when lessonId is missing ────────────────────────
+  it("returns 400 when lessonId is missing", async () => {
+    const req = makeRequest({
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+    });
+    const res = await explainPost(req);
+
+    expect(res.status).toBe(400);
+  });
+
+  // ─── Edge case: lesson with no transcript ───────────────────────────────────
+  it("handles lesson with no transcript — returns 400", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: null, course: { title: "C", contentType: "course" },
+    });
+
+    const req = makeRequest(VALID_BODY);
+    const res = await explainPost(req);
+
+    // Route requires transcript — returns 400 when null
+    expect(res.status).toBe(400);
+  });
 });

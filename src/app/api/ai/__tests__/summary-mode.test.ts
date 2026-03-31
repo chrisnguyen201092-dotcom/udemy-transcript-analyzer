@@ -227,3 +227,51 @@ describe("getSystemPrompt — summary-quick type", () => {
     expect(quick).not.toBe(detailed);
   });
 });
+
+// ─── Edge case: mode switching with cache ─────────────────────────────────────
+
+describe("POST /api/ai/summary — mode switching edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("mode switching: quick cache exists, request detailed → still returns cached (summary field is shared)", async () => {
+    // The summary route uses a single `summary` field regardless of mode.
+    // When cached summary exists and force is not set, it returns cached regardless of mode.
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      ...LESSON_WITH_TRANSCRIPT,
+      summary: "Quick summary previously cached",
+    });
+
+    const req = makeRequest({ ...VALID_BODY, mode: "detailed" });
+    const res = await summaryPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.summary).toBe("Quick summary previously cached");
+    // Cache guard means no AI call even when switching modes
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("mode switching: detailed cache exists, request quick with force=true → calls AI with quick prompt", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      ...LESSON_WITH_TRANSCRIPT,
+      summary: "Detailed summary previously cached",
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("New quick summary"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BODY, mode: "quick", force: true });
+    const res = await summaryPost(req);
+    const text = await readStream(res);
+
+    expect(res.status).toBe(200);
+    expect(text).toBe("New quick summary");
+    expect(mockCreate).toHaveBeenCalled();
+
+    // Verify quick prompt was used
+    const callArgs = mockCreate.mock.calls[0][0];
+    const systemContent = callArgs.messages[0].content;
+    expect(systemContent).toBe(getSystemPrompt("summary-quick"));
+  });
+});

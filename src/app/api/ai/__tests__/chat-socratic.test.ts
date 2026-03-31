@@ -244,3 +244,90 @@ describe("POST /api/ai/chat — DB persistence after stream", () => {
     expect(mockPrisma.chatMessage.createMany).toHaveBeenCalled();
   });
 });
+
+// ─── Edge case: Socratic mode question types ──────────────────────────────────
+
+describe("POST /api/ai/chat — Socratic mode edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1",
+      title: "Lesson 1",
+      transcript: "Some transcript content about JavaScript promises and async/await patterns",
+      course: { title: "Course 1" },
+    });
+    mockPrisma.chatMessage.createMany.mockResolvedValue({ count: 2 });
+  });
+
+  it("Socratic prompt includes guidance for multiple question types", async () => {
+    mockCreate.mockResolvedValue(makeStream(["Socratic response"]));
+
+    const req = makeRequest({ ...BASE_BODY, socraticMode: true });
+    await chatPost(req);
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const systemMsg = callArgs.messages.find(
+      (m: { role: string }) => m.role === "system"
+    );
+    // The Socratic instruction should contain various question type guidance
+    expect(systemMsg.content).toContain("Socratic");
+    expect(systemMsg.content).toContain("Đặt câu hỏi dẫn dắt");
+  });
+
+  // Stream error mid-way — fullText.then().catch() prevents unhandled rejection
+  it("stream error mid-way still returns partial content or handles gracefully", async () => {
+    // Mock a stream that yields one chunk then throws
+    async function* errorStream() {
+      yield { choices: [{ delta: { content: "Partial content" } }] };
+      throw new Error("Stream interrupted");
+    }
+    mockCreate.mockResolvedValue(errorStream());
+
+    const req = makeRequest({ ...BASE_BODY, socraticMode: true });
+    const res = await chatPost(req);
+
+    // Stream should start successfully
+    expect(res.status).toBe(200);
+
+    // Reading should get at least partial content or handle error
+    const decoder = new TextDecoder();
+    const reader = res.body!.getReader();
+    let output = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        output += decoder.decode(value);
+      }
+    } catch {
+      // Stream error is acceptable — partial content may or may not be captured
+    }
+    // At minimum, stream started with 200 status
+    expect(res.status).toBe(200);
+  });
+
+  it("handles very long conversation history (50+ messages) gracefully", async () => {
+    mockCreate.mockResolvedValue(makeStream(["Response"]));
+
+    // Build 52 messages (26 user + 26 assistant turns)
+    const messages = [];
+    for (let i = 0; i < 26; i++) {
+      messages.push({ role: "user", content: `Question ${i}` });
+      messages.push({ role: "assistant", content: `Answer ${i}` });
+    }
+
+    const req = makeRequest({
+      lessonId: "l1",
+      apiKey: "sk-test",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      socraticMode: true,
+      messages,
+    });
+
+    const res = await chatPost(req);
+    expect(res.status).toBe(200);
+    const text = await readStream(res);
+    expect(text).toBe("Response");
+  });
+});

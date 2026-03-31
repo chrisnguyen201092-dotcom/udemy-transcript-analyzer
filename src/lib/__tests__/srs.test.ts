@@ -191,4 +191,38 @@ describe("calculateSM2", () => {
       expect(MASTERED_THRESHOLD).toBe(21);
     });
   });
+
+  describe("SM-2 edge cases", () => {
+    it("SM-2 with quality=0: EF decreases but stays >= 1.3", () => {
+      const result = sm2({ quality: 0, easinessFactor: 1.3 });
+      expect(result.easinessFactor).toBeGreaterThanOrEqual(1.3);
+      expect(result.repetitions).toBe(0);
+      expect(result.interval).toBe(1);
+    });
+
+    it("SM-2 with quality=3: EF decreases by ~0.14", () => {
+      const result = sm2({ quality: 3, easinessFactor: 2.5 });
+      // EF = 2.5 + (0.1 - (5-3)*(0.08 + (5-3)*0.02)) = 2.5 + 0.1 - 2*(0.08+2*0.02) = 2.5 + 0.1 - 0.24 = 2.36
+      expect(result.easinessFactor).toBeCloseTo(2.36, 5);
+    });
+
+    it("SM-2 interval progression: 1, 6, then EF*prev", () => {
+      // rep=0 → interval=1
+      const r1 = sm2({ quality: 4, repetitions: 0 });
+      expect(r1.interval).toBe(1);
+      // rep=1 → interval=6
+      const r2 = sm2({ quality: 4, repetitions: 1, interval: 1, easinessFactor: r1.easinessFactor });
+      expect(r2.interval).toBe(6);
+      // rep=2 → interval=round(6*EF)
+      const r3 = sm2({ quality: 4, repetitions: 2, interval: 6, easinessFactor: r2.easinessFactor });
+      expect(r3.interval).toBe(Math.round(6 * r2.easinessFactor));
+    });
+
+    it("handles edge case EF=1.3 with quality=4", () => {
+      const result = sm2({ quality: 4, easinessFactor: 1.3 });
+      // EF = 1.3 + (0.1 - (5-4)*(0.08 + (5-4)*0.02)) = 1.3 + 0.1 - 1*0.10 = 1.3
+      // At floor, quality=4 should keep EF at 1.3 or slightly increase
+      expect(result.easinessFactor).toBeGreaterThanOrEqual(1.3);
+    });
+  });
 });

@@ -279,3 +279,160 @@ describe("POST /api/export/course/[id]", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ── Edge case tests ──────────────────────────────────────────────────────────
+
+describe("POST /api/export/course/[id] — edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles course with mixed null/present data across lessons", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({
+      title: "Mixed Data Course",
+      lessons: [
+        {
+          title: "Lesson A",
+          summary: "Has summary",
+          explanation: "Has explanation",
+          flashcards: JSON.stringify({
+            cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }],
+          }),
+        },
+        {
+          title: "Lesson B",
+          summary: null,
+          explanation: null,
+          flashcards: null,
+        },
+        {
+          title: "Lesson C",
+          summary: "Only summary",
+          explanation: null,
+          flashcards: JSON.stringify({
+            cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }],
+          }),
+        },
+      ],
+    });
+
+    // full-notes: should include A and C (have summary), skip B
+    const resNotes = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+    expect(resNotes.status).toBe(200);
+    const notesText = await resNotes.text();
+    expect(notesText).toContain("## Lesson A");
+    expect(notesText).not.toContain("## Lesson B");
+    expect(notesText).toContain("## Lesson C");
+
+    // all-flashcards CSV: should include cards from A and C, skip B
+    vi.clearAllMocks();
+    mockPrisma.course.findUnique.mockResolvedValue({
+      title: "Mixed Data Course",
+      lessons: [
+        {
+          title: "Lesson A",
+          summary: "Has summary",
+          explanation: "Has explanation",
+          flashcards: JSON.stringify({
+            cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }],
+          }),
+        },
+        {
+          title: "Lesson B",
+          summary: null,
+          explanation: null,
+          flashcards: null,
+        },
+        {
+          title: "Lesson C",
+          summary: "Only summary",
+          explanation: null,
+          flashcards: JSON.stringify({
+            cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }],
+          }),
+        },
+      ],
+    });
+
+    const resCsv = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+    expect(resCsv.status).toBe(200);
+    const csvText = await resCsv.text();
+    const lines = csvText.split("\n");
+    expect(lines).toHaveLength(2); // A→B and C→D
+  });
+
+  // Emoji in course title — sanitizeFilename strips non-ASCII for Content-Disposition header safety
+  it("handles emoji in CSV course export", async () => {
+    mockPrisma.course.findUnique.mockResolvedValue({
+      title: "Emoji Course 🎓",
+      lessons: [
+        {
+          title: "Lesson 🎉",
+          summary: null,
+          explanation: null,
+          flashcards: JSON.stringify({
+            cards: [
+              { type: "term_definition", front: "🚀 Launch", back: "Deployment 💯", mnemonic: "" },
+            ],
+          }),
+        },
+      ],
+    });
+
+    const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("🚀");
+    expect(text).toContain("💯");
+  });
+
+  it("handles very large course with 50 lessons", async () => {
+    const lessons = Array.from({ length: 50 }, (_, i) => ({
+      title: `Lesson ${i + 1}`,
+      summary: `Summary for lesson ${i + 1}`,
+      explanation: `Explanation for lesson ${i + 1}`,
+      flashcards: JSON.stringify({
+        cards: [
+          { type: "term_definition", front: `Term ${i + 1}`, back: `Definition ${i + 1}`, mnemonic: "" },
+        ],
+      }),
+    }));
+
+    mockPrisma.course.findUnique.mockResolvedValue({
+      title: "Massive Course",
+      lessons,
+    });
+
+    const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("## Lesson 1");
+    expect(text).toContain("## Lesson 50");
+
+    // Also verify CSV with 50 lessons
+    vi.clearAllMocks();
+    mockPrisma.course.findUnique.mockResolvedValue({
+      title: "Massive Course",
+      lessons,
+    });
+
+    const resCsv = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+
+    expect(resCsv.status).toBe(200);
+    const csvText = await resCsv.text();
+    const csvLines = csvText.split("\n");
+    expect(csvLines).toHaveLength(50);
+  });
+});

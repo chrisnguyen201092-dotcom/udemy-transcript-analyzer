@@ -160,3 +160,158 @@ describe("GET /api/srs/dashboard", () => {
     expect(masteredCall.where.interval).toHaveProperty("gte");
   });
 });
+
+// ─── Edge cases: dashboard grouping, due count, mastery, empty states ──────────
+
+describe("SRS dashboard edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("groups reviews by lesson correctly with multiple courses", async () => {
+    // Reviews from different courses (lessons belong to different courses)
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        // totalByLesson
+        { lessonId: "lesson-a", _count: { _all: 5 } },
+        { lessonId: "lesson-b", _count: { _all: 3 } },
+        { lessonId: "lesson-c", _count: { _all: 2 } },
+      ])
+      .mockResolvedValueOnce([
+        // dueByLesson
+        { lessonId: "lesson-a", _count: { _all: 2 } },
+        { lessonId: "lesson-c", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        // masteredByLesson
+        { lessonId: "lesson-a", _count: { _all: 3 } },
+        { lessonId: "lesson-b", _count: { _all: 1 } },
+      ]);
+
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      { id: "lesson-a", title: "Course1 - Lesson A" },
+      { id: "lesson-b", title: "Course2 - Lesson B" },
+      { id: "lesson-c", title: "Course1 - Lesson C" },
+    ]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    const res = await getDashboard(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.lessons).toHaveLength(3);
+    expect(data.totalDue).toBe(3); // 2 + 0 + 1
+
+    const lessonA = data.lessons.find((l: { lessonId: string }) => l.lessonId === "lesson-a");
+    expect(lessonA).toMatchObject({
+      totalCards: 5,
+      dueCount: 2,
+      masteredCount: 3,
+    });
+
+    const lessonB = data.lessons.find((l: { lessonId: string }) => l.lessonId === "lesson-b");
+    expect(lessonB).toMatchObject({
+      totalCards: 3,
+      dueCount: 0,
+      masteredCount: 1,
+    });
+  });
+
+  it("calculates due count accurately based on nextReviewAt <= now", async () => {
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        { lessonId: "lesson-1", _count: { _all: 5 } },
+      ])
+      .mockResolvedValueOnce([
+        // Only 3 cards are due
+        { lessonId: "lesson-1", _count: { _all: 3 } },
+      ])
+      .mockResolvedValueOnce([
+        { lessonId: "lesson-1", _count: { _all: 1 } },
+      ]);
+
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      { id: "lesson-1", title: "Test Lesson" },
+    ]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    const res = await getDashboard(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.totalDue).toBe(3);
+    expect(data.lessons[0].dueCount).toBe(3);
+    expect(data.lessons[0].totalCards).toBe(5);
+
+    // Verify the due query was called with nextReviewAt filter
+    const dueCall = mockPrisma.flashcardReview.groupBy.mock.calls[1][0];
+    expect(dueCall.where).toHaveProperty("nextReviewAt");
+    expect(dueCall.where.nextReviewAt).toHaveProperty("lte");
+  });
+
+  it("mastered count: cards with interval > threshold", async () => {
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([
+        { lessonId: "lesson-1", _count: { _all: 10 } },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        // 7 cards mastered (interval >= threshold)
+        { lessonId: "lesson-1", _count: { _all: 7 } },
+      ]);
+
+    mockPrisma.lesson.findMany.mockResolvedValue([
+      { id: "lesson-1", title: "Mastery Test" },
+    ]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    const res = await getDashboard(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.lessons[0].masteredCount).toBe(7);
+    expect(data.lessons[0].totalCards).toBe(10);
+
+    // Verify mastered query uses interval filter
+    const masteredCall = mockPrisma.flashcardReview.groupBy.mock.calls[2][0];
+    expect(masteredCall.where).toHaveProperty("interval");
+    expect(masteredCall.where.interval).toHaveProperty("gte");
+  });
+
+  it("handles lessons with no flashcard reviews", async () => {
+    // A lesson exists but has no reviews at all — won't appear in groupBy results
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([]) // totalByLesson — empty
+      .mockResolvedValueOnce([]) // dueByLesson — empty
+      .mockResolvedValueOnce([]); // masteredByLesson — empty
+
+    // No lessons returned since no reviews exist
+    mockPrisma.lesson.findMany.mockResolvedValue([]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    const res = await getDashboard(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.totalDue).toBe(0);
+    expect(data.lessons).toEqual([]);
+  });
+
+  it("returns empty dashboard for user with no courses", async () => {
+    mockPrisma.flashcardReview.groupBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    mockPrisma.lesson.findMany.mockResolvedValue([]);
+
+    const req = makeGetRequest("http://localhost/api/srs/dashboard");
+    const res = await getDashboard(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.totalDue).toBe(0);
+    expect(data.lessons).toEqual([]);
+    expect(data.lessons).toHaveLength(0);
+  });
+});

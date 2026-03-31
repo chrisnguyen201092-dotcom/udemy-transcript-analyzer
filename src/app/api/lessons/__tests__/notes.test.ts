@@ -161,3 +161,79 @@ describe("PUT /api/lessons/[id]/notes", () => {
     expect(data.error).toBe("Lesson not found");
   });
 });
+
+// ── Edge case tests ──────────────────────────────────────────────────────────
+
+describe("Notes edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles very long notes >100KB", async () => {
+    const longNote = "A".repeat(100_001);
+    const now = new Date("2025-01-01T00:00:00Z");
+    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.update.mockResolvedValue({
+      id: "l1",
+      notes: longNote,
+      updatedAt: now,
+    });
+
+    const res = await PUT(
+      makeRequest("PUT", { notes: longNote }),
+      routeParams("l1")
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.notes).toHaveLength(100_001);
+    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
+      where: { id: "l1" },
+      data: { notes: longNote },
+      select: { id: true, notes: true, updatedAt: true },
+    });
+  });
+
+  it("PUT overwrites existing notes completely", async () => {
+    const now = new Date("2025-01-01T00:00:00Z");
+    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.update.mockResolvedValue({
+      id: "l1",
+      notes: "new notes only",
+      updatedAt: now,
+    });
+
+    const res = await PUT(
+      makeRequest("PUT", { notes: "new notes only" }),
+      routeParams("l1")
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.notes).toBe("new notes only");
+    // Verify update was called with the new value, not appending
+    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
+      where: { id: "l1" },
+      data: { notes: "new notes only" },
+      select: { id: true, notes: true, updatedAt: true },
+    });
+  });
+
+  it("GET returns null for null notes", async () => {
+    const now = new Date("2025-01-01T00:00:00Z");
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1",
+      notes: null,
+      updatedAt: now,
+    });
+
+    const res = await GET(makeRequest("GET"), routeParams("l1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.notes).toBeNull();
+    // Verify the response structure is complete
+    expect(data.lessonId).toBe("l1");
+    expect(data.updatedAt).toBeDefined();
+  });
+});

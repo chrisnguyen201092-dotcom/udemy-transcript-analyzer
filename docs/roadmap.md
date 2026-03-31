@@ -8,20 +8,21 @@
 
 ## Trạng thái hiện tại
 
-### ✅ Đã hoàn thành (Phase 1–5): 38/38 features
+### ✅ Đã hoàn thành (Phase 1–5): 38/38 core features + 18 backend features (F-57..F-74)
 Core app hoạt động đầy đủ: Course/Lesson CRUD, Upload, Transcript, 6 AI features (Summary, Explain, Chat, Practice, Roadmap, Persistence), Multi-Profile Settings, Docker deploy.
+Backend Feature Layer (v1.2): Notes, Progress Tracking, SRS, Analytics, Export, Learner Profile, Chat Persistence — tất cả đã verified COMPLETE.
 
-### 🔧 Đã có code nhưng chưa documented/verified (Backend routes tồn tại, cần verify + kết nối UI):
+### ✅ Backend Feature Layer — Verified COMPLETE (7 modules, 18 features):
 
-| Module | Routes có trong codebase | Prisma Models | Trạng thái thực tế |
-|--------|--------------------------|---------------|---------------------|
-| Lesson Notes | `GET/POST /api/lessons/[id]/notes`, `GET /api/courses/[id]/notes/search` | `Lesson.notes` field | Backend có, UI cần verify |
-| Progress Tracking | `GET/POST /api/lessons/[id]/progress`, `GET /api/courses/[id]/progress` | `LessonProgress`, `CourseProgress` | Backend có, UI cần kết nối |
-| SRS Scheduler | `GET /api/lessons/[id]/srs/due`, `POST /api/lessons/[id]/srs/init`, `POST /api/lessons/[id]/srs/review`, `GET /api/srs/dashboard` | `FlashcardReview` (SM-2 fields) | Backend + `src/lib/srs.ts` có, UI cần kết nối |
-| Learning Analytics | `GET /api/analytics/overview`, `GET /api/analytics/course/[id]` | Phụ thuộc Progress + SRS | Backend có, UI cần xây |
-| Export | `GET /api/export/course/[id]`, `GET /api/export/lesson/[id]` | — | Backend có, UI cần xây |
-| Pre-Assessment | `GET/POST /api/courses/[id]/profile` | `LearnerProfile` | Backend có, UI cần xây |
-| Chat Persistence | `GET/POST /api/lessons/[id]/chat` | `ChatMessage` | Backend có, UI cần kết nối |
+| Module | Routes | Prisma Models | Trạng thái |
+|--------|--------|---------------|------------|
+| Lesson Notes (F-57..F-58) | `GET/PUT /api/lessons/[id]/notes`, `GET /api/courses/[id]/notes/search` | `Lesson.notes` field | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| Progress Tracking (F-59..F-62) | `POST/PATCH /api/lessons/[id]/progress`, `GET /api/courses/[id]/progress` | `LessonProgress`, `CourseProgress` | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| SRS Scheduler (F-63..F-66) | `POST /api/lessons/[id]/srs/init`, `POST .../review`, `GET .../due`, `GET /api/srs/dashboard` | `FlashcardReview` (SM-2 fields) | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| Learning Analytics (F-67..F-68) | `GET /api/analytics/overview`, `GET /api/analytics/course/[id]` | Phụ thuộc Progress + SRS | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| Export (F-69..F-70) | `POST /api/export/course/[id]`, `POST /api/export/lesson/[id]` | — | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| Learner Profile (F-71) | `GET/PUT /api/courses/[id]/profile` | `LearnerProfile` | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
+| Chat Persistence (F-72..F-74) | `GET/POST/DELETE /api/lessons/[id]/chat` | `ChatMessage` | ✅ Backend VERIFIED COMPLETE, UI integration pending (Giai đoạn 2) |
 
 ### ❌ Chưa implement (Phase 6 UX Overhaul):
 - 6A.1 Markdown Rendering — **đã có `MarkdownRenderer.tsx`** (cần verify integration)
@@ -158,10 +159,16 @@ npm run test            # 163+ tests passing
 
 ## Ghi chú quan trọng
 
-1. **Backend đã implement nhiều hơn docs ghi nhận** — features.md chỉ track 38 features Phase 1–5, nhưng codebase đã có routes cho notes, progress, SRS, analytics, export, pre-assessment, chat persistence. Cần audit từng route xem hoàn chỉnh hay scaffolded.
+1. **Backend đã verified COMPLETE** — Tất cả 7 backend feature modules (Notes, Progress, SRS, Analytics, Export, Learner Profile, Chat Persistence) đã được audit và xác nhận hoạt động đầy đủ. Chi tiết xem Phase 7 trong `implementation-order.md`.
 
-2. **`features.md` cần update** — Prisma schema trong features.md chỉ có 2 models (Course, Lesson), nhưng actual schema có 6 models. Document đã outdated.
+2. **Docs đã được cập nhật toàn bộ (2026-03-31):**
+   - ✅ `features.md` — Rewrite toàn bộ: 21 modules, 56 features, 7 Prisma models, ~42 API routes
+   - ✅ `prd.md` — Cập nhật Sections 5, 6, 8.2, 8.3, 8.4, 11 (thêm 7 modules mới F-57..F-74, schema 7 models, ~42 routes)
+   - ✅ `implementation-order.md` — Thêm Phase 7 (7 modules) + Full dependency graph
+   - ✅ `roadmap.md` — Cập nhật trạng thái từ "cần verify" → "VERIFIED COMPLETE"
 
 3. **SRS là high-impact nhất** — SM-2 algorithm đã implement (`src/lib/srs.ts`), FlashcardReview model đã có, routes đã có. Chỉ cần UI integration → spaced repetition hoạt động ngay.
 
 4. **Pre-Assessment là nền tảng cho personalization** — LearnerProfile model + route đã có. Kết nối vào AI prompts sẽ nâng điểm giáo dục cho Explain, Roadmap, Practice.
+
+5. **Prisma schema: 7 models** — Course, Lesson, LessonProgress, CourseProgress, FlashcardReview, LearnerProfile, ChatMessage.

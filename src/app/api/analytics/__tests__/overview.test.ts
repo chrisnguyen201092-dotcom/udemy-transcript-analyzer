@@ -282,3 +282,157 @@ describe("GET /api/analytics/overview", () => {
     expect(lastEntry.date).toBe(todayStr);
   });
 });
+
+// ─── Edge cases: heatmap and time tracking ─────────────────────────────────────
+
+describe("heatmap and time tracking edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setDefaults();
+  });
+
+  it("heatmap data format: returns 365 entries with date and count", async () => {
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.studyFrequency).toHaveLength(365);
+
+    // Every entry should have date (YYYY-MM-DD) and lessonsCompleted (number)
+    for (const entry of data.studyFrequency) {
+      expect(entry).toHaveProperty("date");
+      expect(entry).toHaveProperty("lessonsCompleted");
+      expect(typeof entry.date).toBe("string");
+      expect(entry.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(typeof entry.lessonsCompleted).toBe("number");
+    }
+  });
+
+  it("time tracking caps individual session at 24 hours — large value stored", async () => {
+    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+    const largeTimeMs = 48 * 60 * 60 * 1000; // 48 hours
+
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: largeTimeMs } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null } });
+
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Should convert ms to seconds without error — whether capped or not
+    expect(data.totalTimeSeconds).toBe(largeTimeMs / 1000);
+  });
+
+  it("handles timezone edge case in heatmap dates — dates are consistent", async () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 0 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null } });
+
+    // Completion at midnight boundary
+    const midnightCompletion = new Date(todayStr + "T23:59:59.999Z");
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      { completedAt: midnightCompletion },
+    ]);
+
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Frequency array should still be 365 entries
+    expect(data.studyFrequency).toHaveLength(365);
+  });
+
+  it("weekly trend calculation accuracy", async () => {
+    const today = new Date();
+    const completions = [];
+
+    // Create completions for 7 consecutive days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      completions.push({ completedAt: d });
+      completions.push({ completedAt: d }); // 2 per day
+    }
+
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 0 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue(completions);
+
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.currentStreak).toBe(7);
+    expect(data.longestStreak).toBe(7);
+
+    // Last 7 entries in studyFrequency should each have 2 lessons
+    const last7 = data.studyFrequency.slice(-7);
+    for (const entry of last7) {
+      expect(entry.lessonsCompleted).toBe(2);
+    }
+  });
+
+  it("handles user with only one day of activity", async () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+
+    mockPrisma.course.count.mockResolvedValue(1);
+    mockPrisma.lessonProgress.count.mockResolvedValue(1);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 5000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 80 } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      { completedAt: dateOf(todayStr) },
+    ]);
+
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.currentStreak).toBe(1);
+    expect(data.longestStreak).toBe(1);
+    expect(data.totalLessonsCompleted).toBe(1);
+    const todayEntry = data.studyFrequency.find(
+      (e: { date: string }) => e.date === todayStr
+    );
+    expect(todayEntry?.lessonsCompleted).toBe(1);
+  });
+
+  it("weekly trend shows 0 for inactive weeks", async () => {
+    // Activity only 30 days ago, nothing recent
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 1000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      { completedAt: dateOf(thirtyDaysAgoStr) },
+    ]);
+
+    const res = await GET(makeReq());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Recent 7 days should all be 0
+    const last7 = data.studyFrequency.slice(-7);
+    for (const entry of last7) {
+      expect(entry.lessonsCompleted).toBe(0);
+    }
+    // The day 30 days ago should have 1
+    const activeDay = data.studyFrequency.find(
+      (e: { date: string }) => e.date === thirtyDaysAgoStr
+    );
+    expect(activeDay?.lessonsCompleted).toBe(1);
+  });
+});

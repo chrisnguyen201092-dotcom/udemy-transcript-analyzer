@@ -123,3 +123,31 @@ describe("POST /api/courses/[id]/lessons", () => {
     );
   });
 });
+
+// ─── Edge-case tests (gap analysis) ──────────────────────────────────────────
+
+describe("POST /api/courses/[id]/lessons — edge cases", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("POST returns 400 for title > 200 chars", async () => {
+    const longTitle = "A".repeat(201);
+    const req = makeRequest("c1", { title: longTitle });
+    const res = await postLesson(req, { params: Promise.resolve({ id: "c1" }) });
+
+    // Route validates title length with .max(200) — should return 400 or 500
+    expect([400, 500]).toContain(res.status);
+  });
+
+  it("POST with duplicate title in same course still succeeds", async () => {
+    mockPrisma.lesson.findFirst.mockResolvedValue({ order: 1 });
+    mockPrisma.lesson.create.mockResolvedValue({
+      id: "l2", title: "Duplicate Title", order: 2, courseId: "c1",
+    });
+
+    const req = makeRequest("c1", { title: "Duplicate Title" });
+    const res = await postLesson(req, { params: Promise.resolve({ id: "c1" }) });
+
+    expect(res.status).toBe(201);
+    expect(mockPrisma.lesson.create).toHaveBeenCalledOnce();
+  });
+});

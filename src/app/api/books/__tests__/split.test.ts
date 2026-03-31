@@ -351,3 +351,61 @@ describe("POST /api/books/split/confirm", () => {
     });
   });
 });
+
+// ── Split edge cases ─────────────────────────────────────────────────────────
+
+describe("POST /api/books/split — edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
+    mockParseDocx.mockResolvedValue({ text: "parsed text" });
+  });
+
+  it("handles empty chapters array after splitting", async () => {
+    mockDetectChapters.mockReturnValue([]);
+
+    const req = makeSplitRequest(VALID_SPLIT_BODY);
+    const res = await splitPost(req);
+    const data = await res.json();
+
+    // When no chapters detected, implementation should return fallback or empty
+    expect(res.status).toBe(200);
+    // Should at least have a method field
+    expect(data.method).toBeDefined();
+  });
+
+  it("handles chapter with only whitespace content", async () => {
+    mockDetectChapters.mockReturnValue([
+      { title: "Empty Chapter", content: "   \n\t\n  ", chapterNumber: 1, wordCount: 0, short: true },
+      { title: "Real Chapter", content: "Actual content here", chapterNumber: 2, wordCount: 300, short: false },
+    ]);
+
+    const req = makeSplitRequest(VALID_SPLIT_BODY);
+    const res = await splitPost(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.chapters).toHaveLength(2);
+    // Whitespace chapter should still be present but possibly flagged
+    expect(data.chapters[0].content).toBeDefined();
+  });
+
+  it("AI fallback when heuristic fails", async () => {
+    // No heuristic chapters detected (only 1 "Untitled" fallback)
+    mockDetectChapters.mockReturnValue([
+      { title: "Untitled", content: "all the text in one block", chapterNumber: 1, wordCount: 5000, short: false },
+    ]);
+
+    const req = makeSplitRequest(VALID_SPLIT_BODY);
+    const res = await splitPost(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // When only 1 chapter, method should be 'fallback'
+    expect(data.method).toBe("fallback");
+    expect(data.chapters).toHaveLength(1);
+    // Should include a warning about single chapter detection
+    expect(data.warnings.length).toBeGreaterThan(0);
+  });
+});

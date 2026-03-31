@@ -222,4 +222,84 @@ describe("POST /api/ai/quiz", () => {
 
     expect(res.status).toBe(400);
   });
+
+  // ─── Edge case: force=true regenerates even with existing cache ─────────────
+  it("force=true regenerates even with existing cached quiz", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "Some transcript",
+      quiz: "cached quiz content",
+      course: { title: "C", contentType: "course" },
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("New quiz content"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BASE, mode: "quiz", force: true });
+    const res = await practicePost(req);
+    const text = await readStream(res);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(res.status).toBe(200);
+    expect(text).toBe("New quiz content");
+    expect(mockCreate).toHaveBeenCalled();
+    expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quiz: "New quiz content" } })
+    );
+  });
+
+  // ─── Edge case: AI returning invalid JSON gracefully ────────────────────────
+  it("handles AI returning non-JSON text gracefully (still streams it)", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "Some transcript",
+      course: { title: "C", contentType: "course" },
+    });
+    // AI returns plain text instead of JSON — route should still stream it
+    mockCreate.mockResolvedValue(makeChunkStream("This is not valid JSON at all"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
+    const res = await practicePost(req);
+    const text = await readStream(res);
+
+    expect(res.status).toBe(200);
+    expect(text).toBe("This is not valid JSON at all");
+  });
+
+  // ─── Edge case: short transcript ────────────────────────────────────────────
+  it("still generates content for very short transcript (<200 chars)", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "L", transcript: "Short",
+      course: { title: "C", contentType: "course" },
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("Quiz for short content"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
+    const res = await practicePost(req);
+    const text = await readStream(res);
+
+    expect(res.status).toBe(200);
+    expect(text).toBe("Quiz for short content");
+  });
+
+  // ─── Edge case: book contentType uses book-specific prompts ─────────────────
+  it("book contentType uses book-specific prompts", async () => {
+    mockPrisma.lesson.findUnique.mockResolvedValue({
+      id: "l1", title: "Chapter 1", transcript: "Book chapter content",
+      course: { title: "My Book", contentType: "book" },
+    });
+    mockCreate.mockResolvedValue(makeChunkStream("Book quiz"));
+    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+
+    const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
+    const res = await practicePost(req);
+    const text = await readStream(res);
+
+    expect(res.status).toBe(200);
+    expect(text).toBe("Book quiz");
+    // Verify AI was called with book-specific system prompt
+    expect(mockCreate).toHaveBeenCalled();
+    const systemMsg = mockCreate.mock.calls[0][0].messages[0].content;
+    // Book prompts use "chương sách" instead of "bài học" terminology
+    expect(systemMsg).toContain("chương sách");
+  });
 });

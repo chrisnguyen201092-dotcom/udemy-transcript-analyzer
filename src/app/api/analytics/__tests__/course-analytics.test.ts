@@ -349,3 +349,144 @@ describe("GET /api/analytics/course/[id]", () => {
     expect(data.lessons[2].title).toBe("Variables");
   });
 });
+
+// ─── Edge cases: large courses, null quizScores, division by zero ──────────────
+
+describe("course analytics edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset defaults
+    mockPrisma.course.findUnique.mockResolvedValue(baseCourse);
+    mockPrisma.lessonProgress.count.mockResolvedValue(0);
+    let aggregateCallCount = 0;
+    mockPrisma.lessonProgress.aggregate.mockImplementation(() => {
+      aggregateCallCount++;
+      return Promise.resolve(aggregateCallCount === 1 ? DEFAULT_TIME_AGG : DEFAULT_QUIZ_AGG);
+    });
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
+    mockPrisma.flashcardReview.count.mockResolvedValue(0);
+    mockPrisma.flashcardReview.aggregate.mockResolvedValue(DEFAULT_EF_AGG);
+    mockPrisma.flashcardReview.groupBy.mockResolvedValue([]);
+  });
+
+  it("handles course with 100 lessons efficiently", async () => {
+    const manyLessons = Array.from({ length: 100 }, (_, i) => ({
+      id: `l${i + 1}`,
+      title: `Lesson ${i + 1}`,
+      order: i + 1,
+    }));
+
+    mockPrisma.course.findUnique.mockResolvedValue({
+      ...baseCourse,
+      lessons: manyLessons,
+    });
+
+    mockPrisma.lessonProgress.count.mockResolvedValue(50);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 3600000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 75 }, _count: { quizScore: 50 } });
+
+    // Progress for some lessons
+    const progressRecords = manyLessons.slice(0, 50).map((l) => ({
+      lessonId: l.id,
+      completed: true,
+      completedAt: new Date(),
+      timeSpentMs: 72000,
+      quizScore: 75,
+    }));
+    mockPrisma.lessonProgress.findMany.mockResolvedValue(progressRecords);
+
+    const res = await GET(makeReq(), makeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.lessons).toHaveLength(100);
+    expect(data.completionRate).toBe(50);
+  });
+
+  it("quiz distribution handles null quizScores", async () => {
+    mockPrisma.lessonProgress.count.mockResolvedValue(3);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 0 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: 80 }, _count: { quizScore: 1 } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      { lessonId: "l1", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: null },
+      { lessonId: "l2", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: null },
+      { lessonId: "l3", completed: true, completedAt: new Date(), timeSpentMs: 0, quizScore: 80 },
+    ]);
+
+    const res = await GET(makeReq(), makeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    // Only 1 quiz score should appear in distribution
+    const totalCount = data.quizScoreDistribution.reduce(
+      (sum: number, bin: { count: number }) => sum + bin.count,
+      0
+    );
+    expect(totalCount).toBe(1);
+    expect(data.quizScoreDistribution.find((b: { bin: string }) => b.bin === "61-80").count).toBe(1);
+  });
+
+  it("time per lesson calculation with zero totalTimeMs — no division by zero", async () => {
+    mockPrisma.lessonProgress.count.mockResolvedValue(1);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 0 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null }, _count: { quizScore: 0 } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      {
+        lessonId: "l1",
+        completed: true,
+        completedAt: new Date(),
+        timeSpentMs: 0,
+        quizScore: null,
+      },
+    ]);
+
+    const res = await GET(makeReq(), makeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.totalTimeSeconds).toBe(0);
+    // Lesson time should be 0, not NaN or Infinity
+    const lesson1 = data.lessons.find((l: { lessonId: string }) => l.lessonId === "l1");
+    expect(lesson1.timeSeconds).toBe(0);
+    expect(Number.isFinite(lesson1.timeSeconds)).toBe(true);
+  });
+
+  it("handles lesson with all-null AI fields in analytics", async () => {
+    // Course with lessons that have no AI-generated content
+    mockPrisma.lessonProgress.count.mockResolvedValue(1);
+    mockPrisma.lessonProgress.aggregate
+      .mockResolvedValueOnce({ _sum: { timeSpentMs: 10000 } })
+      .mockResolvedValueOnce({ _avg: { quizScore: null }, _count: { quizScore: 0 } });
+
+    mockPrisma.lessonProgress.findMany.mockResolvedValue([
+      {
+        lessonId: "l1",
+        completed: true,
+        completedAt: new Date(),
+        timeSpentMs: 10000,
+        quizScore: null,
+      },
+    ]);
+
+    const res = await GET(makeReq(), makeParams("c1"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.averageQuizScore).toBeNull();
+    const lesson1 = data.lessons.find((l: { lessonId: string }) => l.lessonId === "l1");
+    expect(lesson1).toBeDefined();
+    expect(lesson1.completed).toBe(true);
+    expect(lesson1.quizScore).toBeNull();
+    // All quiz bins should be 0 since no quiz scores
+    const totalBinCount = data.quizScoreDistribution.reduce(
+      (sum: number, bin: { count: number }) => sum + bin.count,
+      0
+    );
+    expect(totalBinCount).toBe(0);
+  });
+});

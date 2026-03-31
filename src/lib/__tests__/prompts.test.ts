@@ -174,4 +174,23 @@ describe("getSystemPrompt with contentType (B-09 to B-12)", () => {
       expect(prompt.length).toBeGreaterThan(0);
     }
   });
+
+  it("book contentType prompts use Vietnamese 'chương' labels", () => {
+    const bookPrompt = getSystemPrompt("summary", "book");
+    expect(bookPrompt).toMatch(/chương/i);
+  });
+
+  it("all prompt types return non-empty strings", () => {
+    const types: PromptType[] = ["summary", "summary-quick", "explain", "chat", "roadmap", "quiz", "flashcards", "exercises"];
+    for (const type of types) {
+      const prompt = getSystemPrompt(type);
+      expect(prompt.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("summary-quick and summary produce different prompts", () => {
+    const summary = getSystemPrompt("summary");
+    const summaryQuick = getSystemPrompt("summary-quick");
+    expect(summary).not.toBe(summaryQuick);
+  });
 });

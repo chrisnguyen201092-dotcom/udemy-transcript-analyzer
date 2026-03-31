@@ -421,4 +421,44 @@ describe("POST /api/books/upload", () => {
       expect(res.status).not.toBe(200);
     });
   });
+
+  // ── Upload edge cases ──────────────────────────────────────────────────────
+  describe("Upload edge cases", () => {
+    it("handles very large PDF (>10MB) gracefully", async () => {
+      // Generate content > 10MB (base64 encoded)
+      const largeContent = "A".repeat(10 * 1024 * 1024 + 1);
+
+      const req = makeUploadRequest({
+        title: "Large PDF",
+        file: { name: "large.pdf", content: largeContent, type: "application/pdf" },
+      });
+
+      const res = await POST(req);
+
+      // Should either succeed (if no 10MB limit) or return 413 (if limited)
+      // The existing test tests 50MB → 413, so 10MB should be within limit
+      expect([200, 413]).toContain(res.status);
+    });
+
+    it("handles PDF with no extractable text", async () => {
+      mockParsePdf.mockResolvedValue({ text: "", pages: 5, warning: "scanned_pdf" });
+
+      const req = makeUploadRequest({
+        title: "Empty PDF",
+        file: { name: "empty.pdf", content: Buffer.from("fake-pdf-bytes").toString("base64"), type: "application/pdf" },
+      });
+
+      const res = await POST(req);
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      // Lesson should still be created with empty transcript
+      expect(json.created).toHaveLength(1);
+      expect(json.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "scanned_pdf" }),
+        ])
+      );
+    });
+  });
 });

@@ -5,9 +5,11 @@
 
 ---
 
-## Trạng thái: ✅ Tất cả Phase đã hoàn thành
+## Trạng thái: ✅ Phase 1–5 hoàn thành · Phase 6 đang tiến hành · Phase 7 backend hoàn thành (UI pending)
 
 Toàn bộ Phase 1–5 đã được implement, test, và deploy thành công.
+Phase 6 (UX Overhaul) đang tiến hành — 6A.1 Markdown Rendering đã xong, còn lại 6A.2–6C.8 chưa hoàn thành.
+Phase 7 (Backend Feature Layer) đã implement đầy đủ backend cho 7 modules: Notes, Progress, SRS, Analytics, Export, Learner Profile, Chat Persistence — Prisma models, API routes, business logic đều hoạt động — nhưng UI integration chưa hoàn thành.
 
 ---
 
@@ -166,7 +168,7 @@ AI Settings (1.2) có thể implement song song với 1.3 vì cả hai chỉ c�
 
 ---
 
-## Dependency Graph
+## Dependency Graph (Phases 1–5)
 
 ```
 Phase 1.1 (DB)
@@ -191,6 +193,8 @@ AI Settings 1.2 ─────────────────────�
 Phase 4 (Polish) ← sau Phase 3
 Phase 5 (UX Improvements) ← sau Phase 4
 ```
+
+→ Xem thêm **Dependency Graph (Full)** ở cuối Phase 7 cho dependency graph bao gồm tất cả phases.
 
 ---
 
@@ -302,6 +306,102 @@ All 6B items are independent of each other (parallel-safe).
 6A.4 (Transcript)  ├──→ 6A.2 (URL Nav) ──→ 6A.3 (Responsive)
                    │
                    └──→ 6B.* (all parallel) ──→ 6C.* (all parallel)
+```
+
+---
+
+## Phase 7 — Backend Feature Layer ✅ (v1.2 — backend complete, UI pending)
+
+**Trạng thái:** Backend HOÀN THÀNH — Prisma models, API routes, business logic đều đã implement và verified.
+**UI Integration:** Chưa hoàn thành — sẽ thực hiện trong Giai đoạn 2 của roadmap.
+
+### 7.1 Lesson Notes (F-57..F-58) ✅
+**Spec:** `docs/specs/lesson-notes.md`
+**Files:** `src/app/api/lessons/[id]/notes/route.ts`, `src/app/api/courses/[id]/notes/search/route.ts`
+**Prisma:** `Lesson.notes` field
+**Phụ thuộc:** Phase 2.1 (Lesson)
+**Done when:** GET/PUT notes per lesson, search across course notes — tất cả đã hoạt động.
+
+### 7.2 Progress Tracking (F-59..F-62) ✅
+**Spec:** `docs/specs/progress-tracking.md`
+**Files:** `src/app/api/lessons/[id]/progress/route.ts`, `src/app/api/courses/[id]/progress/route.ts`
+**Prisma:** `LessonProgress`, `CourseProgress` models
+**Phụ thuộc:** Phase 2.1 (Lesson), Phase 1.3 (Course)
+**Done when:** Create/update lesson progress, get course progress with streaks — tất cả đã hoạt động.
+
+### 7.3 SRS Spaced Repetition (F-63..F-66) ✅
+**Spec:** `docs/specs/srs-scheduler.md`
+**Files:** `src/lib/srs.ts`, `src/app/api/lessons/[id]/srs/init/route.ts`, `src/app/api/lessons/[id]/srs/review/route.ts`, `src/app/api/lessons/[id]/srs/due/route.ts`, `src/app/api/srs/dashboard/route.ts`
+**Prisma:** `FlashcardReview` model (SM-2 fields: easinessFactor, interval, repetitions, nextReviewAt, lastQuality)
+**Phụ thuộc:** Phase 3.5 (Practice — cần flashcards data)
+**Done when:** SM-2 algorithm works, init/review/due/dashboard routes functional — tất cả đã hoạt động.
+
+### 7.4 Learning Analytics (F-67..F-68) ✅
+**Spec:** `docs/specs/learning-analytics.md`
+**Files:** `src/app/api/analytics/overview/route.ts`, `src/app/api/analytics/course/[id]/route.ts`
+**Phụ thuộc:** 7.2 (Progress Tracking), 7.3 (SRS)
+**Done when:** Overview and per-course analytics return aggregated data — tất cả đã hoạt động.
+
+### 7.5 Export (F-69..F-70) ✅
+**Spec:** `docs/specs/export.md`
+**Files:** `src/app/api/export/lesson/[id]/route.ts`, `src/app/api/export/course/[id]/route.ts`
+**Phụ thuộc:** Phase 2.1 (Lesson), Phase 3.1 (AI Persistence — cần AI data để export)
+**Done when:** Export lesson/course to Markdown or CSV — tất cả đã hoạt động.
+
+### 7.6 Learner Profile (F-71) ✅
+**Spec:** `docs/specs/pre-assessment.md`
+**Files:** `src/app/api/courses/[id]/profile/route.ts`
+**Prisma:** `LearnerProfile` model (level, goal, dailyTimeMin, knownTopics, learningStyle)
+**Phụ thuộc:** Phase 1.3 (Course)
+**Done when:** GET/PUT profile per course — tất cả đã hoạt động.
+
+### 7.7 Chat Persistence (F-72..F-74) ✅
+**Spec:** `docs/specs/ai-persistence.md`
+**Files:** `src/app/api/lessons/[id]/chat/route.ts`
+**Prisma:** `ChatMessage` model (role, content, lessonId, createdAt)
+**Phụ thuộc:** Phase 3.4 (AI Chat)
+**Done when:** GET/POST/DELETE chat messages per lesson — tất cả đã hoạt động.
+
+---
+
+## Dependency Graph (Full)
+
+```
+Phase 1.1 (DB)
+├── Phase 1.2 (Settings) ──────────────────────────────┐
+│                                                       │
+└── Phase 1.3 (Course)                                  │
+    ├── Phase 7.6 (Learner Profile) ← 1.3              │
+    │                                                   │
+    └── Phase 2.1 (Lesson)                              │
+        ├── Phase 2.2 (Upload)    ← parallel với 2.3   │
+        │                                               │
+        ├── Phase 2.3 (Transcript) ← parallel với 2.2  │
+        │   └── Phase 3.4 (Chat) ──── cần 1.2 + 2.3   │
+        │       └── Phase 7.7 (Chat Persistence) ← 3.4 │
+        │                                               │
+        ├── Phase 7.1 (Notes) ← 2.1                    │
+        │                                               │
+        ├── Phase 7.2 (Progress) ← 2.1 + 1.3           │
+        │                                               │
+        └── Phase 3.1 (AI Persistence) ────────────────┤
+            ├── Phase 3.2 (Summary)  ←┐                │
+            ├── Phase 3.3 (Explain)  ←┤ parallel       │
+            ├── Phase 3.5 (Practice) ←┘ nhau           │
+            │   └── Phase 7.3 (SRS) ← 3.5             │
+            │                                           │
+            ├── Phase 3.6 (Roadmap) ← cần 3.1 + 1.3   │
+            └── Phase 7.5 (Export) ← 3.1 + 2.1         │
+                                                        │
+AI Settings 1.2 ────────────────────────────────────────┘
+(cần cho tất cả AI routes: 3.1..3.6)
+
+Phase 7.4 (Analytics) ← 7.2 (Progress) + 7.3 (SRS)
+
+Phase 4 (Polish) ← sau Phase 3
+Phase 5 (UX Improvements) ← sau Phase 4
+Phase 6 (UX Overhaul) ← sau Phase 5
+Phase 7 (Backend Features) ← implemented alongside Phase 5–6
 ```
 
 ---

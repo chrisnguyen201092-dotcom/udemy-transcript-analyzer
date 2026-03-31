@@ -318,6 +318,60 @@ describe("detectChapters", () => {
     });
   });
 
+  // ── Edge cases ────────────────────────────────────────────────────────────
+  describe("edge cases", () => {
+    it("handles content with no detectable chapter markers", () => {
+      const text = "This is just a plain paragraph of text without any headings, markers, or structure whatsoever. " +
+        "It continues for a while to ensure there is enough content for the detection algorithm to analyze.";
+
+      const chapters = detectChapters(text);
+
+      // Should fallback to single chapter
+      expect(chapters).toHaveLength(1);
+      expect(chapters[0].content).toContain("plain paragraph");
+    });
+
+    it("handles mixed heading formats in same content", () => {
+      const text = [
+        "# Markdown Heading",
+        "Content under markdown heading with enough words for detection.",
+        "",
+        "Chapter 2 Keyword Heading",
+        "Content under keyword heading with enough words for detection.",
+        "",
+        "NUMBERED SECTION",
+        "Content under caps heading with enough words for proper detection.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      expect(chapters.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("preserves content between chapters completely", () => {
+      const text = [
+        "# Chapter One",
+        "Line 1 of chapter one.",
+        "Line 2 of chapter one.",
+        "Line 3 of chapter one.",
+        "",
+        "# Chapter Two",
+        "Line 1 of chapter two.",
+        "Line 2 of chapter two.",
+      ].join("\n");
+
+      const chapters = detectChapters(text);
+
+      // All content lines must appear somewhere in the chapters
+      const allContent = chapters.map((c) => c.content).join("\n");
+      expect(allContent).toContain("Line 1 of chapter one");
+      expect(allContent).toContain("Line 2 of chapter one");
+      expect(allContent).toContain("Line 3 of chapter one");
+      expect(allContent).toContain("Line 1 of chapter two");
+      expect(allContent).toContain("Line 2 of chapter two");
+    });
+  });
+
   // ── Vietnamese PDF fixes ─────────────────────────────────────────────────
   describe("Vietnamese PDF chapter detection (regression)", () => {
     it("rejects bare 'Chương N.' TOC stubs with no body content", () => {

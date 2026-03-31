@@ -100,8 +100,7 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 - Đồng bộ tiến độ học lên Udemy
 - Multi-user / authentication hệ thống
 - Mobile app (chỉ web)
-- Lưu lịch sử chat giữa các phiên
-- Xuất nội dung ra PDF/Word
+- Xuất nội dung ra PDF/Word (hiện hỗ trợ Markdown/CSV — xem Module Export)
 
 ---
 
@@ -178,7 +177,7 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 | F-32 | Streaming response: text xuất hiện dần, không chờ full response |
 | F-33 | AI đóng vai tutor, nhận diện 7 loại câu hỏi và điều chỉnh cách trả lời |
 | F-34 | Context bài học (transcript) được đưa vào mỗi turn của chat |
-| F-35 | Lịch sử chat không persist giữa các phiên (reset khi chọn bài khác) |
+| F-35 | ~~Lịch sử chat không persist giữa các phiên~~ → Đã triển khai Chat Persistence (v1.2) — xem Module 6.24. Lịch sử chat được lưu vào DB qua `ChatMessage` model |
 
 ### 6.8 Module: AI Practice (Luyện tập tương tác)
 
@@ -288,6 +287,59 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 | B-32 | Time-based study plan: "Tôi có 2 tuần" → AI tạo kế hoạch đọc theo ngày dựa trên chapters + difficulty |
 | B-33 | Progress-aware replanning: cập nhật plan dựa trên progress thực tế (chapters đã đọc, quiz scores) |
 
+### 6.18 Module: Lesson Notes (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-57 | Người dùng ghi chú riêng cho từng bài học; nội dung lưu vào `Lesson.notes` |
+| F-58 | Hệ thống hỗ trợ tìm kiếm ghi chú toàn khóa qua `GET /api/courses/[id]/notes/search` |
+
+### 6.19 Module: Progress Tracking (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-59 | Hệ thống theo dõi tiến độ từng bài học: trạng thái hoàn thành, thời gian học, điểm quiz, flashcard đã thuộc |
+| F-60 | Hệ thống tổng hợp tiến độ toàn khóa: % hoàn thành, streak hiện tại/dài nhất, thời gian học tổng, ngày học gần nhất |
+| F-61 | API `POST /api/lessons/[id]/progress` tạo/cập nhật tiến độ bài học; `PATCH` cập nhật từng field |
+| F-62 | API `GET /api/courses/[id]/progress` trả về tiến độ tổng hợp toàn khóa |
+
+### 6.20 Module: SRS Spaced Repetition (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-63 | Hệ thống áp dụng thuật toán SM-2 (SuperMemo 2) để lên lịch ôn tập flashcard; implementation tại `src/lib/srs.ts` |
+| F-64 | API `POST /api/lessons/[id]/srs/init` khởi tạo `FlashcardReview` records cho tất cả flashcards của bài học |
+| F-65 | API `POST /api/lessons/[id]/srs/review` nhận đánh giá chất lượng (0-5) từ người dùng, cập nhật easinessFactor, interval, nextReviewAt theo SM-2 |
+| F-66 | API `GET /api/lessons/[id]/srs/due` trả về danh sách flashcards đến hạn ôn tập; `GET /api/srs/dashboard` trả về tổng quan SRS toàn hệ thống |
+
+### 6.21 Module: Learning Analytics (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-67 | API `GET /api/analytics/overview` trả về tổng quan học tập: tổng khóa học, bài học, thời gian, streaks, flashcard stats |
+| F-68 | API `GET /api/analytics/course/[id]` trả về phân tích chi tiết từng khóa: tiến độ bài học, quiz scores, SRS performance |
+
+### 6.22 Module: Export (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-69 | API `POST /api/export/lesson/[id]` xuất nội dung bài học (transcript, summary, explanation, quiz, flashcards, exercises, notes) ra định dạng Markdown hoặc CSV |
+| F-70 | API `POST /api/export/course/[id]` xuất toàn bộ nội dung khóa học (bao gồm tất cả bài học) ra Markdown hoặc CSV |
+
+### 6.23 Module: Learner Profile / Pre-Assessment (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-71 | Mỗi khóa học có một `LearnerProfile` riêng, lưu: trình độ (`level`), mục tiêu (`goal`), thời gian học/ngày (`dailyTimeMin`), kiến thức đã biết (`knownTopics`), phong cách học (`learningStyle`). API: `GET/PUT /api/courses/[id]/profile` |
+
+### 6.24 Module: Chat Persistence (v1.2 — đã triển khai backend)
+
+| ID | Yêu cầu |
+|----|---------|
+| F-72 | Lịch sử chat được lưu vào DB qua model `ChatMessage` (role, content, lessonId, createdAt) |
+| F-73 | API `GET /api/lessons/[id]/chat` trả về lịch sử chat đã lưu của bài học |
+| F-74 | API `POST /api/lessons/[id]/chat` lưu tin nhắn mới; `DELETE /api/lessons/[id]/chat` xóa toàn bộ lịch sử |
+
 ---
 
 ## 7. Yêu cầu phi chức năng
@@ -347,71 +399,232 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 | Validation | Zod |
 | Deploy | Docker (docker-compose, port 3939) |
 
-### 8.2 Data Model
+### 8.2 Data Model (Actual — 7 models)
+
+> **Lưu ý:** Schema dưới đây phản ánh trạng thái THỰC TẾ của `prisma/schema.prisma` tính đến v1.2. Các fields `glossary`, `keyConcepts`, `Lesson.roadmap` trong kế hoạch v2.0 CHƯA được thêm vào schema — sẽ thêm khi implement Tier 2.
 
 ```prisma
 model Course {
-  id          String   @id @default(cuid())
-  url         String   @unique        // "manual:{uuid}" khi tạo thủ công/upload
-  title       String
-  roadmap     String?                 // AI-generated course roadmap / reading plan
-  contentType String   @default("course")  // v2.0: "course" | "book"
-  author      String?                 // v2.0: tác giả sách (nullable)
-  isbn        String?                 // v2.0: mã ISBN (nullable)
-  publisher   String?                 // v2.0: nhà xuất bản (nullable)
-  glossary    String?                 // v2.0: Tier 2 — glossary toàn sách (JSON string)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lessons     Lesson[]
+  id             String           @id @default(cuid())
+  url            String?          @unique  // nullable — manual courses dùng null
+  title          String
+  contentType    String           @default("course")  // v2.0: "course" | "book"
+  author         String?          // v2.0: tác giả sách
+  isbn           String?          // v2.0: mã ISBN
+  publisher      String?          // v2.0: nhà xuất bản
+  roadmap        String?          // AI-generated course roadmap / reading plan
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  lessons        Lesson[]
+  progress       CourseProgress?
+  learnerProfile LearnerProfile?
 }
 
 model Lesson {
-  id            String   @id @default(cuid())
-  courseId       String
-  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title          String
-  order          Int
-  transcript     String?
-  summary        String?               // AI-generated lesson summary
-  explanation    String?               // AI-generated lesson explanation
-  roadmap        String?               // Reserved (không dùng hiện tại)
-  quiz           String?               // AI-generated quiz
-  flashcards     String?               // AI-generated flashcard set
-  exercises      String?               // AI-generated practice exercises
-  chapterNumber  Int?                  // v2.0: số thứ tự chương sách (nullable)
-  pageRange      String?               // v2.0: "12-34" — phạm vi trang (nullable)
-  keyConcepts    String?               // v2.0: Tier 2 — key concepts JSON (nullable)
+  id               String             @id @default(cuid())
+  courseId          String
+  course           Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title            String
+  order            Int
+  chapterNumber    Int?               // v2.0: số thứ tự chương sách
+  pageRange        String?            // v2.0: "12-34" — phạm vi trang
+  transcript       String?
+  summary          String?            // AI-generated summary
+  explanation      String?            // AI-generated explanation
+  quiz             String?            // AI-generated quiz (JSON string)
+  flashcards       String?            // AI-generated flashcard set (JSON string)
+  exercises        String?            // AI-generated exercises (JSON string)
+  notes            String?            // User notes — v1.2
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  progress         LessonProgress?
+  flashcardReviews FlashcardReview[]
+  chatMessages     ChatMessage[]
+}
+
+model LessonProgress {
+  id                 String    @id @default(cuid())
+  lessonId           String
+  lesson             Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed          Boolean   @default(false)
+  completedAt        DateTime?
+  timeSpentMs        Int       @default(0)
+  quizScore          Float?
+  flashcardsMastered Int       @default(0)
+  flashcardsTotal    Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([lessonId])
+}
+
+model CourseProgress {
+  id               String    @id @default(cuid())
+  courseId          String
+  course           Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completionPct    Float     @default(0)
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastStudiedAt    DateTime?
+  totalTimeSpentMs Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([courseId])
+}
+
+model FlashcardReview {
+  id             String   @id @default(cuid())
+  lessonId       String
+  lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  cardIndex      Int
+  easinessFactor Float    @default(2.5)
+  interval       Int      @default(0)
+  repetitions    Int      @default(0)
+  nextReviewAt   DateTime @default(now())
+  lastQuality    Int      @default(0)
+  totalReviews   Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@unique([lessonId, cardIndex])
+}
+
+model LearnerProfile {
+  id            String   @id @default(cuid())
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  level         String              // beginner | intermediate | advanced
+  goal          String              // mục tiêu học tập
+  dailyTimeMin  Int                 // phút/ngày
+  knownTopics   String?             // JSON string — topics đã biết
+  learningStyle String              // visual | reading | kinesthetic | auditory
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([courseId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  role      String                  // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
 }
 ```
 
-> **v2.0 Migration**: Tất cả fields mới đều nullable hoặc có `@default` → non-breaking migration. Dữ liệu v1.x không bị ảnh hưởng.
+> **v2.0 Planned additions** (chưa trong schema): `Course.glossary String?`, `Lesson.keyConcepts String?` — sẽ thêm khi implement Tier 2.
 
 ### 8.3 API Routes
+
+> **Lưu ý:** Bảng dưới đây phản ánh TOÀN BỘ routes thực tế trong codebase tính đến v1.2.
+
+#### Core — Course & Lesson Management
 
 | Method | Endpoint | Chức năng | Ghi chú |
 |--------|----------|-----------|---------|
 | `GET` | `/api/courses` | Lấy tất cả khóa học kèm lessons | |
 | `POST` | `/api/courses` | Tạo khóa học mới | |
-| `GET` | `/api/courses/[id]` | Lấy chi tiết khóa học | |
 | `DELETE` | `/api/courses/[id]` | Xóa khóa học (cascade) | |
-| `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học | Trả về `roadmap` |
 | `POST` | `/api/courses/[id]/lessons` | Thêm bài học vào khóa học | |
-| `POST` | `/api/courses/upload` | Upload file transcript → tạo khóa học hoặc thêm bài học | Nhận `courseId` hoặc `courseTitle`; Zod validation |
-| `POST` | `/api/books/upload` | v2.0: Upload sách (PDF/EPUB/DOCX/TXT/MD) → tạo khóa học kiểu book | multipart/form-data; metadata sách; B-04→B-08 |
-| `POST` | `/api/books/split` | v2.0: Tier 2 — Auto chapter splitting (heuristic + AI) | B-17, B-18; trả về preview chapters |
-| `POST` | `/api/books/split/confirm` | v2.0: Tier 2 — Xác nhận chapters đã duyệt → tạo Lessons | B-19 |
-| `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
+| `PUT` | `/api/courses/[id]/lessons/reorder` | Sắp xếp lại thứ tự bài học | v1.2 |
+| `POST` | `/api/courses/upload` | Upload file transcript → tạo khóa học hoặc thêm bài học | Zod validation |
+| `GET` | `/api/lessons/[id]` | Lấy chi tiết bài học | |
+| `PUT` | `/api/lessons/[id]` | Cập nhật bài học | |
+| `DELETE` | `/api/lessons/[id]` | Xóa bài học | |
 | `PUT` | `/api/lessons/[id]/transcript` | Cập nhật transcript bài học | |
+
+#### AI Features
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/lessons/[id]/ai` | Lấy AI data cấp bài học | summary, explanation, quiz, flashcards, exercises |
+| `GET` | `/api/courses/[id]/ai` | Lấy AI data cấp khóa học | Trả về `roadmap` |
 | `POST` | `/api/ai/summary` | Tạo AI summary; persist → `Lesson.summary` | Cache guard + `force` flag; v2.0: nhận `contentType` |
 | `POST` | `/api/ai/explain` | Tạo AI explanation; persist → `Lesson.explanation` | Cache guard + `force` flag; v2.0: nhận `contentType` |
-| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist; không cache; v2.0: nhận `contentType` |
-| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa / reading plan; persist → `Course.roadmap` | Course-level; Cache guard + `force` flag; v2.0: nhận `contentType` |
-| `POST` | `/api/ai/quiz` | Tạo Quiz / Flashcard / Exercises | Param: `mode: "quiz" \| "flashcards" \| "exercises"`; Cache guard + `force` flag; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/chat` | Streaming chat (Server-Sent Events) | Không persist tự động; v2.0: nhận `contentType` |
+| `POST` | `/api/ai/roadmap` | Tạo lộ trình toàn khóa; persist → `Course.roadmap` | Course-level; Cache guard + `force` flag |
+| `POST` | `/api/ai/quiz` | Tạo Quiz / Flashcard / Exercises | `mode: "quiz" \| "flashcards" \| "exercises"` |
 | `POST` | `/api/ai/models` | Lấy danh sách model từ provider | |
+
+#### Udemy Integration
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
 | `POST` | `/api/udemy/courses` | Lấy danh sách khóa học đã enroll từ Udemy | |
 | `POST` | `/api/udemy/import` | Import khóa học, lessons, transcripts từ Udemy | |
+
+#### Book Upload (v2.0)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `POST` | `/api/books` | Tạo sách mới | |
+| `POST` | `/api/books/upload` | Upload sách (PDF/EPUB/DOCX/TXT/MD) | multipart/form-data |
+| `POST` | `/api/books/split` | Auto chapter splitting (heuristic + AI) | Trả về preview chapters |
+| `POST` | `/api/books/split/confirm` | Xác nhận chapters → tạo Lessons | |
+| `DELETE` | `/api/books` | Xóa sách | |
+
+#### Lesson Notes (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/lessons/[id]/notes` | Lấy ghi chú bài học | |
+| `PUT` | `/api/lessons/[id]/notes` | Cập nhật ghi chú bài học | |
+| `GET` | `/api/courses/[id]/notes/search` | Tìm kiếm ghi chú toàn khóa | Query param: `q` |
+
+#### Progress Tracking (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `POST` | `/api/lessons/[id]/progress` | Tạo tiến độ bài học | |
+| `PATCH` | `/api/lessons/[id]/progress` | Cập nhật tiến độ bài học | Partial update |
+| `GET` | `/api/courses/[id]/progress` | Lấy tiến độ tổng hợp khóa học | Bao gồm streak, completionPct |
+
+#### SRS Spaced Repetition (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `POST` | `/api/lessons/[id]/srs/init` | Khởi tạo FlashcardReview records | Tạo record cho mỗi flashcard |
+| `POST` | `/api/lessons/[id]/srs/review` | Ghi nhận đánh giá + cập nhật SM-2 | Body: `{ cardIndex, quality }` |
+| `GET` | `/api/lessons/[id]/srs/due` | Lấy flashcards đến hạn ôn tập | |
+| `GET` | `/api/srs/dashboard` | Tổng quan SRS toàn hệ thống | Due today, total reviews, streaks |
+
+#### Learning Analytics (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/analytics/overview` | Tổng quan học tập toàn hệ thống | Courses, lessons, time, streaks |
+| `GET` | `/api/analytics/course/[id]` | Phân tích chi tiết khóa học | Progress, scores, SRS stats |
+
+#### Export (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `POST` | `/api/export/lesson/[id]` | Xuất bài học ra Markdown/CSV | Body: `{ format }` |
+| `POST` | `/api/export/course/[id]` | Xuất toàn khóa ra Markdown/CSV | Body: `{ format }` |
+
+#### Learner Profile (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/courses/[id]/profile` | Lấy learner profile khóa học | |
+| `PUT` | `/api/courses/[id]/profile` | Tạo/cập nhật learner profile | Body: level, goal, dailyTimeMin, etc. |
+
+#### Chat Persistence (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/lessons/[id]/chat` | Lấy lịch sử chat bài học | |
+| `POST` | `/api/lessons/[id]/chat` | Lưu tin nhắn chat mới | |
+| `DELETE` | `/api/lessons/[id]/chat` | Xóa toàn bộ lịch sử chat bài học | |
+
+#### Course Collection (v1.2)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/courses/[id]/collection` | Lấy collection data khóa học | |
 
 ### 8.4 UI Architecture
 
@@ -449,6 +662,15 @@ model Lesson {
 - `QuizPlayer` — quiz tương tác: click chọn đáp án, chấm điểm, highlight đúng/sai
 - `FlashcardDeck` — flashcard lật thẻ: flip animation, prev/next, tiến trình
 - `ExerciseList` — bài tập accordion: mở rộng/thu gọn, lời giải tham khảo
+- `MarkdownRenderer` — render markdown content với syntax highlighting (v1.2)
+- `ModeToggle` — chuyển đổi dark/light mode (v1.2)
+- `OnboardingCard` — hướng dẫn người dùng mới, hiển thị 1 lần (v1.2)
+- `ThemeProvider` — context provider cho theme system (v1.2)
+
+**Custom hooks:**
+- `useUrlState` — đồng bộ app state với URL search params (v1.2)
+- `useMediaQuery` — responsive breakpoint detection (v1.2)
+- `useKeyboardShortcuts` — keyboard shortcuts handler (v1.2)
 
 **shadcn/ui primitives dùng:** `button`, `dialog`, `input`, `label`, `select`, `textarea`, `badge`, `alert-dialog`, `scroll-area`, `separator`, `tabs`, `card`
 
@@ -651,11 +873,21 @@ model Lesson {
 
 > Phần này chỉ ghi nhận, không phải cam kết.
 
-- Lưu lịch sử chat giữa các phiên
-- Export summary/explain/roadmap ra file Markdown
 - Hỗ trợ nhiều ngôn ngữ giao diện
 - PostgreSQL thay thế SQLite cho multi-user
 - Tìm kiếm toàn văn qua transcripts
+
+### v1.2 — Backend Feature Layer (đã triển khai backend, UI integration pending)
+
+> Các features dưới đây đã có đầy đủ backend (Prisma models + API routes + business logic). UI integration sẽ được thực hiện trong Giai đoạn 2 của roadmap.
+
+- **Lesson Notes** — ghi chú riêng cho từng bài học; tìm kiếm ghi chú toàn khóa (`Lesson.notes`, 2 routes + search)
+- **Progress Tracking** — theo dõi tiến độ bài học và khóa học; streak, completionPct, timeSpent (`LessonProgress` + `CourseProgress`, 3 routes)
+- **SRS Spaced Repetition** — SM-2 algorithm cho flashcard scheduling; init, review, due, dashboard (`FlashcardReview`, `src/lib/srs.ts`, 4 routes)
+- **Learning Analytics** — tổng quan học tập và phân tích chi tiết khóa; phụ thuộc Progress + SRS data (2 routes)
+- **Export** — xuất bài học/khóa học ra Markdown hoặc CSV (2 routes)
+- **Learner Profile / Pre-Assessment** — profile học viên per-course: level, goal, dailyTime, learningStyle (`LearnerProfile`, 2 routes)
+- **Chat Persistence** — lưu lịch sử chat vào DB, load lại khi quay lại bài (`ChatMessage`, 3 routes)
 
 ### v2.0 — Hỗ trợ Sách/Giáo trình (kế hoạch)
 
