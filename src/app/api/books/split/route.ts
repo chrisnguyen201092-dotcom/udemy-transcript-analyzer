@@ -1,18 +1,21 @@
 /**
  * POST /api/books/split
  * Parse a book file (PDF, DOCX, TXT, MD), detect chapter boundaries using
- * heuristic detection, and return a preview for user confirmation.
+ * heuristic detection (with optional AI fallback), and return a preview
+ * for user confirmation.
  *
  * The file content must be:
  *   - base64-encoded for binary formats (.pdf, .docx)
  *   - plain text for text formats (.txt, .md)
  *
- * Covers: B-17 (heuristic), B-18 (fallback)
+ * Covers: B-17 (heuristic), B-18 (AI fallback)
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsePdf, parseDocx, parseMarkdownChapters } from "@/lib/parse-book";
 import { detectChapters } from "@/lib/split-chapters";
+import type { DetectedChapter } from "@/lib/split-chapters";
+import { detectChaptersWithAI } from "@/lib/split-ai";
 import { MAX_BOOK_CONTENT_LENGTH, SUPPORTED_BOOK_EXTENSIONS } from "@/lib/book-constants";
 import { z } from "zod";
 
@@ -28,6 +31,10 @@ const SplitRequestSchema = z.object({
       minChapterWords: z.number().optional().default(200),
     })
     .optional(),
+  // AI config — required when splitConfig.useAI is true
+  apiKey: z.string().min(1).optional(),
+  baseUrl: z.string().url().optional(),
+  model: z.string().min(1).optional(),
 });
 
 function getExtension(format: string): string {
@@ -110,23 +117,108 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Persist raw text for future re-splitting ─────────────────────────
+    await prisma.course.update({
+      where: { id: parsed.bookId },
+      data: { rawContent: textContent },
+    });
+
     // ── Run heuristic chapter detection ──────────────────────────────────
-    const detected = detectChapters(textContent);
+    const detection = detectChapters(textContent);
+    const useAI = parsed.splitConfig?.useAI ?? false;
+    const aiThreshold = 0.5; // fallback to AI when avgConfidence < this
 
-    // Determine method and accumulate warnings
-    let method: "heuristic" | "fallback";
+    let method = detection.method;
+    let finalChapters = detection.chapters;
+    let avgConfidence = detection.avgConfidence;
+    let patternFamily: string = detection.patternFamily;
+    let tokensUsed = 0;
 
-    if (detected.length >= 2) {
-      method = "heuristic";
-    } else {
-      method = "fallback";
+    // ── AI fallback when heuristic is weak ──────────────────────────────
+    const shouldFallbackToAI =
+      useAI &&
+      (method === "fallback" || avgConfidence < aiThreshold);
+
+    if (shouldFallbackToAI) {
+      if (!parsed.apiKey || !parsed.baseUrl || !parsed.model) {
+        warnings.push(
+          "AI được yêu cầu nhưng thiếu cấu hình (apiKey/baseUrl/model). Dùng kết quả heuristic."
+        );
+      } else {
+        try {
+          const aiResult = await detectChaptersWithAI(textContent, {
+            apiKey: parsed.apiKey,
+            baseUrl: parsed.baseUrl,
+            model: parsed.model,
+          });
+          tokensUsed = aiResult.tokensUsed;
+
+          if (aiResult.chapters.length >= 2 && aiResult.confidence > avgConfidence) {
+            // AI found better chapters — build DetectedChapter-like objects
+            const lines = textContent.split("\n");
+            finalChapters = aiResult.chapters.map((ch, idx) => {
+              const endLine =
+                idx + 1 < aiResult.chapters.length
+                  ? aiResult.chapters[idx + 1].startLine
+                  : lines.length;
+              const content = lines.slice(ch.startLine + 1, endLine).join("\n").trim();
+              const wordCount = content.trim().length === 0
+                ? 0
+                : content.trim().split(/\s+/).length;
+              return {
+                title: ch.title,
+                content,
+                chapterNumber: idx + 1,
+                wordCount,
+                short: wordCount < 200,
+                confidence: aiResult.confidence,
+                patternType: "fallback" as const,
+              };
+            });
+            method = "heuristic"; // upgraded from fallback
+            avgConfidence = aiResult.confidence;
+            patternFamily = "ai";
+            warnings.push(
+              `AI đã phát hiện ${aiResult.chapters.length} chương (confidence: ${Math.round(aiResult.confidence * 100)}%).`
+            );
+          } else {
+            warnings.push(
+              "AI không tìm thấy cấu trúc tốt hơn. Dùng kết quả heuristic."
+            );
+          }
+        } catch (aiError) {
+          const reason = aiError instanceof Error ? aiError.message : String(aiError);
+          warnings.push(`AI fallback thất bại: ${reason}. Dùng kết quả heuristic.`);
+        }
+      }
+    }
+
+    if (method === "fallback") {
       warnings.push(
         "Không tìm thấy cấu trúc chương rõ ràng. Toàn bộ nội dung được gom thành 1 phần."
       );
     }
 
+    // Confidence-based warnings
+    if (avgConfidence > 0 && avgConfidence < 0.5) {
+      warnings.push(
+        useAI
+          ? "Độ tin cậy thấp ngay cả sau khi dùng AI."
+          : "Độ tin cậy thấp. Cân nhắc dùng AI phân tích."
+      );
+    }
+
+    // Flag low-confidence individual chapters
+    for (const ch of finalChapters) {
+      if (ch.confidence > 0 && ch.confidence < 0.3) {
+        warnings.push(
+          `Chương "${ch.title}" có độ tin cậy thấp (${Math.round(ch.confidence * 100)}%).`
+        );
+      }
+    }
+
     // Flag short chapters
-    for (const ch of detected) {
+    for (const ch of finalChapters) {
       if (ch.short) {
         warnings.push(
           `Chương "${ch.title}" ngắn (${ch.wordCount} từ). Cân nhắc gộp với chương liền kề.`
@@ -135,14 +227,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Map to response format
-    const chapters = detected.map((ch) => ({
+    const chapters = finalChapters.map((ch) => ({
       index: ch.chapterNumber,
       title: ch.title,
       wordCount: ch.wordCount,
       content: ch.content,
+      confidence: ch.confidence,
     }));
 
-    return NextResponse.json({ method, chapters, warnings });
+    return NextResponse.json({
+      method,
+      chapters,
+      warnings,
+      avgConfidence,
+      patternFamily,
+      ...(tokensUsed > 0 && { tokensUsed }),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

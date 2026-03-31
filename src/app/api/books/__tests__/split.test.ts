@@ -12,6 +12,7 @@ const { mockPrisma, mockDetectChapters, mockParsePdf, mockParseDocx } = vi.hoist
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     lesson: {
       create: vi.fn(),
@@ -62,10 +63,15 @@ const MOCK_BOOK = {
   contentType: "book",
 };
 
-const MOCK_CHAPTERS = [
-  { title: "Chapter 1", content: "Content of chapter one", chapterNumber: 1, wordCount: 500, short: false },
-  { title: "Chapter 2", content: "Content of chapter two", chapterNumber: 2, wordCount: 300, short: false },
-];
+const MOCK_CHAPTERS = {
+  chapters: [
+    { title: "Chapter 1", content: "Content of chapter one", chapterNumber: 1, wordCount: 500, short: false, confidence: 0.95, patternType: "keyword" },
+    { title: "Chapter 2", content: "Content of chapter two", chapterNumber: 2, wordCount: 300, short: false, confidence: 0.95, patternType: "keyword" },
+  ],
+  avgConfidence: 0.95,
+  method: "heuristic" as const,
+  patternFamily: "keyword" as const,
+};
 
 const VALID_SPLIT_BODY = {
   bookId: "book-1",
@@ -80,6 +86,7 @@ describe("POST /api/books/split", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockPrisma.course.update.mockResolvedValue(MOCK_BOOK);
     mockDetectChapters.mockReturnValue(MOCK_CHAPTERS);
     mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
     mockParseDocx.mockResolvedValue({ text: "parsed text" });
@@ -150,9 +157,14 @@ describe("POST /api/books/split", () => {
   // ── Fallback (single chapter) ─────────────────────────────────────────────
   describe("fallback behavior", () => {
     it("returns method='fallback' when detectChapters returns 1 chapter", async () => {
-      mockDetectChapters.mockReturnValue([
-        { title: "Untitled", content: "all text", chapterNumber: 1, wordCount: 1000, short: false },
-      ]);
+      mockDetectChapters.mockReturnValue({
+        chapters: [
+          { title: "Untitled", content: "all text", chapterNumber: 1, wordCount: 1000, short: false, confidence: 0, patternType: "fallback" },
+        ],
+        avgConfidence: 0,
+        method: "fallback",
+        patternFamily: "fallback",
+      });
 
       const req = makeSplitRequest(VALID_SPLIT_BODY);
       const res = await splitPost(req);
@@ -163,9 +175,14 @@ describe("POST /api/books/split", () => {
     });
 
     it("adds warning when only 1 chapter is detected", async () => {
-      mockDetectChapters.mockReturnValue([
-        { title: "Untitled", content: "all text", chapterNumber: 1, wordCount: 1000, short: false },
-      ]);
+      mockDetectChapters.mockReturnValue({
+        chapters: [
+          { title: "Untitled", content: "all text", chapterNumber: 1, wordCount: 1000, short: false, confidence: 0, patternType: "fallback" },
+        ],
+        avgConfidence: 0,
+        method: "fallback",
+        patternFamily: "fallback",
+      });
 
       const req = makeSplitRequest(VALID_SPLIT_BODY);
       const res = await splitPost(req);
@@ -178,10 +195,15 @@ describe("POST /api/books/split", () => {
   // ── Short chapter warning ─────────────────────────────────────────────────
   describe("short chapter warnings", () => {
     it("adds warning for chapters flagged as short", async () => {
-      mockDetectChapters.mockReturnValue([
-        { title: "Preface", content: "Short", chapterNumber: 1, wordCount: 50, short: true },
-        { title: "Main", content: "Long content here", chapterNumber: 2, wordCount: 500, short: false },
-      ]);
+      mockDetectChapters.mockReturnValue({
+        chapters: [
+          { title: "Preface", content: "Short", chapterNumber: 1, wordCount: 50, short: true, confidence: 0.9, patternType: "markdown-h1" },
+          { title: "Main", content: "Long content here", chapterNumber: 2, wordCount: 500, short: false, confidence: 0.9, patternType: "markdown-h1" },
+        ],
+        avgConfidence: 0.9,
+        method: "heuristic",
+        patternFamily: "markdown-h1",
+      });
 
       const req = makeSplitRequest(VALID_SPLIT_BODY);
       const res = await splitPost(req);
@@ -358,12 +380,18 @@ describe("POST /api/books/split — edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockPrisma.course.update.mockResolvedValue(MOCK_BOOK);
     mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
     mockParseDocx.mockResolvedValue({ text: "parsed text" });
   });
 
   it("handles empty chapters array after splitting", async () => {
-    mockDetectChapters.mockReturnValue([]);
+    mockDetectChapters.mockReturnValue({
+      chapters: [],
+      avgConfidence: 0,
+      method: "fallback",
+      patternFamily: "fallback",
+    });
 
     const req = makeSplitRequest(VALID_SPLIT_BODY);
     const res = await splitPost(req);
@@ -376,10 +404,15 @@ describe("POST /api/books/split — edge cases", () => {
   });
 
   it("handles chapter with only whitespace content", async () => {
-    mockDetectChapters.mockReturnValue([
-      { title: "Empty Chapter", content: "   \n\t\n  ", chapterNumber: 1, wordCount: 0, short: true },
-      { title: "Real Chapter", content: "Actual content here", chapterNumber: 2, wordCount: 300, short: false },
-    ]);
+    mockDetectChapters.mockReturnValue({
+      chapters: [
+        { title: "Empty Chapter", content: "   \n\t\n  ", chapterNumber: 1, wordCount: 0, short: true, confidence: 0.9, patternType: "markdown-h1" },
+        { title: "Real Chapter", content: "Actual content here", chapterNumber: 2, wordCount: 300, short: false, confidence: 0.9, patternType: "markdown-h1" },
+      ],
+      avgConfidence: 0.9,
+      method: "heuristic",
+      patternFamily: "markdown-h1",
+    });
 
     const req = makeSplitRequest(VALID_SPLIT_BODY);
     const res = await splitPost(req);
@@ -393,9 +426,14 @@ describe("POST /api/books/split — edge cases", () => {
 
   it("AI fallback when heuristic fails", async () => {
     // No heuristic chapters detected (only 1 "Untitled" fallback)
-    mockDetectChapters.mockReturnValue([
-      { title: "Untitled", content: "all the text in one block", chapterNumber: 1, wordCount: 5000, short: false },
-    ]);
+    mockDetectChapters.mockReturnValue({
+      chapters: [
+        { title: "Untitled", content: "all the text in one block", chapterNumber: 1, wordCount: 5000, short: false, confidence: 0, patternType: "fallback" },
+      ],
+      avgConfidence: 0,
+      method: "fallback",
+      patternFamily: "fallback",
+    });
 
     const req = makeSplitRequest(VALID_SPLIT_BODY);
     const res = await splitPost(req);

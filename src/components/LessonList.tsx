@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle } from "lucide-react";
+import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +50,10 @@ interface LessonListProps {
   onReorder?: (lessonIds: string[]) => void;
   progressMap?: Record<string, { completed: boolean }>;
   onToggleComplete?: (lessonId: string, completed: boolean) => void;
+  /** When provided, shows a "Re-split" button for book courses. */
+  onReSplit?: () => Promise<void>;
+  /** Course content type — re-split button only shows for 'book'. */
+  contentType?: string;
 }
 
 function SortableLessonItem({
@@ -165,9 +169,10 @@ function SortableLessonItem({
   );
 }
 
-export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder, progressMap, onToggleComplete }: LessonListProps) {
+export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, onDelete, onReorder, progressMap, onToggleComplete, onReSplit, contentType }: LessonListProps) {
   const [newLessonTitle, setNewLessonTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [reSplitLoading, setReSplitLoading] = useState(false);
 
   const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -284,6 +289,52 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
           <Plus className="w-3 h-3" />
         </Button>
       </form>
+
+      {onReSplit && contentType === "book" && lessons.length > 0 && (
+        <AlertDialog>
+          <AlertDialogTrigger
+            className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-md transition-colors cursor-pointer w-full mt-1"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Chia lại chương
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                Chia lại chương?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Tất cả <strong>{lessons.length}</strong> bài học hiện tại sẽ bị xóa, bao gồm tiến độ học, ghi chú, quiz và lịch sử chat. Bạn sẽ cần chia chương lại từ đầu.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">Huỷ</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={reSplitLoading}
+                onClick={async () => {
+                  setReSplitLoading(true);
+                  try {
+                    await onReSplit();
+                  } finally {
+                    setReSplitLoading(false);
+                  }
+                }}
+                className="bg-amber-600 hover:bg-amber-700 cursor-pointer"
+              >
+                {reSplitLoading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    Đang xóa...
+                  </>
+                ) : (
+                  "Xóa và chia lại"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

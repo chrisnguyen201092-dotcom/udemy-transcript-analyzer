@@ -273,6 +273,26 @@ export default function Home() {
     }
   };
 
+  const handleReSplit = async () => {
+    if (!selectedCourse) return;
+    try {
+      const res = await fetch("/api/books/split/lessons", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: selectedCourse.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Lỗi khi xóa bài học");
+      }
+      toast.success("Đã xóa tất cả bài học. Bạn có thể chia chương lại.");
+      setSelectedCourse({ ...selectedCourse, lessons: [] });
+      setSelectedLesson(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi xóa bài học");
+    }
+  };
+
   const handleReorderLessons = async (lessonIds: string[]) => {
     if (!selectedCourse) return;
 
@@ -660,6 +680,8 @@ export default function Home() {
                   onReorder={handleReorderLessons}
                   progressMap={lessonProgressMap}
                   onToggleComplete={handleToggleLessonComplete}
+                  onReSplit={handleReSplit}
+                  contentType={selectedCourse.contentType}
                 />
                 <button
                   type="button"

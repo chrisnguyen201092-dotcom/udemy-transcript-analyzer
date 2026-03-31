@@ -4,6 +4,8 @@
  *
  * Tests patterns: chapter/chương/phần/part regex, numbered headings,
  * markdown H1, ALL CAPS text headings, blank-line gaps, fallback, short chapters.
+ *
+ * detectChapters() returns DetectionResult { chapters, avgConfidence, method, patternFamily }.
  */
 import { describe, it, expect } from "vitest";
 import { detectChapters } from "@/lib/split-chapters";
@@ -22,13 +24,16 @@ describe("detectChapters", () => {
         "Additional methods content to ensure sufficient word count overall.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const result = detectChapters(text);
+      const { chapters } = result;
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].title).toContain("Chapter 1");
       expect(chapters[1].title).toContain("Chapter 2");
       expect(chapters[0].chapterNumber).toBe(1);
       expect(chapters[1].chapterNumber).toBe(2);
+      expect(result.method).toBe("heuristic");
+      expect(result.patternFamily).toBe("keyword");
     });
 
     it("detects 'Chương N' headings (Vietnamese)", () => {
@@ -40,7 +45,7 @@ describe("detectChapters", () => {
         "Nội dung phương pháp nghiên cứu và cách tiếp cận vấn đề.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].title).toContain("Chương 1");
@@ -56,7 +61,7 @@ describe("detectChapters", () => {
         "Ứng dụng content nội dung phần ứng dụng thực tế vào đời sống.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].title).toContain("Part 1");
@@ -72,7 +77,7 @@ describe("detectChapters", () => {
         "Content of chapter two with some meaningful information here.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
     });
@@ -92,12 +97,14 @@ describe("detectChapters", () => {
         "This is the methodology section describing the research approach.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const result = detectChapters(text);
+      const { chapters } = result;
 
       expect(chapters).toHaveLength(3);
       expect(chapters[0].title).toContain("Introduction");
       expect(chapters[1].title).toContain("Literature Review");
       expect(chapters[2].title).toContain("Methodology");
+      expect(result.patternFamily).toBe("numbered");
     });
   });
 
@@ -115,12 +122,14 @@ describe("detectChapters", () => {
         "Results content showing the outcomes of the research conducted.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const result = detectChapters(text);
+      const { chapters } = result;
 
       expect(chapters).toHaveLength(3);
       expect(chapters[0].title).toBe("Introduction");
       expect(chapters[1].title).toBe("Methods");
       expect(chapters[2].title).toBe("Results");
+      expect(result.patternFamily).toBe("markdown-h1");
     });
 
     it("ignores H2 and lower headings for chapter boundaries", () => {
@@ -136,7 +145,7 @@ describe("detectChapters", () => {
         "Content of chapter two.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].title).toBe("Chapter One");
@@ -161,7 +170,7 @@ describe("detectChapters", () => {
         "More content about results to pad this chapter appropriately.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters.length).toBeGreaterThanOrEqual(3);
       expect(chapters[0].title).toBe("INTRODUCTION");
@@ -176,7 +185,7 @@ describe("detectChapters", () => {
         "Actual chapter content with enough text for the detection logic.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       // The long CAPS line should NOT be a heading
       const titles = chapters.map((c) => c.title);
@@ -198,7 +207,7 @@ describe("detectChapters", () => {
         Array.from({ length: 50 }, (_, i) => `Word${i} content padding text`).join(" "),
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].short).toBe(true);
@@ -217,7 +226,7 @@ describe("detectChapters", () => {
         "alpha beta gamma",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters[0].wordCount).toBe(5);
       expect(chapters[1].wordCount).toBe(3);
@@ -230,15 +239,18 @@ describe("detectChapters", () => {
       const text = "Just plain text without any headings or structure at all. " +
         "This is a continuous block of text with no clear chapter boundaries.";
 
-      const chapters = detectChapters(text);
+      const result = detectChapters(text);
+      const { chapters } = result;
 
       expect(chapters).toHaveLength(1);
       expect(chapters[0].chapterNumber).toBe(1);
       expect(chapters[0].content).toContain("Just plain text");
+      expect(result.method).toBe("fallback");
+      expect(result.avgConfidence).toBe(0);
     });
 
     it("returns single chapter for empty/whitespace-only text", () => {
-      const chapters = detectChapters("   ");
+      const { chapters } = detectChapters("   ");
 
       expect(chapters).toHaveLength(1);
       expect(chapters[0].content.trim()).toBe("");
@@ -257,7 +269,7 @@ describe("detectChapters", () => {
         "Line 1 of body",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters[0].content).toContain("Line 1 of intro");
       expect(chapters[0].content).toContain("Line 2 of intro");
@@ -273,7 +285,7 @@ describe("detectChapters", () => {
         "Chapter 1 content.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       // Preamble either becomes its own chapter or is included in first chapter
       const allContent = chapters.map((c) => c.content).join(" ");
@@ -293,7 +305,7 @@ describe("detectChapters", () => {
         "Content C",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters[0].chapterNumber).toBe(1);
       expect(chapters[1].chapterNumber).toBe(2);
@@ -312,7 +324,7 @@ describe("detectChapters", () => {
         "Content for the middle part with enough text for detection.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
     });
@@ -324,7 +336,7 @@ describe("detectChapters", () => {
       const text = "This is just a plain paragraph of text without any headings, markers, or structure whatsoever. " +
         "It continues for a while to ensure there is enough content for the detection algorithm to analyze.";
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       // Should fallback to single chapter
       expect(chapters).toHaveLength(1);
@@ -343,7 +355,7 @@ describe("detectChapters", () => {
         "Content under caps heading with enough words for proper detection.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters.length).toBeGreaterThanOrEqual(2);
     });
@@ -360,7 +372,7 @@ describe("detectChapters", () => {
         "Line 2 of chapter two.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       // All content lines must appear somewhere in the chapters
       const allContent = chapters.map((c) => c.content).join("\n");
@@ -394,7 +406,7 @@ describe("detectChapters", () => {
         "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ ba cuối cùng.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       // Should detect the 3 real chapters. The discarded TOC stubs become
       // a Preamble chapter since they appear before the first real heading.
@@ -425,7 +437,7 @@ describe("detectChapters", () => {
         "Thêm nội dung để đảm bảo đủ số lượng từ cho chương thứ sáu cuối.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(3);
       // Ch.2 should have the full joined title, not just "CHƯƠNG 5."
@@ -451,7 +463,7 @@ describe("detectChapters", () => {
         "Thêm nội dung để đảm bảo số lượng từ đủ nhiều cho chương kết luận.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(3);
       expect(chapters[0].chapterNumber).toBe(1);
@@ -474,11 +486,54 @@ describe("detectChapters", () => {
         "Thêm nội dung để đảm bảo số lượng từ đủ nhiều cho chương thứ hai này.",
       ].join("\n");
 
-      const chapters = detectChapters(text);
+      const { chapters } = detectChapters(text);
 
       expect(chapters).toHaveLength(2);
       expect(chapters[0].title).toBe("CHƯƠNG 1. TỔNG QUAN VỀ QUẢN LÝ DỰ ÁN");
       expect(chapters[1].title).toBe("CHƯƠNG 2. CÁC PHƯƠNG PHÁP TIẾP CẬN");
+    });
+  });
+
+  // ── Confidence scoring ──────────────────────────────────────────────────
+  describe("confidence scoring", () => {
+    it("returns high confidence for keyword patterns", () => {
+      const text = [
+        "Chapter 1 Introduction",
+        "Substantial content for chapter one with many words.",
+        "",
+        "Chapter 2 Methods",
+        "Substantial content for chapter two with many words.",
+      ].join("\n");
+
+      const result = detectChapters(text);
+
+      expect(result.avgConfidence).toBeGreaterThanOrEqual(0.9);
+      expect(result.chapters[0].confidence).toBe(0.95);
+      expect(result.chapters[0].patternType).toBe("keyword");
+    });
+
+    it("returns zero confidence for fallback", () => {
+      const result = detectChapters("No headings here at all.");
+
+      expect(result.avgConfidence).toBe(0);
+      expect(result.chapters[0].patternType).toBe("fallback");
+    });
+
+    it("returns medium confidence for ALL CAPS patterns", () => {
+      const text = [
+        "INTRODUCTION",
+        "Content for introduction with enough words for detection.",
+        "More content to pad it out beyond minimum threshold.",
+        "",
+        "METHODOLOGY",
+        "Content for methodology with enough words for detection.",
+        "More content to pad it out beyond minimum threshold.",
+      ].join("\n");
+
+      const result = detectChapters(text);
+
+      expect(result.avgConfidence).toBeGreaterThanOrEqual(0.5);
+      expect(result.avgConfidence).toBeLessThanOrEqual(0.7);
     });
   });
 });
