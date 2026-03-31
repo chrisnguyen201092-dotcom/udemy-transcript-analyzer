@@ -11,8 +11,10 @@ export function createThinkFilteredStream(
   openaiStream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
 ): { stream: ReadableStream<Uint8Array>; fullText: Promise<string> } {
   let resolveFullText: (value: string) => void;
-  const fullText = new Promise<string>((resolve) => {
+  let rejectFullText: (reason: unknown) => void;
+  const fullText = new Promise<string>((resolve, reject) => {
     resolveFullText = resolve;
+    rejectFullText = reject;
   });
 
   const encoder = new TextEncoder();
@@ -24,63 +26,82 @@ export function createThinkFilteredStream(
       let inThink = false;
       let buffer = "";
       let fullAssistantResponse = "";
+      let settled = false;
 
-      for await (const chunk of openaiStream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (!content) continue;
+      try {
+        for await (const chunk of openaiStream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (!content) continue;
 
-        buffer += content;
+          buffer += content;
 
-        // Process buffer: strip <think>...</think> blocks
-        let output = "";
-        let i = 0;
-        while (i < buffer.length) {
-          if (!inThink) {
-            const openIdx = buffer.indexOf(OPEN_TAG, i);
-            if (openIdx === -1) {
-              // No full <think> found. Hold back the tail that might be
-              // a partial opening tag (e.g. buffer ends with "<thi").
-              const safeEnd = buffer.length - (OPEN_TAG.length - 1);
-              if (safeEnd > i) {
-                output += buffer.slice(i, safeEnd);
-                buffer = buffer.slice(safeEnd);
+          // Process buffer: strip <think>...</think> blocks
+          let output = "";
+          let i = 0;
+          let partialHold = false;
+          while (i < buffer.length) {
+            if (!inThink) {
+              const openIdx = buffer.indexOf(OPEN_TAG, i);
+              if (openIdx === -1) {
+                // No full <think> found. Hold back the tail that might be
+                // a partial opening tag (e.g. buffer ends with "<thi").
+                const safeEnd = buffer.length - (OPEN_TAG.length - 1);
+                if (safeEnd > i) {
+                  output += buffer.slice(i, safeEnd);
+                  buffer = buffer.slice(safeEnd);
+                } else {
+                  buffer = buffer.slice(i);
+                }
+                i = buffer.length;
+                partialHold = true;
+                break;
               } else {
-                buffer = buffer.slice(i);
+                output += buffer.slice(i, openIdx);
+                inThink = true;
+                i = openIdx + OPEN_TAG.length;
               }
-              i = buffer.length;
-              break;
             } else {
-              output += buffer.slice(i, openIdx);
-              inThink = true;
-              i = openIdx + OPEN_TAG.length;
+              const closeIdx = buffer.indexOf(CLOSE_TAG, i);
+              if (closeIdx === -1) {
+                buffer = buffer.slice(i);
+                i = buffer.length;
+                partialHold = true;
+                break;
+              } else {
+                inThink = false;
+                i = closeIdx + CLOSE_TAG.length;
+              }
             }
-          } else {
-            const closeIdx = buffer.indexOf(CLOSE_TAG, i);
-            if (closeIdx === -1) {
-              buffer = buffer.slice(i);
-              i = buffer.length;
-              break;
-            } else {
-              inThink = false;
-              i = closeIdx + CLOSE_TAG.length;
-            }
+          }
+
+          // If we consumed the entire buffer without a partial hold-back,
+          // clear it so the flush step won't re-emit the raw input.
+          if (!partialHold) {
+            buffer = "";
+          }
+
+          if (output) {
+            fullAssistantResponse += output;
+            controller.enqueue(encoder.encode(output));
           }
         }
 
-        if (output) {
-          fullAssistantResponse += output;
-          controller.enqueue(encoder.encode(output));
+        // Flush any remaining non-think buffer content
+        if (buffer && !inThink) {
+          fullAssistantResponse += buffer;
+          controller.enqueue(encoder.encode(buffer));
         }
-      }
 
-      // Flush any remaining non-think buffer content
-      if (buffer && !inThink) {
-        fullAssistantResponse += buffer;
-        controller.enqueue(encoder.encode(buffer));
+        controller.close();
+        settled = true;
+        resolveFullText!(fullAssistantResponse);
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          rejectFullText!(err);
+        }
+        controller.error(err);
       }
-
-      controller.close();
-      resolveFullText!(fullAssistantResponse);
     },
   });
 

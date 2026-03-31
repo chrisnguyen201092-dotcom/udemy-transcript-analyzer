@@ -16,7 +16,8 @@
  */
 import path from "path";
 import { pdfToPng } from "pdf-to-png-converter";
-import { createWorker, Worker } from "tesseract.js";
+import { createWorker } from "tesseract.js";
+import type { Worker } from "tesseract.js";
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,10 @@ async function getWorker(): Promise<Worker> {
     _worker = w;
     _workerInitialising = null;
     return w;
+  }).catch((err: unknown) => {
+    // Clear so the next call retries instead of returning the rejected promise
+    _workerInitialising = null;
+    throw err;
   });
 
   return _workerInitialising;
@@ -77,9 +82,14 @@ export async function terminateOcrWorker(): Promise<void> {
  * @returns Extracted text, empty string if no pages or OCR yields nothing.
  */
 export async function ocrPdf(pdfBuffer: Buffer): Promise<string> {
-  // Render all pages to PNG buffers.
-  // pdf-to-png-converter expects ArrayBuffer, not Node Buffer directly.
-  const pages = await pdfToPng(pdfBuffer.buffer as ArrayBuffer, {
+  // pdf-to-png-converter expects a plain ArrayBuffer.
+  // Node.js Buffer.buffer may be a shared backing store with an offset,
+  // so we create a clean copy via Uint8Array to avoid OOB reads.
+  const arrayBuffer = pdfBuffer.buffer.slice(
+    pdfBuffer.byteOffset,
+    pdfBuffer.byteOffset + pdfBuffer.byteLength
+  ) as ArrayBuffer;
+  const pages = await pdfToPng(arrayBuffer, {
     disableFontFace: true,
     useSystemFonts: false,
     viewportScale: 2.0, // higher resolution → better OCR accuracy
