@@ -156,21 +156,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Create lessons ─────────────────────────────────────────────────
+    // ── Create lessons atomically ──────────────────────────────────────
     const created: Array<{ id: string; title: string; order: number }> = [];
 
-    for (let i = 0; i < chapters.length; i++) {
-      const order = existingCount + i + 1;
-      const lesson = await prisma.lesson.create({
-        data: {
-          courseId: resolvedCourseId,
-          title: chapters[i].title,
-          order,
-          transcript: chapters[i].transcript || null,
-        },
-      });
-      created.push({ id: lesson.id, title: lesson.title, order: lesson.order });
-    }
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < chapters.length; i++) {
+        const order = existingCount + i + 1;
+        const lesson = await tx.lesson.create({
+          data: {
+            courseId: resolvedCourseId,
+            title: chapters[i].title,
+            order,
+            transcript: chapters[i].transcript || null,
+          },
+        });
+        created.push({ id: lesson.id, title: lesson.title, order: lesson.order });
+      }
+    });
 
     return NextResponse.json({ courseId: resolvedCourseId, created, warnings });
   } catch (error) {

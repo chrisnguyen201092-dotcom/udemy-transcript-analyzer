@@ -47,35 +47,35 @@ export async function POST(
       );
     }
 
-    // Find existing card indices to skip (idempotent)
-    const existing = await prisma.flashcardReview.findMany({
-      where: { lessonId: id },
-      select: { cardIndex: true },
-    });
-
-    const existingIndices = new Set(existing.map((r) => r.cardIndex));
-    const newCards = parsed.cards
-      .map((_card, index) => index)
-      .filter((index) => !existingIndices.has(index));
-
-    const skipped = existingIndices.size;
-
-    if (newCards.length > 0) {
-      await prisma.flashcardReview.createMany({
-        data: newCards.map((cardIndex) => ({
-          lessonId: id,
-          cardIndex,
-          easinessFactor: 2.5,
-          interval: 0,
-          repetitions: 0,
-          nextReviewAt: new Date(),
-          lastQuality: 0,
-          totalReviews: 0,
-        })),
+    // Atomically check existing indices and create new ones to prevent races
+    const { created, skipped } = await prisma.$transaction(async (tx) => {
+      const existing = await tx.flashcardReview.findMany({
+        where: { lessonId: id },
+        select: { cardIndex: true },
       });
-    }
 
-    const created = newCards.length;
+      const existingIndices = new Set(existing.map((r) => r.cardIndex));
+      const newCards = parsed.cards
+        .map((_card, index) => index)
+        .filter((index) => !existingIndices.has(index));
+
+      if (newCards.length > 0) {
+        await tx.flashcardReview.createMany({
+          data: newCards.map((cardIndex) => ({
+            lessonId: id,
+            cardIndex,
+            easinessFactor: 2.5,
+            interval: 0,
+            repetitions: 0,
+            nextReviewAt: new Date(),
+            lastQuality: 0,
+            totalReviews: 0,
+          })),
+        });
+      }
+
+      return { created: newCards.length, skipped: existingIndices.size };
+    });
 
     return NextResponse.json({
       created,

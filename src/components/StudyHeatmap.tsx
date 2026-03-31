@@ -27,12 +27,12 @@ export function StudyHeatmap({ data }: StudyHeatmapProps) {
       dateMap.set(d.date, d.lessonsCompleted);
     }
 
-    // Build 52 weeks × 7 days grid (most recent = rightmost)
+    // Build 52 weeks × 7 days grid (364 cells, most recent = rightmost)
     const today = new Date();
     const cells: Array<{ date: string; count: number; dayOfWeek: number }> = [];
 
-    // Go back 52*7 - 1 days from today
-    const totalDays = 52 * 7;
+    // Go back 363 days from today using local timezone
+    const totalDays = 52 * 7; // 364 cells
     const startDate = new Date(today);
     startDate.setDate(startDate.getDate() - totalDays + 1);
 
@@ -44,7 +44,8 @@ export function StudyHeatmap({ data }: StudyHeatmapProps) {
     for (let i = 0; i < totalDays; i++) {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
+      // Use toLocaleDateString("sv") for local timezone date (yyyy-MM-dd)
+      const dateStr = d.toLocaleDateString("sv");
       const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1; // Mon=0..Sun=6
       cells.push({
         date: dateStr,

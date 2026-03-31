@@ -201,16 +201,14 @@ export async function PATCH(
 
     const { deltaTimeMs, flashcardsMastered, flashcardsTotal } = body;
 
-    // Read existing progress for read-then-write pattern (SQLite, no increment)
-    const existing = await prisma.lessonProgress.findUnique({
-      where: { lessonId: id },
-    });
+    const delta = Math.max(0, deltaTimeMs ?? 0);
 
-    const currentTimeSpentMs = existing?.timeSpentMs ?? 0;
-    const newTimeSpentMs = currentTimeSpentMs + (deltaTimeMs ?? 0);
-
-    const updateData: Record<string, unknown> = {
-      timeSpentMs: newTimeSpentMs,
+    const updateData: {
+      timeSpentMs: { increment: number };
+      flashcardsMastered?: number;
+      flashcardsTotal?: number;
+    } = {
+      timeSpentMs: { increment: delta },
     };
     if (flashcardsMastered !== undefined) updateData.flashcardsMastered = flashcardsMastered;
     if (flashcardsTotal !== undefined) updateData.flashcardsTotal = flashcardsTotal;
@@ -219,7 +217,7 @@ export async function PATCH(
       where: { lessonId: id },
       create: {
         lessonId: id,
-        timeSpentMs: deltaTimeMs ?? 0,
+        timeSpentMs: delta,
         flashcardsMastered: flashcardsMastered ?? 0,
         flashcardsTotal: flashcardsTotal ?? 0,
       },

@@ -208,6 +208,13 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
     setTestResult({ status: 'idle' });
   };
 
+  const handleProfileSwitch = (id: string) => {
+    setSelectedId(id);
+    setEditingName(false);
+    setModelsError("");
+    setTestResult({ status: 'idle' });
+  };
+
   const fetchModels = useCallback(async (profile: AIProfile) => {
     if (!profile.baseUrl || !profile.apiKey) return;
     setFetchingModels(true);
@@ -260,7 +267,7 @@ export function SettingsModal({ open, store, onSave, onClose }: SettingsModalPro
               {draft.profiles.map((p) => (
                 <div
                   key={p.id}
-                  onClick={() => { setSelectedId(p.id); setEditingName(false); setModelsError(""); }}
+                  onClick={() => handleProfileSwitch(p.id)}
                   className={`group flex items-center gap-1.5 rounded-lg px-2.5 py-2 cursor-pointer text-xs transition-colors ${
                     p.id === selectedId
                       ? "bg-[#A435F0] text-white"
