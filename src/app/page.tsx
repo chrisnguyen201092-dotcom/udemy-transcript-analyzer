@@ -564,16 +564,25 @@ export default function Home() {
         toast.error("Lỗi khi lưu transcript");
         return;
       }
-      const updatedLesson = { ...selectedLesson!, transcript };
-      setSelectedLesson(updatedLesson);
-      if (selectedCourse) {
-        setSelectedCourse({
-          ...selectedCourse,
-          lessons: selectedCourse.lessons.map((l) =>
-            l.id === lessonId ? updatedLesson : l
-          ),
-        });
-      }
+      // Update all state sources so switching courses and coming back
+      // shows the saved transcript (courses array, selectedCourse, selectedLesson).
+      const updateLessons = (lessons: Lesson[]) =>
+        lessons.map((l) => (l.id === lessonId ? { ...l, transcript } : l));
+
+      setCourses((prev) =>
+        prev.map((c) => ({
+          ...c,
+          lessons: updateLessons(c.lessons),
+        }))
+      );
+      setSelectedCourse((prev) => {
+        if (!prev) return prev;
+        return { ...prev, lessons: updateLessons(prev.lessons) };
+      });
+      setSelectedLesson((prev) => {
+        if (!prev || prev.id !== lessonId) return prev;
+        return { ...prev, transcript };
+      });
       toast.success("Đã lưu transcript");
     } catch {
       toast.error("Lỗi khi lưu transcript");

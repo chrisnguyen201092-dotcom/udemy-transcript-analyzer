@@ -110,15 +110,17 @@ export function TranscriptPanel({
   const draftRef = useRef(draft);
   const isDirtyRef = useRef(isDirty);
   const lessonIdRef = useRef(lesson.id);
+  const onSaveRef = useRef(onSaveTranscript);
   draftRef.current = draft;
   isDirtyRef.current = isDirty;
   lessonIdRef.current = lesson.id;
+  onSaveRef.current = onSaveTranscript;
 
   // ── Auto-save on unmount (course/lesson switch) ──
   useEffect(() => {
     return () => {
       if (isDirtyRef.current && draftRef.current.trim()) {
-        onSaveTranscript(lessonIdRef.current, draftRef.current);
+        onSaveRef.current(lessonIdRef.current, draftRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
