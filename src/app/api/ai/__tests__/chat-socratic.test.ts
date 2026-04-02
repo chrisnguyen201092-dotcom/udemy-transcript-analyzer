@@ -15,7 +15,7 @@ const mockCreate = vi.fn();
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    lesson: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn(), findFirst: vi.fn() },
     chatMessage: { createMany: vi.fn() },
   },
 }));
@@ -60,7 +60,7 @@ async function readStream(res: Response): Promise<string> {
 describe("POST /api/ai/chat — Socratic mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       title: "Lesson 1",
       transcript: "Some transcript content",
@@ -143,7 +143,7 @@ describe("POST /api/ai/chat — Socratic mode", () => {
   });
 
   it("returns 400 when lesson not found (no transcript)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       title: "L",
       transcript: null,
@@ -160,7 +160,7 @@ describe("POST /api/ai/chat — Socratic mode", () => {
 describe("POST /api/ai/chat — DB persistence after stream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       title: "Lesson 1",
       transcript: "Some transcript",
@@ -250,7 +250,7 @@ describe("POST /api/ai/chat — DB persistence after stream", () => {
 describe("POST /api/ai/chat — Socratic mode edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       title: "Lesson 1",
       transcript: "Some transcript content about JavaScript promises and async/await patterns",

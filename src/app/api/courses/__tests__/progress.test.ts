@@ -8,9 +8,11 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     courseProgress: {
       upsert: vi.fn(),
+      create: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
@@ -36,7 +38,7 @@ describe("GET /api/courses/[id]/progress", () => {
   });
 
   it("returns course progress and lessons progress", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }, { id: "l3" }],
@@ -79,14 +81,14 @@ describe("GET /api/courses/[id]/progress", () => {
   });
 
   it("creates default course progress when none exists", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }],
     });
 
     mockPrisma.courseProgress.findFirst.mockResolvedValue(null);
-    mockPrisma.courseProgress.upsert.mockResolvedValue({
+    mockPrisma.courseProgress.create.mockResolvedValue({
       id: "cp1",
       courseId: "c1",
       completionPct: 0,
@@ -109,7 +111,7 @@ describe("GET /api/courses/[id]/progress", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeGetRequest("nonexistent");
     const res = await GET(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -118,7 +120,7 @@ describe("GET /api/courses/[id]/progress", () => {
   });
 
   it("returns all lessons progress for course", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }],
@@ -173,7 +175,7 @@ describe("course progress percentage edge cases", () => {
   });
 
   it("returns 0% progress for course with no completed lessons", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }, { id: "l3" }],
@@ -201,7 +203,7 @@ describe("course progress percentage edge cases", () => {
   });
 
   it("returns 100% progress when all lessons completed", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }],
@@ -249,7 +251,7 @@ describe("course progress percentage edge cases", () => {
   });
 
   it("progress calculation: 3 of 5 lessons = 60%", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }, { id: "l3" }, { id: "l4" }, { id: "l5" }],
@@ -282,7 +284,7 @@ describe("course progress percentage edge cases", () => {
 
   it("handles deleted lesson not affecting progress calculation", async () => {
     // Course has 2 lessons, but lessonProgress references a deleted lesson (l3)
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course 1",
       lessons: [{ id: "l1" }, { id: "l2" }],

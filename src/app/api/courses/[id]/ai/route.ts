@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const course = await prisma.course.findUnique({
-      where: { id },
-      select: {
-        roadmap: true,
-      },
+    const course = await prisma.course.findFirst({
+      where: { id, userId },
+      select: { roadmap: true },
     });
 
     if (!course) {
@@ -20,8 +16,8 @@ export async function GET(
     }
 
     const [profile, courseProgress] = await Promise.all([
-      prisma.learnerProfile.findUnique({ where: { courseId: id } }),
-      prisma.courseProgress.findUnique({ where: { courseId: id } }),
+      prisma.learnerProfile.findFirst({ where: { courseId: id, userId } }),
+      prisma.courseProgress.findFirst({ where: { courseId: id, userId } }),
     ]);
 
     return NextResponse.json({
@@ -36,4 +32,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

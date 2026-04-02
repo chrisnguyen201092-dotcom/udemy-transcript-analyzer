@@ -17,6 +17,9 @@ const { mockPrisma } = vi.hoisted(() => {
   };
   return {
     mockPrisma: {
+      course: {
+        findFirst: vi.fn(),
+      },
       lesson: {
         findUnique: vi.fn(),
       },
@@ -55,6 +58,7 @@ const lesson = {
 describe("POST /api/courses/[id]/lessons/split", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1", userId: "test-user-id" });
     mockPrisma.$transaction.mockImplementation(
       (cb: (tx: typeof mockPrisma._tx) => Promise<unknown>) => cb(mockPrisma._tx)
     );

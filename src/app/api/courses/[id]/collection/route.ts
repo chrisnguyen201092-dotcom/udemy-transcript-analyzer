@@ -1,27 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const course = await prisma.course.findUnique({
-      where: { id },
+    const course = await prisma.course.findFirst({
+      where: { id, userId },
       select: {
         id: true,
         title: true,
         lessons: {
-          select: {
-            id: true,
-            title: true,
-            order: true,
-            notes: true,
-            flashcards: true,
-            updatedAt: true,
-          },
+          select: { id: true, title: true, order: true },
           orderBy: { order: "asc" },
         },
       },
@@ -34,25 +25,52 @@ export async function GET(
       );
     }
 
+    // Fetch notes and flashcards artifacts for all lessons in one query
+    const lessonIds = course.lessons.map((l) => l.id);
+    const artifacts = await prisma.lessonArtifact.findMany({
+      where: { lessonId: { in: lessonIds }, userId, type: { in: ["notes", "flashcards"] } },
+      select: { lessonId: true, type: true, content: true, updatedAt: true },
+    });
+
+    // Build lookup: lessonId → type → { content, updatedAt }
+    type ArtifactEntry = { content: string; updatedAt: Date };
+    const artifactMap = new Map<string, Map<string, ArtifactEntry>>();
+    for (const a of artifacts) {
+      if (!artifactMap.has(a.lessonId)) artifactMap.set(a.lessonId, new Map());
+      artifactMap.get(a.lessonId)!.set(a.type, { content: a.content, updatedAt: a.updatedAt });
+    }
+
     const notesItems = course.lessons
-      .filter((l) => l.notes && l.notes.trim().length > 0)
-      .map((l) => ({
-        lessonId: l.id,
-        lessonTitle: l.title,
-        lessonOrder: l.order,
-        content: l.notes!,
-        updatedAt: l.updatedAt.toISOString(),
-      }));
+      .filter((l) => {
+        const content = artifactMap.get(l.id)?.get("notes")?.content;
+        return content && content.trim().length > 0;
+      })
+      .map((l) => {
+        const entry = artifactMap.get(l.id)!.get("notes")!;
+        return {
+          lessonId: l.id,
+          lessonTitle: l.title,
+          lessonOrder: l.order,
+          content: entry.content,
+          updatedAt: entry.updatedAt.toISOString(),
+        };
+      });
 
     const flashcardItems = course.lessons
-      .filter((l) => l.flashcards && l.flashcards.trim().length > 0)
-      .map((l) => ({
-        lessonId: l.id,
-        lessonTitle: l.title,
-        lessonOrder: l.order,
-        content: l.flashcards!,
-        updatedAt: l.updatedAt.toISOString(),
-      }));
+      .filter((l) => {
+        const content = artifactMap.get(l.id)?.get("flashcards")?.content;
+        return content && content.trim().length > 0;
+      })
+      .map((l) => {
+        const entry = artifactMap.get(l.id)!.get("flashcards")!;
+        return {
+          lessonId: l.id,
+          lessonTitle: l.title,
+          lessonOrder: l.order,
+          content: entry.content,
+          updatedAt: entry.updatedAt.toISOString(),
+        };
+      });
 
     return NextResponse.json({
       courseId: course.id,
@@ -72,4 +90,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

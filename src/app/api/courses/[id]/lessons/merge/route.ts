@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const MergeSchema = z.object({
   lessonId1: z.string().min(1),
@@ -12,13 +13,16 @@ const MergeSchema = z.object({
  * Merge two adjacent lessons into one. Keeps first lesson's related data;
  * second lesson cascade-deleted. AI fields cleared (stale after content change).
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id: courseId } = await params;
+    const courseId = params?.id!;
     const { lessonId1, lessonId2 } = MergeSchema.parse(await req.json());
+
+    // Verify course ownership
+    const course = await prisma.course.findFirst({ where: { id: courseId, userId } });
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
 
     // Fetch both lessons
     const [lesson1, lesson2] = await Promise.all([
@@ -98,4 +102,4 @@ export async function POST(
     console.error("[merge]", error);
     return NextResponse.json({ error: "Failed to merge lessons" }, { status: 500 });
   }
-}
+});

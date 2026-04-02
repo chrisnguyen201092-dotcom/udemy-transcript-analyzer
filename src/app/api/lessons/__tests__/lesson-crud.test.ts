@@ -40,6 +40,8 @@ import { DELETE, PUT } from "@/app/api/lessons/[id]/route";
 describe("DELETE /api/lessons/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Route calls lesson.findFirst for ownership check before delete
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1", courseId: "c1" });
   });
 
   it("deletes lesson successfully and returns 200 with success flag", async () => {
@@ -90,7 +92,7 @@ describe("PUT /api/lessons/[id] — rename lesson", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("PUT renames lesson title", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1", title: "Old Title" });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1", title: "Old Title" });
     mockPrisma.lesson.update.mockResolvedValue({ id: "l1", title: "New Title" });
 
     const req = new NextRequest("http://localhost/api/lessons/l1", {
@@ -130,7 +132,7 @@ describe("PUT /api/lessons/[id] — rename lesson", () => {
   });
 
   it("PUT returns 404 for non-existent lesson", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/lessons/nonexistent", {
       method: "PUT",
@@ -143,7 +145,11 @@ describe("PUT /api/lessons/[id] — rename lesson", () => {
 });
 
 describe("DELETE /api/lessons/[id] — cascade and 404 edge cases", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Route calls lesson.findFirst for ownership check before delete
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1", courseId: "c1" });
+  });
 
   it("DELETE cascades related data via prisma.lesson.delete", async () => {
     // The route calls prisma.lesson.delete directly.

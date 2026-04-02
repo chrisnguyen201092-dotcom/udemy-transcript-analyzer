@@ -1,28 +1,30 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MASTERED_THRESHOLD } from "@/lib/srs";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(_req: NextRequest) {
+export const GET = withAuth(async (_req, { userId }) => {
   try {
     const now = new Date();
 
     // All counts are computed in the database — no full row fetch.
     const [totalByLesson, dueByLesson, masteredByLesson] = await Promise.all([
-      // Total cards per lesson
+      // Total cards per lesson scoped to userId
       prisma.flashcardReview.groupBy({
         by: ["lessonId"],
+        where: { userId },
         _count: { _all: true },
       }),
       // Due cards per lesson (nextReviewAt <= now)
       prisma.flashcardReview.groupBy({
         by: ["lessonId"],
-        where: { nextReviewAt: { lte: now } },
+        where: { userId, nextReviewAt: { lte: now } },
         _count: { _all: true },
       }),
       // Mastered cards per lesson (interval >= MASTERED_THRESHOLD)
       prisma.flashcardReview.groupBy({
         by: ["lessonId"],
-        where: { interval: { gte: MASTERED_THRESHOLD } },
+        where: { userId, interval: { gte: MASTERED_THRESHOLD } },
         _count: { _all: true },
       }),
     ]);
@@ -36,7 +38,7 @@ export async function GET(_req: NextRequest) {
     // Fetch lesson titles for only the lessonIds that have cards (small set)
     const lessonIds = totalByLesson.map((r) => r.lessonId);
     const lessonRows = await prisma.lesson.findMany({
-      where: { id: { in: lessonIds } },
+      where: { id: { in: lessonIds }, course: { userId } },
       select: { id: true, title: true },
     });
     const titleMap = new Map(lessonRows.map((l) => [l.id, l.title]));
@@ -63,4 +65,4 @@ export async function GET(_req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -2,18 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { calculateSM2 } from "@/lib/srs";
+import { withAuth } from "@/lib/auth";
 
 const ReviewSchema = z.object({
   cardIndex: z.number().int().min(0),
   quality: z.number().int().min(0).max(5),
 });
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
     const body = await req.json();
     const parsed = ReviewSchema.safeParse(body);
@@ -27,9 +25,9 @@ export async function POST(
 
     const { cardIndex, quality } = parsed.data;
 
-    // Find the review record
+    // Find the review record scoped to userId
     const review = await prisma.flashcardReview.findFirst({
-      where: { lessonId: id, cardIndex },
+      where: { lessonId: id, cardIndex, userId },
     });
 
     if (!review) {
@@ -76,4 +74,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

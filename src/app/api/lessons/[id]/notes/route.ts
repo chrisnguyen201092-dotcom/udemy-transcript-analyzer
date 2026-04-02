@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
-      select: { id: true, notes: true, updatedAt: true },
+    const lesson = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
+      select: { id: true, updatedAt: true },
     });
 
     if (!lesson) {
@@ -20,10 +18,15 @@ export async function GET(
       );
     }
 
+    const artifact = await prisma.lessonArtifact.findUnique({
+      where: { userId_lessonId_type: { userId, lessonId: id, type: "notes" } },
+      select: { content: true, updatedAt: true },
+    });
+
     return NextResponse.json({
       lessonId: lesson.id,
-      notes: lesson.notes,
-      updatedAt: lesson.updatedAt.toISOString(),
+      notes: artifact?.content ?? null,
+      updatedAt: (artifact?.updatedAt ?? lesson.updatedAt).toISOString(),
     });
   } catch (error) {
     console.error("Failed to get lesson notes:", error);
@@ -32,14 +35,11 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
     const body = await req.json();
     if (typeof body.notes !== "string") {
@@ -49,8 +49,8 @@ export async function PUT(
       );
     }
 
-    const exists = await prisma.lesson.findUnique({
-      where: { id },
+    const exists = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
       select: { id: true },
     });
 
@@ -61,16 +61,17 @@ export async function PUT(
       );
     }
 
-    const updated = await prisma.lesson.update({
-      where: { id },
-      data: { notes: body.notes },
-      select: { id: true, notes: true, updatedAt: true },
+    const artifact = await prisma.lessonArtifact.upsert({
+      where: { userId_lessonId_type: { userId, lessonId: id, type: "notes" } },
+      create: { userId, lessonId: id, type: "notes", content: body.notes },
+      update: { content: body.notes },
+      select: { content: true, updatedAt: true },
     });
 
     return NextResponse.json({
-      id: updated.id,
-      notes: updated.notes,
-      updatedAt: updated.updatedAt.toISOString(),
+      id,
+      notes: artifact.content,
+      updatedAt: artifact.updatedAt.toISOString(),
     });
   } catch (error) {
     console.error("Failed to save lesson notes:", error);
@@ -79,4 +80,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});

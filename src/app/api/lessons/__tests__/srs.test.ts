@@ -13,6 +13,10 @@ const { mockPrisma } = vi.hoisted(() => {
   const db = {
     lesson: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    lessonArtifact: {
+      findUnique: vi.fn(),
     },
     flashcardReview: {
       findMany: vi.fn(),
@@ -79,9 +83,12 @@ beforeEach(() => {
 
 describe("POST /api/lessons/[id]/srs/init", () => {
   it("creates FlashcardReview records for each card", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
     mockPrisma.flashcardReview.findMany.mockResolvedValue([]);
     mockPrisma.flashcardReview.createMany.mockResolvedValue({ count: 3 });
@@ -99,9 +106,12 @@ describe("POST /api/lessons/[id]/srs/init", () => {
   });
 
   it("skips already-existing card indices (idempotent)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
     // Card 0 already exists
     mockPrisma.flashcardReview.findMany.mockResolvedValue([
@@ -122,7 +132,7 @@ describe("POST /api/lessons/[id]/srs/init", () => {
   });
 
   it("returns 404 if lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = makePostRequest(
       "http://localhost/api/lessons/nonexistent/srs/init",
@@ -134,10 +144,8 @@ describe("POST /api/lessons/[id]/srs/init", () => {
   });
 
   it("returns 422 if lesson has no flashcards field", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: null,
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
 
     const req = makePostRequest(
       `http://localhost/api/lessons/${LESSON_ID}/srs/init`,
@@ -149,9 +157,12 @@ describe("POST /api/lessons/[id]/srs/init", () => {
   });
 
   it("returns 422 if flashcards.cards is empty array", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: JSON.stringify({ cards: [] }),
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: JSON.stringify({ cards: [] }),
     });
 
     const req = makePostRequest(
@@ -170,9 +181,12 @@ describe("POST /api/lessons/[id]/srs/init", () => {
 
 describe("GET /api/lessons/[id]/srs/due", () => {
   it("returns due cards with card content from lesson flashcards", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
     mockPrisma.flashcardReview.findMany.mockResolvedValue([
       {
@@ -217,9 +231,12 @@ describe("GET /api/lessons/[id]/srs/due", () => {
   });
 
   it("returns empty array when no cards are due", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
     mockPrisma.flashcardReview.findMany.mockResolvedValue([]);
 
@@ -235,7 +252,7 @@ describe("GET /api/lessons/[id]/srs/due", () => {
   });
 
   it("returns 404 if lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = makeGetRequest(
       "http://localhost/api/lessons/nonexistent/srs/due"
@@ -357,9 +374,12 @@ describe("C-5 regression: concurrent SRS init is idempotent", () => {
   it("second concurrent call returns 200 with 0 created (all skipped)", async () => {
     // Simulate: first call already created all 3 cards.
     // Second concurrent call finds them all via findMany and skips.
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
 
     // All 3 cards already exist when second call reads
@@ -390,9 +410,12 @@ describe("C-5 regression: concurrent SRS init is idempotent", () => {
   it("uses $transaction to prevent duplicate card creation", async () => {
     // Verify the route wraps init logic in a $transaction.
     // We check this by confirming findMany is called within the same mock scope.
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: LESSON_ID,
-      flashcards: FLASHCARDS_JSON,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: LESSON_ID });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      lessonId: LESSON_ID,
+      type: "flashcards",
+      content: FLASHCARDS_JSON,
     });
 
     mockPrisma.flashcardReview.findMany.mockResolvedValue([]);

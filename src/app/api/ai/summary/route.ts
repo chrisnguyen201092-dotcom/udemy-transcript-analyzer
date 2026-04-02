@@ -5,6 +5,7 @@ import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
+import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
 const inFlightGenerations = new Map<string, Promise<void>>();
@@ -20,7 +21,7 @@ const SummarySchema = z.object({
   totalLessons: z.number().int().min(1).optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const { lessonId, apiKey, baseUrl, model, force, mode, lessonIndex, totalLessons } = SummarySchema.parse(await req.json());
 
@@ -31,8 +32,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid configuration" }, { status: 400 });
     }
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, course: { userId } },
       include: { course: true },
     });
 
@@ -44,17 +45,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Cache guard — return JSON for cached results
-    if (lesson.summary && !force) {
-      return NextResponse.json({ summary: lesson.summary });
+    const cachedArtifact = await prisma.lessonArtifact.findUnique({
+      where: { userId_lessonId_type: { userId, lessonId, type: "summary" } },
+      select: { content: true },
+    });
+    if (cachedArtifact?.content && !force) {
+      return NextResponse.json({ summary: cachedArtifact.content });
     }
 
     // M-11: If another request is already generating this summary, wait for it then re-check cache
     const cacheKey = `summary-${lessonId}`;
     if (inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
-      const refreshed = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { summary: true } });
-      if (refreshed?.summary) {
-        return NextResponse.json({ summary: refreshed.summary, cached: true });
+      const refreshed = await prisma.lessonArtifact.findUnique({
+        where: { userId_lessonId_type: { userId, lessonId, type: "summary" } },
+        select: { content: true },
+      });
+      if (refreshed?.content) {
+        return NextResponse.json({ summary: refreshed.content, cached: true });
       }
     }
 
@@ -88,9 +96,10 @@ export async function POST(req: NextRequest) {
     const generationPromise = fullText.then(async (summary) => {
       if (!summary) return;
       try {
-        await prisma.lesson.update({
-          where: { id: lessonId },
-          data: { summary },
+        await prisma.lessonArtifact.upsert({
+          where: { userId_lessonId_type: { userId, lessonId, type: "summary" } },
+          create: { userId, lessonId, type: "summary", content: summary },
+          update: { content: summary },
         });
       } catch (dbError) {
         console.error("[summary] DB persistence failed:", dbError);
@@ -108,4 +117,4 @@ export async function POST(req: NextRequest) {
     console.error("[AI Route Error]", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

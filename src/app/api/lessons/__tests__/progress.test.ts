@@ -8,6 +8,7 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     lesson: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     lessonProgress: {
       upsert: vi.fn(),
@@ -50,7 +51,7 @@ describe("POST /api/lessons/[id]/progress", () => {
   });
 
   it("marks lesson as completed and returns lessonProgress", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }, { id: "l2" }] },
@@ -96,7 +97,7 @@ describe("POST /api/lessons/[id]/progress", () => {
   });
 
   it("marks lesson as not completed (toggle off)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -135,7 +136,7 @@ describe("POST /api/lessons/[id]/progress", () => {
   });
 
   it("saves quizScore when provided", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -175,7 +176,7 @@ describe("POST /api/lessons/[id]/progress", () => {
   });
 
   it("returns 404 when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = makePostRequest("nonexistent", { completed: true });
     const res = await POST(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -201,7 +202,7 @@ describe("POST /api/lessons/[id]/progress", () => {
     const yesterday = new Date();
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
 
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -249,7 +250,7 @@ describe("POST /api/lessons/[id]/progress", () => {
     const threeDaysAgo = new Date();
     threeDaysAgo.setUTCDate(threeDaysAgo.getUTCDate() - 3);
 
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -297,7 +298,7 @@ describe("POST /api/lessons/[id]/progress", () => {
   it("keeps streak same when studying same day", async () => {
     const today = new Date();
 
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -350,7 +351,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   });
 
   it("adds deltaTimeMs to existing progress", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },
@@ -398,7 +399,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   });
 
   it("updates flashcard mastery", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },
@@ -437,7 +438,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   });
 
   it("creates progress record when none exists", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },
@@ -475,7 +476,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   });
 
   it("returns 404 when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = makePatchRequest("nonexistent", { deltaTimeMs: 1000 });
     const res = await PATCH(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -491,7 +492,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   });
 
   it("accepts empty body (all fields optional)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },
@@ -538,7 +539,7 @@ describe("PATCH /api/lessons/[id]/progress", () => {
   // ── C-4 regression: atomic increment ──────────────────────────────────────
 
   it("C-4 regression: upsert uses { increment: delta } for atomic time tracking", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },
@@ -597,7 +598,7 @@ describe("auto-complete conditions", () => {
   });
 
   it("auto-completes when summary + explain + quiz ≥70% all present", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       aiSummary: "Some summary",
@@ -640,7 +641,7 @@ describe("auto-complete conditions", () => {
   });
 
   it("does NOT auto-complete when quizScore < 70", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       aiSummary: "Some summary",
@@ -680,7 +681,7 @@ describe("auto-complete conditions", () => {
   });
 
   it("does NOT auto-complete when summary is missing", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       aiSummary: null,
@@ -728,7 +729,7 @@ describe("first-ever lesson completion", () => {
   });
 
   it("first-ever lesson completion creates both LessonProgress and CourseProgress", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }, { id: "l2" }] },
@@ -781,7 +782,7 @@ describe("quizScore null vs 0 distinction", () => {
   });
 
   it("quizScore null means never attempted", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -821,7 +822,7 @@ describe("quizScore null vs 0 distinction", () => {
   });
 
   it("quizScore 0 means failed quiz", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }] },
@@ -869,7 +870,7 @@ describe("100% completion state", () => {
   });
 
   it("100% completion state updates CourseProgress completedLessons matching total", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l2",
       courseId: "c1",
       course: { id: "c1", lessons: [{ id: "l1" }, { id: "l2" }] },
@@ -932,7 +933,7 @@ describe("PATCH deltaTimeMs large value", () => {
   it("PATCH deltaTimeMs caps at reasonable max (e.g., 24h) or stores large value", async () => {
     const twentyFourHoursMs = 24 * 60 * 60 * 1000; // 86400000
 
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
       courseId: "c1",
       course: { id: "c1" },

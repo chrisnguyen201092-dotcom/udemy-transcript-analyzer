@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 interface LessonProgressRecord {
   lessonId: string;
@@ -17,29 +18,18 @@ interface LessonReviewStats {
 
 /**
  * GET /api/analytics/course/[id]
- *
- * Returns detailed analytics for a single course.
- * Summary metrics (counts, sums, averages) are computed in the database;
- * only per-lesson detail rows are fetched into memory.
+ * Returns detailed analytics for a single course scoped to the authenticated user.
  */
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    // Fetch course with lessons ordered by `order`
-    const course = await prisma.course.findUnique({
-      where: { id },
+    const course = await prisma.course.findFirst({
+      where: { id, userId },
       include: {
         lessons: {
           orderBy: { order: "asc" },
-          select: {
-            id: true,
-            title: true,
-            order: true,
-          },
+          select: { id: true, title: true, order: true },
         },
       },
     });
@@ -52,7 +42,6 @@ export async function GET(
     const totalLessons = lessonIds.length;
     const now = new Date();
 
-    // ── DB-level aggregations ──────────────────────────────────────────────
     const [
       completedCount,
       timeAgg,
@@ -62,43 +51,34 @@ export async function GET(
       dueCardCount,
       efAgg,
     ] = await Promise.all([
-      // Completed lesson count
       prisma.lessonProgress.count({
-        where: { lessonId: { in: lessonIds }, completed: true },
+        where: { userId, lessonId: { in: lessonIds }, completed: true },
       }),
-      // Total time spent
       prisma.lessonProgress.aggregate({
-        where: { lessonId: { in: lessonIds } },
+        where: { userId, lessonId: { in: lessonIds } },
         _sum: { timeSpentMs: true },
       }),
-      // Average quiz score (only rows with a score)
       prisma.lessonProgress.aggregate({
-        where: { lessonId: { in: lessonIds }, quizScore: { not: null } },
+        where: { userId, lessonId: { in: lessonIds }, quizScore: { not: null } },
         _avg: { quizScore: true },
         _count: { quizScore: true },
       }),
-      // Total flashcard reviews for course
       prisma.flashcardReview.count({
-        where: { lessonId: { in: lessonIds } },
+        where: { userId, lessonId: { in: lessonIds } },
       }),
-      // Mastered cards (interval > 7)
       prisma.flashcardReview.count({
-        where: { lessonId: { in: lessonIds }, interval: { gt: 7 } },
+        where: { userId, lessonId: { in: lessonIds }, interval: { gt: 7 } },
       }),
-      // Due cards
       prisma.flashcardReview.count({
-        where: { lessonId: { in: lessonIds }, nextReviewAt: { lte: now } },
+        where: { userId, lessonId: { in: lessonIds }, nextReviewAt: { lte: now } },
       }),
-      // Average easiness factor
       prisma.flashcardReview.aggregate({
-        where: { lessonId: { in: lessonIds } },
+        where: { userId, lessonId: { in: lessonIds } },
         _avg: { easinessFactor: true },
       }),
     ]);
 
-    const totalTimeSeconds = Math.round(
-      (timeAgg._sum.timeSpentMs ?? 0) / 1000
-    );
+    const totalTimeSeconds = Math.round((timeAgg._sum.timeSpentMs ?? 0) / 1000);
     const completionRate =
       totalLessons > 0
         ? Math.round((completedCount / totalLessons) * 10000) / 100
@@ -116,10 +96,9 @@ export async function GET(
         ? Math.round(efAgg._avg.easinessFactor * 100) / 100
         : null;
 
-    // ── Per-lesson detail (small row fetch) ───────────────────────────────
     const lessonProgressRecords: LessonProgressRecord[] =
       await prisma.lessonProgress.findMany({
-        where: { lessonId: { in: lessonIds } },
+        where: { userId, lessonId: { in: lessonIds } },
         select: {
           lessonId: true,
           completed: true,
@@ -132,15 +111,14 @@ export async function GET(
       lessonProgressRecords.map((lp) => [lp.lessonId, lp])
     );
 
-    // Per-lesson flashcard mastered counts (grouped in DB via groupBy)
     const masteredByLesson = await prisma.flashcardReview.groupBy({
       by: ["lessonId"],
-      where: { lessonId: { in: lessonIds }, interval: { gt: 7 } },
+      where: { userId, lessonId: { in: lessonIds }, interval: { gt: 7 } },
       _count: { _all: true },
     });
     const totalByLesson = await prisma.flashcardReview.groupBy({
       by: ["lessonId"],
-      where: { lessonId: { in: lessonIds } },
+      where: { userId, lessonId: { in: lessonIds } },
       _count: { _all: true },
     });
 
@@ -178,8 +156,6 @@ export async function GET(
       };
     });
 
-    // Quiz score distribution (5 bins) — still computed in JS but only over
-    // the small per-lesson set (one score per lesson, not all rows)
     const quizScoreDistribution = [
       { bin: "0-20", count: 0 },
       { bin: "21-40", count: 0 },
@@ -215,4 +191,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

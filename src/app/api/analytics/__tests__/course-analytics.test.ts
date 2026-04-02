@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    course: { count: vi.fn(), findUnique: vi.fn() },
+    course: { count: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
     lesson: { findMany: vi.fn() },
     lessonProgress: { count: vi.fn(), aggregate: vi.fn(), findMany: vi.fn() },
     flashcardReview: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn() },
@@ -56,7 +56,7 @@ const DEFAULT_EF_AGG = { _avg: { easinessFactor: null } };
 beforeEach(() => {
   vi.clearAllMocks();
   // Default: course found, no progress, no reviews
-  mockPrisma.course.findUnique.mockResolvedValue(baseCourse);
+  mockPrisma.course.findFirst.mockResolvedValue(baseCourse);
   mockPrisma.lessonProgress.count.mockResolvedValue(0);
   // Route calls aggregate twice in Promise.all: first _sum timeSpentMs, then _avg quizScore.
   // Use mockImplementation so individual tests can override with mockResolvedValueOnce.
@@ -172,7 +172,7 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("returns 404 when course does not exist", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const res = await GET(makeReq(), makeParams("nonexistent"));
     const data = await res.json();
@@ -320,7 +320,7 @@ describe("GET /api/analytics/course/[id]", () => {
   });
 
   it("returns 500 on database error", async () => {
-    mockPrisma.course.findUnique.mockRejectedValue(new Error("DB crashed"));
+    mockPrisma.course.findFirst.mockRejectedValue(new Error("DB crashed"));
 
     const res = await GET(makeReq(), makeParams("c1"));
     const data = await res.json();
@@ -331,7 +331,7 @@ describe("GET /api/analytics/course/[id]", () => {
 
   it("lessons are ordered by order field from the course query", async () => {
     // Override with out-of-order lessons to verify DB ordering is respected
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       ...baseCourse,
       lessons: [
         { id: "l3", title: "Functions", order: 3 },
@@ -356,7 +356,7 @@ describe("course analytics edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset defaults
-    mockPrisma.course.findUnique.mockResolvedValue(baseCourse);
+    mockPrisma.course.findFirst.mockResolvedValue(baseCourse);
     mockPrisma.lessonProgress.count.mockResolvedValue(0);
     let aggregateCallCount = 0;
     mockPrisma.lessonProgress.aggregate.mockImplementation(() => {
@@ -376,7 +376,7 @@ describe("course analytics edge cases", () => {
       order: i + 1,
     }));
 
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       ...baseCourse,
       lessons: manyLessons,
     });

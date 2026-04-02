@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 interface FlashcardData {
   front: string;
@@ -12,16 +13,14 @@ interface FlashcardsJSON {
   cards: FlashcardData[];
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
-      select: { id: true, flashcards: true },
+    // Verify lesson belongs to user's course
+    const lesson = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
+      select: { id: true },
     });
 
     if (!lesson) {
@@ -31,18 +30,24 @@ export async function GET(
       );
     }
 
-    // Get due reviews (nextReviewAt <= now)
+    // Get due reviews scoped to userId
     const dueReviews = await prisma.flashcardReview.findMany({
       where: {
         lessonId: id,
+        userId,
         nextReviewAt: { lte: new Date() },
       },
     });
 
-    // Parse flashcards to get card content
+    // Read flashcards from per-user LessonArtifact instead of legacy Lesson column
     let cards: FlashcardData[] = [];
-    if (lesson.flashcards) {
-      const parsed: FlashcardsJSON = JSON.parse(lesson.flashcards);
+    const artifact = await prisma.lessonArtifact.findUnique({
+      where: {
+        userId_lessonId_type: { userId, lessonId: id, type: "flashcards" },
+      },
+    });
+    if (artifact) {
+      const parsed: FlashcardsJSON = JSON.parse(artifact.content);
       cards = parsed.cards ?? [];
     }
 
@@ -73,4 +78,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

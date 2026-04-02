@@ -55,7 +55,7 @@ describe("POST /api/ai/chat", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("returns 400 when lesson has no transcript", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: null, course: { title: "C" },
     });
 
@@ -90,7 +90,7 @@ describe("POST /api/ai/chat", () => {
   });
 
   it("returns streaming response with text/plain Content-Type", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "Some transcript", course: { title: "C" },
     });
     mockCreate.mockResolvedValue(makeStream(["Hello ", "World"]));
@@ -103,7 +103,7 @@ describe("POST /api/ai/chat", () => {
   });
 
   it("strips <think> blocks from streamed content", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
     // Deliver think block across chunks
@@ -129,7 +129,7 @@ describe("POST /api/ai/chat", () => {
   });
 
   it("accepts messages array (full history mode)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
     mockCreate.mockResolvedValue(makeStream(["Response"]));
@@ -158,7 +158,7 @@ describe("POST /api/ai/chat", () => {
   });
 
   it("think block split across stream chunks is still stripped", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
     // Split the think tag across multiple chunks
@@ -187,7 +187,7 @@ describe("POST /api/ai/chat", () => {
 
   // ─── Edge case: handles long conversation history (>20 messages) ────────────
   it("handles conversation with 21+ messages gracefully", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C" },
     });
     mockCreate.mockResolvedValue(makeStream(["Response"]));
@@ -228,7 +228,7 @@ describe("POST /api/ai/chat", () => {
 
   // ─── Edge case: lesson with no transcript ──────────────────────────────────
   it("handles lesson with no transcript in chat context — returns 400", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: null, course: { title: "C" },
     });
 

@@ -16,7 +16,11 @@ const { mockPrisma } = vi.hoisted(() => ({
       count: vi.fn(),
       deleteMany: vi.fn(),
     },
-    learnerProfile: { findUnique: vi.fn() },
+    lessonArtifact: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
+    learnerProfile: { findUnique: vi.fn(), findFirst: vi.fn() },
     course: {
       findMany: vi.fn(),
       create: vi.fn(),
@@ -67,12 +71,11 @@ function setupLessonMock(overrides: Record<string, unknown> = {}) {
     id: "l1",
     title: "Lesson Title",
     transcript: generateTranscript(300),
-    explanation: null,
     courseId: "c1",
     course: { id: "c1", title: "Course Title" },
     ...overrides,
   };
-  mockPrisma.lesson.findUnique.mockResolvedValue(lesson);
+  mockPrisma.lesson.findFirst.mockResolvedValue(lesson);
   return lesson;
 }
 
@@ -96,13 +99,15 @@ async function readStream(res: Response): Promise<string> {
 
 function setupAIMock(content: string = "AI explanation content") {
   mockCreate.mockResolvedValue(makeChunkStream(content));
-  mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+  mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content });
 }
 
 describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "" });
   });
 
   // ─── Depth selector ───────────────────────────────────────────
@@ -182,8 +187,8 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
       const text = await readStream(res);
       await new Promise((r) => setTimeout(r, 0));
       expect(text).toBe("Focused explanation");
-      // Should NOT persist to DB
-      expect(mockPrisma.lesson.update).not.toHaveBeenCalled();
+      // Should NOT persist to DB when selectedText is provided
+      expect(mockPrisma.lessonArtifact.upsert).not.toHaveBeenCalled();
     });
 
     it("selectedText empty string returns 400", async () => {
@@ -215,7 +220,7 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
     it("LearnerProfile found → injected into system prompt", async () => {
       setupLessonMock();
       setupAIMock();
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue({
         id: "lp1",
         courseId: "c1",
         level: "beginner",
@@ -236,7 +241,7 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
     it("LearnerProfile not found → no error, proceeds normally", async () => {
       setupLessonMock();
       setupAIMock();
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
       const res = await explainPost(makeRequest(VALID_BODY));
 
@@ -252,7 +257,8 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
 
   describe("cache guard", () => {
     it("returns cached explanation when not force (with depthActual)", async () => {
-      setupLessonMock({ explanation: "cached result" });
+      setupLessonMock();
+      mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "cached result" });
 
       const res = await explainPost(makeRequest(VALID_BODY));
       const json = await res.json();
@@ -263,7 +269,8 @@ describe("POST /api/ai/explain — depth, selectedText, LearnerProfile", () => {
     });
 
     it("force=true regenerates even when cached", async () => {
-      setupLessonMock({ explanation: "cached result" });
+      setupLessonMock();
+      mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "cached result" });
       setupAIMock("fresh result");
 
       const res = await explainPost(

@@ -7,9 +7,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// User account for multi-user platform (v1.3)
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String?
+  avatarUrl       String?
+  tokenVersion    Int       @default(0) /// Increment to invalidate all JWT sessions
+  preferences     String?   /// JSON blob for user settings (migrated from localStorage)
+  resetToken      String?   /// Password reset token (hashed)
+  resetTokenExp   DateTime? /// Password reset token expiry
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations — one user owns many of each
+  courses          Course[]
+  lessonProgress   LessonProgress[]
+  courseProgress    CourseProgress[]
+  flashcardReviews FlashcardReview[]
+  learnerProfiles  LearnerProfile[]
+  chatMessages     ChatMessage[]
+  lessonArtifacts  LessonArtifact[]
+}
+
 model Course {
   id             String           @id @default(cuid())
-  url            String?          @unique
+  userId         String?          /// Nullable during migration; non-nullable after bootstrap
+  user           User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url            String?
   title          String
   contentType    String           @default("course")
   author         String?
@@ -20,8 +46,10 @@ model Course {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   lessons        Lesson[]
-  progress       CourseProgress?
-  learnerProfile LearnerProfile?
+  progress       CourseProgress[]
+  learnerProfile LearnerProfile[]
+
+  @@unique([userId, url]) /// Same URL can be imported by different users
 }
 
 model Lesson {
@@ -33,21 +61,39 @@ model Lesson {
   chapterNumber    Int?
   pageRange        String?
   transcript       String?
-  summary          String?
-  explanation      String?
-  quiz             String?
-  flashcards       String?
-  exercises        String?
-  notes            String?
+  summary          String?            /// Legacy AI field — will be migrated to LessonArtifact
+  explanation      String?            /// Legacy AI field — will be migrated to LessonArtifact
+  quiz             String?            /// Legacy AI field — will be migrated to LessonArtifact
+  flashcards       String?            /// Legacy AI field — will be migrated to LessonArtifact
+  exercises        String?            /// Legacy AI field — will be migrated to LessonArtifact
+  notes            String?            /// Legacy AI field — will be migrated to LessonArtifact
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-  progress         LessonProgress?
+  progress         LessonProgress[]
   flashcardReviews FlashcardReview[]
   chatMessages     ChatMessage[]
+  lessonArtifacts  LessonArtifact[]
+}
+
+/// Per-user AI-generated content extracted from Lesson (v1.3)
+model LessonArtifact {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  type      String   /// "summary" | "explanation" | "quiz" | "flashcards" | "exercises" | "notes"
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId, type])
 }
 
 model LessonProgress {
   id                 String    @id @default(cuid())
+  userId             String?   /// Nullable during migration
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId           String
   lesson             Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   completed          Boolean   @default(false)
@@ -59,11 +105,13 @@ model LessonProgress {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  @@unique([lessonId])
+  @@unique([userId, lessonId])
 }
 
 model CourseProgress {
   id               String    @id @default(cuid())
+  userId           String?   /// Nullable during migration
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId          String
   course           Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   completionPct    Float     @default(0)
@@ -74,11 +122,13 @@ model CourseProgress {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  @@unique([courseId])
+  @@unique([userId, courseId])
 }
 
 model FlashcardReview {
   id             String   @id @default(cuid())
+  userId         String?  /// Nullable during migration
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId       String
   lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   cardIndex      Int
@@ -91,11 +141,13 @@ model FlashcardReview {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([lessonId, cardIndex])
+  @@unique([userId, lessonId, cardIndex])
 }
 
 model LearnerProfile {
   id            String   @id @default(cuid())
+  userId        String?  /// Nullable during migration
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId       String
   course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   level          String
@@ -106,11 +158,13 @@ model LearnerProfile {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([courseId])
+  @@unique([userId, courseId])
 }
 
 model ChatMessage {
   id        String   @id @default(cuid())
+  userId    String?  /// Nullable during migration
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId  String
   lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   role      String

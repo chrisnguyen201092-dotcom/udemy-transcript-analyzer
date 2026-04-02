@@ -5,7 +5,12 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     lesson: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
+    },
+    lessonArtifact: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }));
@@ -33,9 +38,12 @@ describe("GET /api/lessons/[id]/notes", () => {
 
   it("returns notes when they exist", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
-      notes: "My lesson notes",
+      updatedAt: now,
+    });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({
+      content: "My lesson notes",
       updatedAt: now,
     });
 
@@ -48,19 +56,19 @@ describe("GET /api/lessons/[id]/notes", () => {
       notes: "My lesson notes",
       updatedAt: "2025-01-01T00:00:00.000Z",
     });
-    expect(mockPrisma.lesson.findUnique).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      select: { id: true, notes: true, updatedAt: true },
+    expect(mockPrisma.lesson.findFirst).toHaveBeenCalledWith({
+      where: { id: "l1", course: { userId: "test-user-id" } },
+      select: { id: true, updatedAt: true },
     });
   });
 
   it("returns null notes for lesson with no notes", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
-      notes: null,
       updatedAt: now,
     });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
 
     const res = await GET(makeRequest("GET"), routeParams("l1"));
     const data = await res.json();
@@ -70,7 +78,7 @@ describe("GET /api/lessons/[id]/notes", () => {
   });
 
   it("returns 404 for non-existent lesson", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const res = await GET(makeRequest("GET"), routeParams("not-exist"));
     const data = await res.json();
@@ -87,10 +95,9 @@ describe("PUT /api/lessons/[id]/notes", () => {
 
   it("saves notes successfully", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
-    mockPrisma.lesson.update.mockResolvedValue({
-      id: "l1",
-      notes: "Updated notes",
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({
+      content: "Updated notes",
       updatedAt: now,
     });
 
@@ -106,19 +113,19 @@ describe("PUT /api/lessons/[id]/notes", () => {
       notes: "Updated notes",
       updatedAt: "2025-01-01T00:00:00.000Z",
     });
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      data: { notes: "Updated notes" },
-      select: { id: true, notes: true, updatedAt: true },
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith({
+      where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "notes" } },
+      create: { userId: "test-user-id", lessonId: "l1", type: "notes", content: "Updated notes" },
+      update: { content: "Updated notes" },
+      select: { content: true, updatedAt: true },
     });
   });
 
   it("clears notes with empty string", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
-    mockPrisma.lesson.update.mockResolvedValue({
-      id: "l1",
-      notes: "",
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({
+      content: "",
       updatedAt: now,
     });
 
@@ -149,7 +156,7 @@ describe("PUT /api/lessons/[id]/notes", () => {
   });
 
   it("returns 404 for non-existent lesson", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const res = await PUT(
       makeRequest("PUT", { notes: "some notes" }),
@@ -172,10 +179,9 @@ describe("Notes edge cases", () => {
   it("handles very long notes >100KB", async () => {
     const longNote = "A".repeat(100_001);
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
-    mockPrisma.lesson.update.mockResolvedValue({
-      id: "l1",
-      notes: longNote,
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({
+      content: longNote,
       updatedAt: now,
     });
 
@@ -187,19 +193,19 @@ describe("Notes edge cases", () => {
 
     expect(res.status).toBe(200);
     expect(data.notes).toHaveLength(100_001);
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      data: { notes: longNote },
-      select: { id: true, notes: true, updatedAt: true },
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith({
+      where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "notes" } },
+      create: { userId: "test-user-id", lessonId: "l1", type: "notes", content: longNote },
+      update: { content: longNote },
+      select: { content: true, updatedAt: true },
     });
   });
 
   it("PUT overwrites existing notes completely", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
-    mockPrisma.lesson.update.mockResolvedValue({
-      id: "l1",
-      notes: "new notes only",
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({
+      content: "new notes only",
       updatedAt: now,
     });
 
@@ -211,21 +217,19 @@ describe("Notes edge cases", () => {
 
     expect(res.status).toBe(200);
     expect(data.notes).toBe("new notes only");
-    // Verify update was called with the new value, not appending
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      data: { notes: "new notes only" },
-      select: { id: true, notes: true, updatedAt: true },
-    });
+    // Verify upsert was called with the new value, not appending
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { content: "new notes only" } })
+    );
   });
 
   it("GET returns null for null notes", async () => {
     const now = new Date("2025-01-01T00:00:00Z");
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1",
-      notes: null,
       updatedAt: now,
     });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
 
     const res = await GET(makeRequest("GET"), routeParams("l1"));
     const data = await res.json();

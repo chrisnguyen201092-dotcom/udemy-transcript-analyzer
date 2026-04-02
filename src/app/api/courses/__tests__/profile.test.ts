@@ -8,9 +8,11 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     learnerProfile: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       findFirst: vi.fn(),
@@ -64,8 +66,8 @@ describe("POST /api/courses/[id]/profile", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("creates profile successfully (201)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.learnerProfile.create.mockResolvedValue(mockProfile);
 
     const req = makeRequest(COURSE_ID, "POST", validBody);
@@ -80,7 +82,7 @@ describe("POST /api/courses/[id]/profile", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeRequest("nonexistent", "POST", validBody);
     const res = await POST(req, makeParams("nonexistent"));
@@ -91,7 +93,7 @@ describe("POST /api/courses/[id]/profile", () => {
   });
 
   it("returns 409 when profile already exists", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
     // M-9: Route now uses create + P2002 catch instead of findUnique check
     const p2002Error = new Error("Unique constraint failed");
     (p2002Error as any).code = "P2002";
@@ -106,8 +108,8 @@ describe("POST /api/courses/[id]/profile", () => {
   });
 
   it("returns 400 for invalid level value", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "POST", { ...validBody, level: "expert" });
     const res = await POST(req, makeParams(COURSE_ID));
@@ -117,8 +119,8 @@ describe("POST /api/courses/[id]/profile", () => {
 
   it("handles null knownTopics", async () => {
     const profileWithNull = { ...mockProfile, knownTopics: null };
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.learnerProfile.create.mockResolvedValue(profileWithNull);
 
     const bodyWithNull = { ...validBody, knownTopics: undefined };
@@ -132,8 +134,8 @@ describe("POST /api/courses/[id]/profile", () => {
 
   it("handles empty knownTopics array", async () => {
     const profileWithEmpty = { ...mockProfile, knownTopics: "[]" };
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.learnerProfile.create.mockResolvedValue(profileWithEmpty);
 
     const req = makeRequest(COURSE_ID, "POST", { ...validBody, knownTopics: [] });
@@ -149,8 +151,8 @@ describe("GET /api/courses/[id]/profile", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("returns profile successfully (200)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
 
     const req = makeRequest(COURSE_ID, "GET");
     const res = await GET(req, makeParams(COURSE_ID));
@@ -162,7 +164,7 @@ describe("GET /api/courses/[id]/profile", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeRequest("nonexistent", "GET");
     const res = await GET(req, makeParams("nonexistent"));
@@ -173,8 +175,8 @@ describe("GET /api/courses/[id]/profile", () => {
   });
 
   it("returns 404 when profile not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "GET");
     const res = await GET(req, makeParams(COURSE_ID));
@@ -185,8 +187,8 @@ describe("GET /api/courses/[id]/profile", () => {
   });
 
   it("parses knownTopics from JSON string to array", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
 
     const req = makeRequest(COURSE_ID, "GET");
     const res = await GET(req, makeParams(COURSE_ID));
@@ -202,8 +204,8 @@ describe("PUT /api/courses/[id]/profile", () => {
 
   it("updates profile successfully (200)", async () => {
     const updatedProfile = { ...mockProfile, level: "advanced", knownTopics: '["React"]' };
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
     mockPrisma.learnerProfile.update.mockResolvedValue(updatedProfile);
 
     const updateBody = { ...validBody, level: "advanced", knownTopics: ["React"] };
@@ -217,7 +219,7 @@ describe("PUT /api/courses/[id]/profile", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeRequest("nonexistent", "PUT", validBody);
     const res = await PUT(req, makeParams("nonexistent"));
@@ -228,8 +230,8 @@ describe("PUT /api/courses/[id]/profile", () => {
   });
 
   it("returns 404 when profile not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "PUT", validBody);
     const res = await PUT(req, makeParams(COURSE_ID));
@@ -240,8 +242,8 @@ describe("PUT /api/courses/[id]/profile", () => {
   });
 
   it("validates body with Zod (400 on invalid)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
 
     const invalidBody = { ...validBody, dailyTimeMin: 45 };
     const req = makeRequest(COURSE_ID, "PUT", invalidBody);
@@ -261,8 +263,8 @@ describe("C-3 regression: knownTopicIds field is not accepted", () => {
     // The route's Zod schema only accepts 'knownTopics' (array of strings).
     // Sending 'knownTopicIds' should either be ignored (extra field stripped by Zod)
     // or cause a 400 if it replaces the required field pattern.
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.learnerProfile.create.mockResolvedValue(mockProfile);
 
     // Send body with knownTopicIds (old field) instead of knownTopics
@@ -290,8 +292,8 @@ describe("C-3 regression: knownTopicIds field is not accepted", () => {
   });
 
   it("PUT: sending knownTopicIds does not update the profile incorrectly", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
     mockPrisma.learnerProfile.update.mockResolvedValue(mockProfile);
 
     const bodyWithOldField = {
@@ -325,8 +327,8 @@ describe("Profile enum validation edge cases", () => {
     for (const level of ["beginner", "intermediate", "advanced"]) {
       vi.clearAllMocks();
       const profileForLevel = { ...mockProfile, level };
-      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
       mockPrisma.learnerProfile.create.mockResolvedValue(profileForLevel);
 
       const req = makeRequest(COURSE_ID, "POST", { ...validBody, level });
@@ -337,8 +339,8 @@ describe("Profile enum validation edge cases", () => {
   });
 
   it("rejects invalid level enum", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "POST", { ...validBody, level: "expert" });
     const res = await POST(req, makeParams(COURSE_ID));
@@ -350,8 +352,8 @@ describe("Profile enum validation edge cases", () => {
     for (const learningStyle of ["theory_first", "hands_on", "mixed"]) {
       vi.clearAllMocks();
       const profileForStyle = { ...mockProfile, learningStyle };
-      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
       mockPrisma.learnerProfile.create.mockResolvedValue(profileForStyle);
 
       const req = makeRequest(COURSE_ID, "POST", { ...validBody, learningStyle });
@@ -362,8 +364,8 @@ describe("Profile enum validation edge cases", () => {
   });
 
   it("rejects invalid learningStyle enum", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "POST", { ...validBody, learningStyle: "visual" });
     const res = await POST(req, makeParams(COURSE_ID));
@@ -375,8 +377,8 @@ describe("Profile enum validation edge cases", () => {
     for (const dailyTimeMin of [30, 60, 120]) {
       vi.clearAllMocks();
       const profileForTime = { ...mockProfile, dailyTimeMin };
-      mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
       mockPrisma.learnerProfile.create.mockResolvedValue(profileForTime);
 
       const req = makeRequest(COURSE_ID, "POST", { ...validBody, dailyTimeMin });
@@ -387,8 +389,8 @@ describe("Profile enum validation edge cases", () => {
   });
 
   it("rejects invalid dailyTimeMin value", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(COURSE_ID, "POST", { ...validBody, dailyTimeMin: 45 });
     const res = await POST(req, makeParams(COURSE_ID));
@@ -398,8 +400,8 @@ describe("Profile enum validation edge cases", () => {
 
   it("PUT with empty knownTopics array", async () => {
     const updatedProfile = { ...mockProfile, knownTopics: "[]" };
-    mockPrisma.course.findUnique.mockResolvedValue({ id: COURSE_ID });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(mockProfile);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(mockProfile);
     mockPrisma.learnerProfile.update.mockResolvedValue(updatedProfile);
 
     const req = makeRequest(COURSE_ID, "PUT", { ...validBody, knownTopics: [] });

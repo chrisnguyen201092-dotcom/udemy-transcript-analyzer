@@ -5,8 +5,12 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     lesson: {
+      findMany: vi.fn(),
+    },
+    lessonArtifact: {
       findMany: vi.fn(),
     },
   },
@@ -35,14 +39,16 @@ describe("GET /api/courses/[id]/notes/search", () => {
   });
 
   it("returns matching lessons with snippets", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
       {
-        id: "l1",
-        title: "Lesson 1",
-        order: 1,
-        notes: "This is a test note about JavaScript basics",
+        id: "a1",
+        userId: "test-user-id",
+        lessonId: "l1",
+        type: "notes",
+        content: "This is a test note about JavaScript basics",
         updatedAt: now,
+        lesson: { id: "l1", title: "Lesson 1", order: 1 },
       },
     ]);
 
@@ -59,8 +65,8 @@ describe("GET /api/courses/[id]/notes/search", () => {
   });
 
   it("returns empty results when no match", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([]);
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const res = await GET(makeSearchRequest("c1", "nonexistent"), routeParams("c1"));
     const data = await res.json();
@@ -94,7 +100,7 @@ describe("GET /api/courses/[id]/notes/search", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const res = await GET(makeSearchRequest("not-exist", "test"), routeParams("not-exist"));
     const data = await res.json();
@@ -104,14 +110,16 @@ describe("GET /api/courses/[id]/notes/search", () => {
   });
 
   it("generates snippet with keyword at start of text", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
       {
-        id: "l1",
-        title: "Lesson 1",
-        order: 1,
-        notes: "JavaScript is great for web development and building modern applications",
+        id: "a1",
+        userId: "test-user-id",
+        lessonId: "l1",
+        type: "notes",
+        content: "JavaScript is great for web development and building modern applications",
         updatedAt: now,
+        lesson: { id: "l1", title: "Lesson 1", order: 1 },
       },
     ]);
 
@@ -126,16 +134,18 @@ describe("GET /api/courses/[id]/notes/search", () => {
   it("generates snippet with keyword in middle of long text", async () => {
     const longPrefix = "A".repeat(100);
     const longSuffix = "B".repeat(100);
-    const notes = `${longPrefix}KEYWORD${longSuffix}`;
+    const content = `${longPrefix}KEYWORD${longSuffix}`;
 
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
       {
-        id: "l1",
-        title: "Lesson 1",
-        order: 1,
-        notes,
+        id: "a1",
+        userId: "test-user-id",
+        lessonId: "l1",
+        type: "notes",
+        content,
         updatedAt: now,
+        lesson: { id: "l1", title: "Lesson 1", order: 1 },
       },
     ]);
 
@@ -150,11 +160,11 @@ describe("GET /api/courses/[id]/notes/search", () => {
   });
 
   it("returns results sorted by lesson order", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([
-      { id: "l1", title: "First", order: 1, notes: "test content", updatedAt: now },
-      { id: "l2", title: "Second", order: 2, notes: "test content here", updatedAt: now },
-      { id: "l3", title: "Third", order: 3, notes: "more test stuff", updatedAt: now },
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { id: "a1", userId: "test-user-id", lessonId: "l1", type: "notes", content: "test content", updatedAt: now, lesson: { id: "l1", title: "First", order: 1 } },
+      { id: "a2", userId: "test-user-id", lessonId: "l2", type: "notes", content: "test content here", updatedAt: now, lesson: { id: "l2", title: "Second", order: 2 } },
+      { id: "a3", userId: "test-user-id", lessonId: "l3", type: "notes", content: "more test stuff", updatedAt: now, lesson: { id: "l3", title: "Third", order: 3 } },
     ]);
 
     const res = await GET(makeSearchRequest("c1", "test"), routeParams("c1"));
@@ -166,8 +176,8 @@ describe("GET /api/courses/[id]/notes/search", () => {
     expect(data.results[2].lessonOrder).toBe(3);
 
     // Verify orderBy was passed to prisma
-    expect(mockPrisma.lesson.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { order: "asc" } })
+    expect(mockPrisma.lessonArtifact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { lesson: { order: "asc" } } })
     );
   });
 });
@@ -179,14 +189,16 @@ describe("GET /api/courses/[id]/notes/search — edge cases", () => {
 
   it("search handles special regex characters in query without crashing", async () => {
     // The route uses Prisma `contains` (not regex), so special chars are safe
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
-    mockPrisma.lesson.findMany.mockResolvedValue([
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
       {
-        id: "l1",
-        title: "Lesson 1",
-        order: 1,
-        notes: "Use test.+value in your regex patterns",
+        id: "a1",
+        userId: "test-user-id",
+        lessonId: "l1",
+        type: "notes",
+        content: "Use test.+value in your regex patterns",
         updatedAt: now,
+        lesson: { id: "l1", title: "Lesson 1", order: 1 },
       },
     ]);
 
@@ -200,15 +212,17 @@ describe("GET /api/courses/[id]/notes/search — edge cases", () => {
   });
 
   it("search is case-insensitive (snippet extraction uses toLowerCase)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ id: "c1" });
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1" });
     // Prisma `contains` on SQLite is case-insensitive by default
-    mockPrisma.lesson.findMany.mockResolvedValue([
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
       {
-        id: "l1",
-        title: "Lesson 1",
-        order: 1,
-        notes: "Learn about JAVASCRIPT and its ecosystem",
+        id: "a1",
+        userId: "test-user-id",
+        lessonId: "l1",
+        type: "notes",
+        content: "Learn about JAVASCRIPT and its ecosystem",
         updatedAt: now,
+        lesson: { id: "l1", title: "Lesson 1", order: 1 },
       },
     ]);
 

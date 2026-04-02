@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const CreateCourseSchema = z.object({
   url: z.string().optional(),
@@ -12,22 +13,23 @@ const CreateCourseSchema = z.object({
   publisher: z.string().optional(),
 });
 
-export async function GET() {
+export const GET = withAuth(async (_req, { userId }) => {
   const courses = await prisma.course.findMany({
+    where: { userId },
     include: { lessons: { orderBy: { order: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(courses);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const body = await req.json();
     const { url, title, contentType, author, isbn, publisher } = CreateCourseSchema.parse(body);
 
     if (url) {
       const existingCourse = await prisma.course.findFirst({
-        where: { url },
+        where: { url, userId },
       });
       if (existingCourse) {
         return NextResponse.json(existingCourse, { status: 200 });
@@ -36,6 +38,7 @@ export async function POST(req: NextRequest) {
 
     const course = await prisma.course.create({
       data: {
+        userId,
         url: url || `manual:${randomUUID()}`,
         title,
         contentType,
@@ -55,4 +58,4 @@ export async function POST(req: NextRequest) {
     console.error(error);
     return NextResponse.json({ error: "Failed to create course" }, { status: 500 });
   }
-}
+});

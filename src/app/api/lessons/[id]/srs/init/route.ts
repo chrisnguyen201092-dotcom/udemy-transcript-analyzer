@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 interface FlashcardData {
   front: string;
@@ -12,16 +13,14 @@ interface FlashcardsJSON {
   cards: FlashcardData[];
 }
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
-      select: { id: true, flashcards: true },
+    // Verify lesson belongs to user's course
+    const lesson = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
+      select: { id: true },
     });
 
     if (!lesson) {
@@ -31,14 +30,21 @@ export async function POST(
       );
     }
 
-    if (!lesson.flashcards) {
+    // Read flashcards from per-user LessonArtifact instead of legacy Lesson column
+    const artifact = await prisma.lessonArtifact.findUnique({
+      where: {
+        userId_lessonId_type: { userId, lessonId: id, type: "flashcards" },
+      },
+    });
+
+    if (!artifact) {
       return NextResponse.json(
         { error: "Bài học này chưa có flashcard. Hãy tạo flashcard trước." },
         { status: 422 }
       );
     }
 
-    const parsed: FlashcardsJSON = JSON.parse(lesson.flashcards);
+    const parsed: FlashcardsJSON = JSON.parse(artifact.content);
 
     if (!parsed.cards || parsed.cards.length === 0) {
       return NextResponse.json(
@@ -50,7 +56,7 @@ export async function POST(
     // Atomically check existing indices and create new ones to prevent races
     const { created, skipped } = await prisma.$transaction(async (tx) => {
       const existing = await tx.flashcardReview.findMany({
-        where: { lessonId: id },
+        where: { lessonId: id, userId },
         select: { cardIndex: true },
       });
 
@@ -62,6 +68,7 @@ export async function POST(
       if (newCards.length > 0) {
         await tx.flashcardReview.createMany({
           data: newCards.map((cardIndex) => ({
+            userId,
             lessonId: id,
             cardIndex,
             easinessFactor: 2.5,
@@ -89,4 +96,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

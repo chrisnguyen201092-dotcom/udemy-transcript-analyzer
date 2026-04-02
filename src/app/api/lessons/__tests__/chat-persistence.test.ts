@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    lesson: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn(), findFirst: vi.fn() },
     chatMessage: { findMany: vi.fn(), deleteMany: vi.fn() },
   },
 }));
@@ -25,7 +25,7 @@ describe("GET /api/lessons/[id]/chat", () => {
   });
 
   it("returns messages ordered by createdAt (200)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
     mockPrisma.chatMessage.findMany.mockResolvedValue([
       { id: "m1", lessonId: "l1", role: "user", content: "Hello", createdAt: new Date("2025-01-01") },
       { id: "m2", lessonId: "l1", role: "assistant", content: "Hi!", createdAt: new Date("2025-01-02") },
@@ -42,7 +42,7 @@ describe("GET /api/lessons/[id]/chat", () => {
   });
 
   it("returns empty array when no messages (200)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
     mockPrisma.chatMessage.findMany.mockResolvedValue([]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/chat");
@@ -54,7 +54,7 @@ describe("GET /api/lessons/[id]/chat", () => {
   });
 
   it("returns 404 when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/lessons/nonexistent/chat");
     const res = await GET(req, makeParams("nonexistent"));
@@ -63,7 +63,7 @@ describe("GET /api/lessons/[id]/chat", () => {
   });
 
   it("limits to 50 messages", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
     mockPrisma.chatMessage.findMany.mockResolvedValue([]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/chat");
@@ -82,7 +82,7 @@ describe("DELETE /api/lessons/[id]/chat", () => {
   });
 
   it("deletes all messages and returns 204", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({ id: "l1" });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
     mockPrisma.chatMessage.deleteMany.mockResolvedValue({ count: 5 });
 
     const req = new NextRequest("http://localhost/api/lessons/l1/chat", {
@@ -92,12 +92,12 @@ describe("DELETE /api/lessons/[id]/chat", () => {
 
     expect(res.status).toBe(204);
     expect(mockPrisma.chatMessage.deleteMany).toHaveBeenCalledWith({
-      where: { lessonId: "l1" },
+      where: { lessonId: "l1", userId: "test-user-id" },
     });
   });
 
   it("returns 404 when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/lessons/nonexistent/chat", {
       method: "DELETE",

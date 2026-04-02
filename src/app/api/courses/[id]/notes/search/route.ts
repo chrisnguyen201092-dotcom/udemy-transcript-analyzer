@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
     const q = req.nextUrl.searchParams.get("q")?.trim();
     if (!q) {
@@ -16,8 +14,8 @@ export async function GET(
       );
     }
 
-    const course = await prisma.course.findUnique({
-      where: { id },
+    const course = await prisma.course.findFirst({
+      where: { id, userId },
       select: { id: true },
     });
 
@@ -28,23 +26,24 @@ export async function GET(
       );
     }
 
-    const lessons = await prisma.lesson.findMany({
+    // Query LessonArtifact (per-user notes) instead of legacy Lesson.notes
+    const artifacts = await prisma.lessonArtifact.findMany({
       where: {
-        courseId: id,
-        notes: { contains: q },
+        userId,
+        type: "notes",
+        content: { contains: q },
+        lesson: { courseId: id },
       },
-      select: {
-        id: true,
-        title: true,
-        order: true,
-        notes: true,
-        updatedAt: true,
+      include: {
+        lesson: {
+          select: { id: true, title: true, order: true },
+        },
       },
-      orderBy: { order: "asc" },
+      orderBy: { lesson: { order: "asc" } },
     });
 
-    const results = lessons.map((l) => {
-      const notes = l.notes!;
+    const results = artifacts.map((a) => {
+      const notes = a.content;
       const idx = notes.toLowerCase().indexOf(q.toLowerCase());
       const start = Math.max(0, idx - 50);
       const end = Math.min(notes.length, idx + q.length + 50);
@@ -54,11 +53,11 @@ export async function GET(
         (end < notes.length ? "..." : "");
 
       return {
-        lessonId: l.id,
-        lessonTitle: l.title,
-        lessonOrder: l.order,
+        lessonId: a.lesson.id,
+        lessonTitle: a.lesson.title,
+        lessonOrder: a.lesson.order,
         snippet,
-        updatedAt: l.updatedAt.toISOString(),
+        updatedAt: a.updatedAt.toISOString(),
       };
     });
 
@@ -70,4 +69,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

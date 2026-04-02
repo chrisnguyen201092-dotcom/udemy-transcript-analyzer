@@ -28,12 +28,17 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(), update: vi.fn(), create: vi.fn(),
       findFirst: vi.fn(), count: vi.fn(), deleteMany: vi.fn(),
     },
+    lessonArtifact: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
     course: {
       findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(),
       findUnique: vi.fn(), delete: vi.fn(), update: vi.fn(),
     },
     learnerProfile: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -70,11 +75,13 @@ function makeRequest(body: unknown): NextRequest {
 describe("POST /api/ai/explain", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "" });
   });
 
   it("returns 400 when lesson has no transcript", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: null, course: { title: "C", contentType: "course" },
     });
 
@@ -92,11 +99,11 @@ describe("POST /api/ai/explain", () => {
   });
 
   it("strips <think> tags from AI response", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "Transcript", course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("<think>reasoning</think>Explanation here"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Explanation here" });
 
     const req = makeRequest(VALID_BODY);
     const res = await readStream(await explainPost(req));
@@ -105,30 +112,31 @@ describe("POST /api/ai/explain", () => {
     expect(res).not.toContain("<think>");
   });
 
-  it("persists explanation to DB via lesson.update with explanation field", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+  it("persists explanation to DB via lessonArtifact.upsert", async () => {
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("Detailed explanation"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Detailed explanation" });
 
     const req = makeRequest(VALID_BODY);
     const apiRes = await explainPost(req);
     await readStream(apiRes);
     await new Promise((r) => setTimeout(r, 0)); // flush fullText.then() microtask
 
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      data: { explanation: "Detailed explanation" },
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith({
+      where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "explanation" } },
+      create: { userId: "test-user-id", lessonId: "l1", type: "explanation", content: "Detailed explanation" },
+      update: { content: "Detailed explanation" },
     });
   });
 
   it("returns 200 with explanation field in response", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("My explanation"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "My explanation" });
 
     const req = makeRequest(VALID_BODY);
     const apiRes = await explainPost(req);
@@ -141,11 +149,11 @@ describe("POST /api/ai/explain", () => {
   });
 
   it("strips multiple <think> blocks", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "T", course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("<think>a</think>Part one<think>b</think>Part two"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Part onePart two" });
 
     const req = makeRequest(VALID_BODY);
     const text = await readStream(await explainPost(req));
@@ -162,11 +170,10 @@ describe("POST /api/ai/explain", () => {
 
   // ─── Edge case: handles selectedText parameter ──────────────────────────────
   it("handles selectedText parameter and includes it in prompt", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "Full transcript here", course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("Focused explanation"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
 
     const req = makeRequest({ ...VALID_BODY, selectedText: "specific concept" });
     const res = await explainPost(req);
@@ -194,7 +201,7 @@ describe("POST /api/ai/explain", () => {
 
   // ─── Edge case: lesson with no transcript ───────────────────────────────────
   it("handles lesson with no transcript — returns 400", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: null, course: { title: "C", contentType: "course" },
     });
 

@@ -5,11 +5,11 @@
 
 ---
 
-## Trạng thái: ✅ Phase 1–5 hoàn thành · Phase 6 đang tiến hành · Phase 7 backend hoàn thành (UI pending)
+## Trạng thái: ✅ Phase 1–5 hoàn thành · Phase 7 backend hoàn thành · Phase 6–8 (v1.3 Multi-User) kế hoạch
 
 Toàn bộ Phase 1–5 đã được implement, test, và deploy thành công.
-Phase 6 (UX Overhaul) đang tiến hành — 6A.1 Markdown Rendering đã xong, còn lại 6A.2–6C.8 chưa hoàn thành.
-Phase 7 (Backend Feature Layer) đã implement đầy đủ backend cho 7 modules: Notes, Progress, SRS, Analytics, Export, Learner Profile, Chat Persistence — Prisma models, API routes, business logic đều hoạt động — nhưng UI integration chưa hoàn thành.
+Phase 7 (Backend Feature Layer) đã implement đầy đủ backend cho 7 modules: Notes, Progress, SRS, Analytics, Export, Learner Profile, Chat Persistence — Prisma models, API routes, business logic đều hoạt động.
+Phase 6–8 (v1.3 Multi-User Foundation) kế hoạch: schema refactoring (User + LessonArtifact), auth system, dashboard, data scoping.
 
 ---
 
@@ -198,7 +198,160 @@ Phase 5 (UX Improvements) ← sau Phase 4
 
 ---
 
-## Phase 6 — UX Overhaul (Target: 9.5+ All Categories)
+## Phase 6 — Multi-User Foundation: Schema Refactoring & Data Scoping (v1.3)
+
+**Spec:** `docs/prd.md` Section 6.20 (Multi-User Data Scoping)
+**Phụ thuộc:** Phase 7 (backend complete)
+**Critical path:** Must complete before Phase 7–8
+
+### 6.1 Add User Model & userId FK (Schema Refactoring)
+**Files:** `prisma/schema.prisma` (NEW User model, add userId FK to all tables), migration file
+**Scope:** 
+- Create `User` model with `email`, `passwordHash`, `tokenVersion`, preferences
+- Add `userId String @relation(User)` FK to: Course, Lesson, LessonProgress, CourseProgress, FlashcardReview, ChatMessage, LearnerProfile
+- Create LessonArtifact model: `@@unique([userId, lessonId, type])`
+- Update relations to include cascade delete
+**Phụ thuộc:** —
+**Done when:** `npx prisma db push` succeeds, schema review passes
+
+### 6.2 Create LessonArtifact Model & Migrate AI Content
+**Files:** `prisma/schema.prisma`, migration script (migration/extract-ai-content.ts)
+**Scope:**
+- LessonArtifact model structure complete with `type` discriminator (summary|explanation|quiz|flashcards|exercises|notes)
+- Write migration script to move existing AI content from Lesson table → LessonArtifact table
+- Create NULL user ID for bootstrap (first user registration claims legacy data)
+**Done when:** Migration runs successfully, old Lesson.summary/explanation/etc. can be deprecated (kept for backward compat)
+
+### 6.3 Data Scoping Middleware
+**Files:** `src/middleware.ts` (NEW), `src/lib/prisma-client.ts` (NEW)
+**Scope:**
+- Implement request middleware to extract userId from JWT
+- Wrap Prisma client with auto-filtering by userId on all queries
+- Ensure 404-not-403 pattern (hide existence of other users' records)
+- Test: verify no user sees another user's courses/lessons
+**Done when:** Middleware integration complete, tests pass
+
+---
+
+## Phase 7 — Multi-User Foundation: Authentication System (v1.3)
+
+**Spec:** `docs/prd.md` Section 6.18 (Authentication & User Management)
+**Phụ thuộc:** Phase 6
+**Routes needed:** `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/me`
+
+### 7.1 Auth Routes Implementation
+**Files:** 
+- `src/app/api/auth/register/route.ts` (POST)
+- `src/app/api/auth/login/route.ts` (POST)
+- `src/app/api/auth/logout/route.ts` (POST)
+- `src/app/api/auth/forgot-password/route.ts` (POST)
+- `src/app/api/auth/reset-password/route.ts` (POST)
+- `src/app/api/auth/me/route.ts` (GET)
+
+**Scope:**
+- register: validate email/password, bcrypt hash (cost 12), create User, bootstrap protocol (claim NULL-userId records), return JWT
+- login: verify password, create JWT (HS256), set HttpOnly cookie `inkgest_session` (24h), support remember-me (tokenVersion)
+- logout: increment tokenVersion, clear cookie
+- forgot-password: generate reset token (TTL 1h), send email
+- reset-password: validate token, hash new password, invalidate old tokens
+- me: return current user profile
+
+**Phụ thuộc:** 6.1–6.3
+**Done when:** All routes tested, JWT validation working, HttpOnly cookies set correctly
+
+### 7.2 JWT & Session Middleware
+**Files:** `src/lib/jwt.ts` (NEW), `src/middleware.ts` (update)
+**Scope:**
+- JWT creation: HS256, 24h expiry, includes userId + tokenVersion
+- JWT validation: verify signature, check expiry, validate tokenVersion
+- Session middleware: extract JWT from HttpOnly cookie, auto-refresh if expiring soon, reject if invalid
+- Implement token revocation via tokenVersion
+**Done when:** Middleware passes all tests, session handling works
+
+### 7.3 Route Protection & Authorization
+**Files:** `src/lib/auth.ts` (NEW), middleware updates
+**Scope:**
+- ProtectedRoute wrapper for /learn, /dashboard, /settings, /analytics, /review
+- Redirect to /login if no session
+- Implement 6-layer authorization matrix (route → endpoint → model → record → field → time-based)
+- Test: verify unauthorized access returns 404, not 403
+**Done when:** Protected routes working, redirect logic tested
+
+---
+
+## Phase 8 — Multi-User Foundation: Dashboard & Onboarding (v1.3)
+
+**Spec:** `docs/prd.md` Section 6.19 (Dashboard)
+**Phụ thuộc:** Phase 7
+**Routes needed:** `/dashboard`, `GET /api/dashboard`, updated `/settings` route
+
+### 8.1 Dashboard Page & Widgets
+**Files:**
+- `src/app/dashboard/page.tsx` (NEW)
+- `src/components/DashboardLayout.tsx` (NEW)
+- `src/components/ContinueLearningWidget.tsx` (NEW)
+- `src/components/SRSDueWidget.tsx` (NEW)
+- `src/components/StudyStatsWidget.tsx` (NEW)
+- `src/components/RecentActivityWidget.tsx` (NEW)
+
+**Scope:**
+- Landing page after login showing personalized widgets
+- Continue Learning: 3-5 most recent courses/lessons with progress
+- SRS Due: count of flashcards due today, quick start link
+- Study Stats: total time, current streak, lessons completed, flashcards mastered
+- Recent Activity: feed of recent actions (completed lesson, flashcard reviewed, quiz finished)
+- Responsive layout: desktop/tablet/mobile
+
+**Phụ thuộc:** 7.3, Phase 7.2 (Progress/SRS data), Phase 7.4 (Analytics)
+**Done when:** Dashboard displays correctly, widgets aggregate data from DB
+
+### 8.2 Settings Page Upgrade (Full Route)
+**Files:**
+- `src/app/settings/page.tsx` (NEW, replaces SettingsModal)
+- `src/components/SettingsPage.tsx` (NEW)
+- `src/components/AccountSettings.tsx` (NEW)
+- `src/components/PreferencesSettings.tsx` (NEW)
+- `src/components/DataManagementSettings.tsx` (NEW)
+
+**Scope:**
+- Account section: email, profile info, avatar upload
+- Preferences: AI model selection, theme, language, daily study goal
+- Data Management: export all data, delete account, data usage stats
+- Full page route `/settings` instead of modal
+- Add to navigation menu
+
+**Phụ thuộc:** 7.3, 7.1 (User profile)
+**Done when:** Settings page responsive, all sections functional
+
+### 8.3 Onboarding & First-Time Setup
+**Files:** `src/components/OnboardingFlow.tsx` (NEW), login flow updates
+**Scope:**
+- First-time user: welcome screen, learner profile setup (level, goal, learning style)
+- Preference migration: load from localStorage if exists, save to DB, clear localStorage
+- One-time onboarding card on dashboard
+- Bootstrap user protocol: automatically claim legacy data during registration
+
+**Phụ thuộc:** 7.1, 8.1
+**Done when:** New users see proper onboarding, legacy data claims work
+
+### 8.4 Navigation & Layout Refactor
+**Files:** 
+- `src/components/Header.tsx` (update: add avatar dropdown, remove profile/model display)
+- `src/components/AvatarDropdown.tsx` (NEW)
+- `src/app/layout.tsx` (update: add route-specific layouts)
+
+**Scope:**
+- Avatar dropdown menu: profile, settings, logout
+- Header: logo, search (Cmd+K), theme toggle, avatar dropdown
+- Route-specific layouts: auth pages minimal, protected pages with sidebar/header
+- Sidebar: show Continue Learning, SRS Due, My Courses (personalized per user)
+
+**Phụ thuộc:** 8.1, 8.2
+**Done when:** Navigation consistent across all routes, responsive working
+
+---
+
+## Phase 9 — UX Overhaul (Previous Phase 6)
 
 **Spec:** `docs/specs/ux-overhaul.md`
 **Branch:** `feat/ux-overhaul`
@@ -310,52 +463,52 @@ All 6B items are independent of each other (parallel-safe).
 
 ---
 
-## Phase 7 — Backend Feature Layer ✅ (v1.2 — backend complete, UI pending)
+## Phase 10 — Backend Feature Layer ✅ (v1.2 — backend complete, UI pending)
 
 **Trạng thái:** Backend HOÀN THÀNH — Prisma models, API routes, business logic đều đã implement và verified.
 **UI Integration:** Chưa hoàn thành — sẽ thực hiện trong Giai đoạn 2 của roadmap.
 
-### 7.1 Lesson Notes (F-57..F-58) ✅
+### 10.1 Lesson Notes (F-57..F-58) ✅
 **Spec:** `docs/specs/lesson-notes.md`
 **Files:** `src/app/api/lessons/[id]/notes/route.ts`, `src/app/api/courses/[id]/notes/search/route.ts`
 **Prisma:** `Lesson.notes` field
 **Phụ thuộc:** Phase 2.1 (Lesson)
 **Done when:** GET/PUT notes per lesson, search across course notes — tất cả đã hoạt động.
 
-### 7.2 Progress Tracking (F-59..F-62) ✅
+### 10.2 Progress Tracking (F-59..F-62) ✅
 **Spec:** `docs/specs/progress-tracking.md`
 **Files:** `src/app/api/lessons/[id]/progress/route.ts`, `src/app/api/courses/[id]/progress/route.ts`
 **Prisma:** `LessonProgress`, `CourseProgress` models
 **Phụ thuộc:** Phase 2.1 (Lesson), Phase 1.3 (Course)
 **Done when:** Create/update lesson progress, get course progress with streaks — tất cả đã hoạt động.
 
-### 7.3 SRS Spaced Repetition (F-63..F-66) ✅
+### 10.3 SRS Spaced Repetition (F-63..F-66) ✅
 **Spec:** `docs/specs/srs-scheduler.md`
 **Files:** `src/lib/srs.ts`, `src/app/api/lessons/[id]/srs/init/route.ts`, `src/app/api/lessons/[id]/srs/review/route.ts`, `src/app/api/lessons/[id]/srs/due/route.ts`, `src/app/api/srs/dashboard/route.ts`
 **Prisma:** `FlashcardReview` model (SM-2 fields: easinessFactor, interval, repetitions, nextReviewAt, lastQuality)
 **Phụ thuộc:** Phase 3.5 (Practice — cần flashcards data)
 **Done when:** SM-2 algorithm works, init/review/due/dashboard routes functional — tất cả đã hoạt động.
 
-### 7.4 Learning Analytics (F-67..F-68) ✅
+### 10.4 Learning Analytics (F-67..F-68) ✅
 **Spec:** `docs/specs/learning-analytics.md`
 **Files:** `src/app/api/analytics/overview/route.ts`, `src/app/api/analytics/course/[id]/route.ts`
-**Phụ thuộc:** 7.2 (Progress Tracking), 7.3 (SRS)
+**Phụ thuộc:** 10.2 (Progress Tracking), 10.3 (SRS)
 **Done when:** Overview and per-course analytics return aggregated data — tất cả đã hoạt động.
 
-### 7.5 Export (F-69..F-70) ✅
+### 10.5 Export (F-69..F-70) ✅
 **Spec:** `docs/specs/export.md`
 **Files:** `src/app/api/export/lesson/[id]/route.ts`, `src/app/api/export/course/[id]/route.ts`
 **Phụ thuộc:** Phase 2.1 (Lesson), Phase 3.1 (AI Persistence — cần AI data để export)
 **Done when:** Export lesson/course to Markdown or CSV — tất cả đã hoạt động.
 
-### 7.6 Learner Profile (F-71) ✅
+### 10.6 Learner Profile (F-71) ✅
 **Spec:** `docs/specs/pre-assessment.md`
 **Files:** `src/app/api/courses/[id]/profile/route.ts`
 **Prisma:** `LearnerProfile` model (level, goal, dailyTimeMin, knownTopics, learningStyle)
 **Phụ thuộc:** Phase 1.3 (Course)
 **Done when:** GET/PUT profile per course — tất cả đã hoạt động.
 
-### 7.7 Chat Persistence (F-72..F-74) ✅
+### 10.7 Chat Persistence (F-72..F-74) ✅
 **Spec:** `docs/specs/ai-persistence.md`
 **Files:** `src/app/api/lessons/[id]/chat/route.ts`
 **Prisma:** `ChatMessage` model (role, content, lessonId, createdAt)
@@ -371,37 +524,39 @@ Phase 1.1 (DB)
 ├── Phase 1.2 (Settings) ──────────────────────────────┐
 │                                                       │
 └── Phase 1.3 (Course)                                  │
-    ├── Phase 7.6 (Learner Profile) ← 1.3              │
+    ├── Phase 10.6 (Learner Profile) ← 1.3             │
     │                                                   │
     └── Phase 2.1 (Lesson)                              │
         ├── Phase 2.2 (Upload)    ← parallel với 2.3   │
         │                                               │
         ├── Phase 2.3 (Transcript) ← parallel với 2.2  │
         │   └── Phase 3.4 (Chat) ──── cần 1.2 + 2.3   │
-        │       └── Phase 7.7 (Chat Persistence) ← 3.4 │
+        │       └── Phase 10.7 (Chat Persistence) ← 3.4│
         │                                               │
-        ├── Phase 7.1 (Notes) ← 2.1                    │
+        ├── Phase 10.1 (Notes) ← 2.1                   │
         │                                               │
-        ├── Phase 7.2 (Progress) ← 2.1 + 1.3           │
+        ├── Phase 10.2 (Progress) ← 2.1 + 1.3          │
         │                                               │
         └── Phase 3.1 (AI Persistence) ────────────────┤
             ├── Phase 3.2 (Summary)  ←┐                │
             ├── Phase 3.3 (Explain)  ←┤ parallel       │
             ├── Phase 3.5 (Practice) ←┘ nhau           │
-            │   └── Phase 7.3 (SRS) ← 3.5             │
+            │   └── Phase 10.3 (SRS) ← 3.5             │
             │                                           │
             ├── Phase 3.6 (Roadmap) ← cần 3.1 + 1.3   │
-            └── Phase 7.5 (Export) ← 3.1 + 2.1         │
+            └── Phase 10.5 (Export) ← 3.1 + 2.1        │
                                                         │
 AI Settings 1.2 ────────────────────────────────────────┘
 (cần cho tất cả AI routes: 3.1..3.6)
 
-Phase 7.4 (Analytics) ← 7.2 (Progress) + 7.3 (SRS)
+Phase 10.4 (Analytics) ← 10.2 (Progress) + 10.3 (SRS)
 
 Phase 4 (Polish) ← sau Phase 3
 Phase 5 (UX Improvements) ← sau Phase 4
-Phase 6 (UX Overhaul) ← sau Phase 5
-Phase 7 (Backend Features) ← implemented alongside Phase 5–6
+Phase 6-8 (Multi-User Foundation v1.3) ← sau Phase 5 + requires Phase 10 backend
+Phase 9 (UX Overhaul) ← sau Phase 5
+Phase 10 (Backend Features) ← implemented alongside Phase 5–6
+Phase 11+ (v2.0 Books) ← after Phase 6-8
 ```
 
 ---

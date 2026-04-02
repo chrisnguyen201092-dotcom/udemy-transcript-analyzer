@@ -38,7 +38,11 @@ function makeRequest(courseId: string, body: unknown): NextRequest {
 }
 
 describe("POST /api/courses/[id]/lessons", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Route checks course ownership via course.findFirst before creating lesson
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1", userId: "test-user-id" });
+  });
 
   it("creates first lesson with order=1 when no existing lessons", async () => {
     mockPrisma.lesson.findFirst.mockResolvedValue(null); // no existing lesson

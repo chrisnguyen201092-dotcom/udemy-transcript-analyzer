@@ -3,8 +3,9 @@ import { NextRequest } from "next/server";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    lesson: { findUnique: vi.fn() },
-    course: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn(), findFirst: vi.fn() },
+    lessonArtifact: { findMany: vi.fn() },
+    course: { findUnique: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -22,48 +23,57 @@ function makeReq(body: object): NextRequest {
 
 const baseLessonData = {
   title: "Async Await Basics",
-  summary: "This lesson covers async/await in JavaScript.",
-  explanation: "Async/await is syntactic sugar over Promises.",
-  quiz: JSON.stringify({
-    questions: [
-      {
-        type: "mcq",
-        question: "What does await do?",
-        options: ["Pauses execution", "Throws error", "Returns undefined", "Loops"],
-        answer: "Pauses execution",
-        explanation: "await pauses until the Promise resolves.",
-        bloom_level: "understand",
-      },
-    ],
-  }),
-  flashcards: JSON.stringify({
-    cards: [
-      { type: "term_definition", front: "async", back: "Declares an async function", mnemonic: "a" },
-      { type: "term_definition", front: "await", back: "Waits for a Promise", mnemonic: "w" },
-    ],
-  }),
-  exercises: JSON.stringify({
-    exercises: [
-      {
-        type: "recall",
-        title: "Fetch data",
-        description: "Write a function that fetches data from an API.",
-        hints: ["Use fetch()", "Remember to await"],
-        rubric: "Correct usage of async/await",
-        solution: "async function getData() { return await fetch('/api'); }",
-      },
-    ],
-  }),
 };
+
+const baseArtifacts = [
+  { type: "summary", content: "This lesson covers async/await in JavaScript." },
+  { type: "explanation", content: "Async/await is syntactic sugar over Promises." },
+  {
+    type: "quiz", content: JSON.stringify({
+      questions: [
+        {
+          type: "mcq",
+          question: "What does await do?",
+          options: ["Pauses execution", "Throws error", "Returns undefined", "Loops"],
+          answer: "Pauses execution",
+          explanation: "await pauses until the Promise resolves.",
+          bloom_level: "understand",
+        },
+      ],
+    })
+  },
+  {
+    type: "flashcards", content: JSON.stringify({
+      cards: [
+        { type: "term_definition", front: "async", back: "Declares an async function", mnemonic: "a" },
+        { type: "term_definition", front: "await", back: "Waits for a Promise", mnemonic: "w" },
+      ],
+    })
+  },
+  {
+    type: "exercises", content: JSON.stringify({
+      exercises: [
+        {
+          type: "recall",
+          title: "Fetch data",
+          description: "Write a function that fetches data from an API.",
+          hints: ["Use fetch()", "Remember to await"],
+          rubric: "Correct usage of async/await",
+          solution: "async function getData() { return await fetch('/api'); }",
+        },
+      ],
+    })
+  },
+];
 
 describe("POST /api/export/lesson/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.lesson.findFirst.mockResolvedValue(baseLessonData);
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(baseArtifacts);
   });
 
   it("exports summary as markdown", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "summary", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -78,8 +88,6 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("exports explanation as markdown", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "explanation", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -91,8 +99,6 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("exports flashcards as CSV with correct format", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -109,8 +115,6 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("exports flashcards as markdown table", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "flashcards", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -125,8 +129,6 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("exports quiz as markdown", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "quiz", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -141,8 +143,6 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("exports exercises as markdown", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(baseLessonData);
-
     const res = await POST(makeReq({ type: "exercises", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
     });
@@ -177,7 +177,7 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("returns 404 when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const res = await POST(makeReq({ type: "summary", format: "markdown" }), {
       params: Promise.resolve({ id: "nonexistent" }),
@@ -189,10 +189,10 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("returns 404 when AI data not generated", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      summary: null,
-    });
+    // No summary artifact
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(
+      baseArtifacts.filter((a) => a.type !== "summary")
+    );
 
     const res = await POST(makeReq({ type: "summary", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
@@ -205,15 +205,17 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("handles CSV escaping with special characters (semicolons, quotes)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      flashcards: JSON.stringify({
-        cards: [
-          { type: "term_definition", front: 'What is "async"?', back: "It's; complex", mnemonic: "" },
-          { type: "term_definition", front: 'He said "hello"', back: 'semi;colon "and" quotes', mnemonic: "" },
-        ],
-      }),
-    });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      {
+        type: "flashcards",
+        content: JSON.stringify({
+          cards: [
+            { type: "term_definition", front: 'What is "async"?', back: "It's; complex", mnemonic: "" },
+            { type: "term_definition", front: 'He said "hello"', back: 'semi;colon "and" quotes', mnemonic: "" },
+          ],
+        }),
+      },
+    ]);
 
     const res = await POST(makeReq({ type: "flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "l1" }),
@@ -227,8 +229,7 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("sanitizes filename removing special characters", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       title: 'Lesson: "Advanced" C++/C# <Concepts>',
     });
 
@@ -244,10 +245,9 @@ describe("POST /api/export/lesson/[id]", () => {
   });
 
   it("handles empty flashcards array (valid empty file)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      flashcards: JSON.stringify({ cards: [] }),
-    });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { type: "flashcards", content: JSON.stringify({ cards: [] }) },
+    ]);
 
     const res = await POST(makeReq({ type: "flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "l1" }),
@@ -305,13 +305,14 @@ describe("POST /api/export/lesson/[id]", () => {
 describe("POST /api/export/lesson/[id] — edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.lesson.findFirst.mockResolvedValue(baseLessonData);
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(baseArtifacts);
   });
 
   it("handles corrupt JSON in quiz field", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      quiz: "not-json",
-    });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { type: "quiz", content: "not-json" },
+    ]);
 
     const res = await POST(makeReq({ type: "quiz", format: "markdown" }), {
       params: Promise.resolve({ id: "l1" }),
@@ -323,15 +324,17 @@ describe("POST /api/export/lesson/[id] — edge cases", () => {
   });
 
   it("handles emoji in CSV content", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      flashcards: JSON.stringify({
-        cards: [
-          { type: "term_definition", front: "🎉 Party", back: "Celebration 🥳", mnemonic: "" },
-          { type: "term_definition", front: "👍 Thumb", back: "Approval 💯", mnemonic: "" },
-        ],
-      }),
-    });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      {
+        type: "flashcards",
+        content: JSON.stringify({
+          cards: [
+            { type: "term_definition", front: "🎉 Party", back: "Celebration 🥳", mnemonic: "" },
+            { type: "term_definition", front: "👍 Thumb", back: "Approval 💯", mnemonic: "" },
+          ],
+        }),
+      },
+    ]);
 
     const res = await POST(makeReq({ type: "flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "l1" }),
@@ -347,12 +350,11 @@ describe("POST /api/export/lesson/[id] — edge cases", () => {
   });
 
   it("handles null aiQuiz/aiFlashcards/aiExercises gracefully", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...baseLessonData,
-      quiz: null,
-      flashcards: null,
-      exercises: null,
-    });
+    // No quiz, flashcards, or exercises artifacts
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { type: "summary", content: "Summary" },
+      { type: "explanation", content: "Explanation" },
+    ]);
 
     // Quiz with null data → should return 404 (data not generated)
     const resQuiz = await POST(makeReq({ type: "quiz", format: "markdown" }), {

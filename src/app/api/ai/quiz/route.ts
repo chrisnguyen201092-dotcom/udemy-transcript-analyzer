@@ -5,6 +5,7 @@ import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
+import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same lesson+mode
 const inFlightGenerations = new Map<string, Promise<void>>();
@@ -26,13 +27,8 @@ const USER_PROMPTS: Record<string, string> = {
   exercises: "Tạo bài tập thực hành cho bài học sau đây:",
 };
 
-const DB_FIELD: Record<string, "quiz" | "flashcards" | "exercises"> = {
-  quiz: "quiz",
-  flashcards: "flashcards",
-  exercises: "exercises",
-};
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const { lessonId, apiKey, baseUrl, model, mode, force, lessonIndex, totalLessons } = PracticeSchema.parse(
       await req.json()
@@ -45,8 +41,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid configuration" }, { status: 400 });
     }
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, course: { userId } },
       include: { course: true },
     });
 
@@ -58,19 +54,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Cache guard — return JSON for cached results
-    const cached = lesson[DB_FIELD[mode]];
-    if (cached && !force) {
-      return NextResponse.json({ result: cached, mode });
+    const cachedArtifact = await prisma.lessonArtifact.findUnique({
+      where: { userId_lessonId_type: { userId, lessonId, type: mode } },
+      select: { content: true },
+    });
+    if (cachedArtifact?.content && !force) {
+      return NextResponse.json({ result: cachedArtifact.content, mode });
     }
 
     // M-11: If another request is already generating this mode for this lesson, wait then re-check cache
     const cacheKey = `${mode}-${lessonId}`;
     if (inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
-      const refreshed = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { [DB_FIELD[mode]]: true } });
-      const refreshedValue = refreshed?.[DB_FIELD[mode]];
-      if (refreshedValue) {
-        return NextResponse.json({ result: refreshedValue, mode, cached: true });
+      const refreshed = await prisma.lessonArtifact.findUnique({
+        where: { userId_lessonId_type: { userId, lessonId, type: mode } },
+        select: { content: true },
+      });
+      if (refreshed?.content) {
+        return NextResponse.json({ result: refreshed.content, mode, cached: true });
       }
     }
 
@@ -104,9 +105,10 @@ export async function POST(req: NextRequest) {
     const generationPromise = fullText.then(async (result) => {
       if (!result) return;
       try {
-        await prisma.lesson.update({
-          where: { id: lessonId },
-          data: { [DB_FIELD[mode]]: result },
+        await prisma.lessonArtifact.upsert({
+          where: { userId_lessonId_type: { userId, lessonId, type: mode } },
+          create: { userId, lessonId, type: mode, content: result },
+          update: { content: result },
         });
       } catch (dbError) {
         console.error("[practice] DB persistence failed:", dbError);
@@ -124,4 +126,4 @@ export async function POST(req: NextRequest) {
     console.error("[AI Route Error]", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

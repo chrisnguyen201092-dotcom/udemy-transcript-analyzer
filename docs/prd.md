@@ -116,6 +116,14 @@ Người học hiện đại cần hỗ trợ từ nhiều loại nội dung kh�
 - **UI Adaptation theo contentType** — label, icon, badge phân biệt các loại nội dung **(v3.0)**
 - AI Cache: kết quả được lưu vào DB, trả về ngay khi đã có; hỗ trợ force-regenerate
 - Multi-profile AI settings (base URL, API key, model, Udemy cookie per profile)
+- **Authentication & User Management** — Custom JWT auth (HS256), HttpOnly session cookies, registration/login/password reset, bcrypt hashing, token revocation via tokenVersion **(v1.3)**
+- **Dashboard** — Landing page sau login, Continue Learning widget, SRS Due widget, Study Stats, Recent Activity feed **(v1.3)**
+- **Multi-User Data Scoping** — Tất cả data scoped by `userId`, 4 ownership types (source, artifact, progress, config), data isolation per user **(v1.3)**
+- **LessonArtifact Model** — Extract AI-generated content (summary, explanation, quiz, flashcards, exercises, notes) từ Lesson table thành per-user artifacts với `@@unique([userId, lessonId, type])` **(v1.3)**
+- **Legacy Data Cutover** — Bootstrap user protocol cho first registration claiming NULL-userId records **(v1.3)**
+- **Settings Page Route** — Upgrade từ Modal thành Full Page Route `/settings` với account, preferences, data management **(v1.3)**
+- **Authorization & Access Control** — 6-layer matrix, 404-not-403 pattern, route protection middleware **(v1.3)**
+- **Preference Migration** — localStorage → DB with bind-and-clear strategy **(v1.3)**
 - Giao diện hoàn toàn bằng tiếng Việt
 - Docker support cho deployment (port 3939)
 
@@ -123,7 +131,6 @@ Người học hiện đại cần hỗ trợ từ nhiều loại nội dung kh�
 
 - Xem video trực tiếp từ Udemy / YouTube
 - Đồng bộ tiến độ học lên các nền tảng gốc
-- Multi-user / authentication hệ thống
 - Mobile app (chỉ web)
 - Xuất nội dung ra PDF/Word (hiện hỗ trợ Markdown/CSV — xem Module Export)
 
@@ -312,6 +319,51 @@ Người học hiện đại cần hỗ trợ từ nhiều loại nội dung kh�
 | B-32 | Time-based study plan: "Tôi có 2 tuần" → AI tạo kế hoạch đọc theo ngày dựa trên chapters + difficulty |
 | B-33 | Progress-aware replanning: cập nhật plan dựa trên progress thực tế (chapters đã đọc, quiz scores) |
 
+### 6.18 Module: Authentication & User Management (v1.3 — Multi-User Foundation)
+
+| ID | Yêu cầu |
+|----|---------|
+| M-01 | Người dùng đăng ký tài khoản với email + password; hệ thống hash password với bcrypt cost 12 |
+| M-02 | Người dùng đăng nhập với email + password; hệ thống tạo JWT (HS256) và lưu vào HttpOnly cookie `inkgest_session` (24h expiry) |
+| M-03 | Hỗ trợ "Nhớ tôi trong 30 ngày" (remember-me) với refresh token mechanism via `tokenVersion` field |
+| M-04 | Người dùng có thể reset password qua email; generate temporary reset token với TTL 1 giờ |
+| M-05 | Logout revokes token via `tokenVersion` increment; client clears session cookie |
+| M-06 | API `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/me` |
+| M-07 | Authorization middleware (`withAuth`) bảo vệ protected routes; 404-not-403 pattern khi user không thể access resource |
+
+### 6.19 Module: Dashboard (v1.3 — Multi-User Foundation)
+
+| ID | Yêu cầu |
+|----|---------|
+| D-01 | Landing page sau login (`/dashboard`) hiển thị: Welcome message, Continue Learning widget, SRS Due widget, Study Stats, Recent Activity |
+| D-02 | Continue Learning widget: 3-5 khóa học hoặc bài học gần nhất + progress bar |
+| D-03 | SRS Due widget: số flashcard đến hạn ôn tập + "Start Review" button |
+| D-04 | Study Stats widget: tổng thời gian học, streak hiện tại, bài học hoàn thành, flashcard đã thuộc |
+| D-05 | Recent Activity feed: danh sách hoạt động gần nhất (completed lesson, flashcard reviewed, quiz finished) |
+| D-06 | Dashboard responsive trên desktop/tablet/mobile; layout adjust based trên screen size |
+
+### 6.20 Module: Multi-User Data Scoping (v1.3 — Multi-User Foundation)
+
+| ID | Yêu cầu |
+|----|---------|
+| U-01 | Tất cả data models thêm `userId` foreign key; định nghĩa 4 ownership types: source (course/lesson), artifact (AI results), progress, config |
+| U-02 | LessonArtifact model mới extract AI-generated content từ Lesson table; per-user storage với `@@unique([userId, lessonId, type])` |
+| U-03 | Migrate existing AI fields từ Lesson table (summary, explanation, quiz, flashcards, exercises) vào LessonArtifact table |
+| U-04 | Bootstrap user protocol: first user registration claims tất cả NULL-userId records (legacy data cutover); subsequent users thấy empty workspace |
+| U-05 | Data isolation: query middleware tự động filter by `userId`; không user nào thấy data của user khác |
+| U-06 | Preference migration từ localStorage → DB; bind-and-clear strategy: load từ localStorage, save vào DB, clear localStorage |
+
+### 6.21 Module: Settings Page Route (v1.3 — Multi-User Foundation)
+
+| ID | Yêu cầu |
+|----|---------|
+| S-01 | Settings upgrade từ Modal thành Full Page Route `/settings` |
+| S-02 | Account section: display email, profile info, avatar upload/change |
+| S-03 | Preferences section: AI model selection, theme (light/dark), language (Tiếng Việt/English), daily study time goal |
+| S-04 | Data Management section: export all data, delete account (cascade delete all user data), data usage stats |
+| S-05 | API keys management: add/revoke personal API keys cho external integrations (nếu cần sau) |
+| S-06 | Notification preferences: email notifications, study reminders, SRS due notifications |
+
 ### 6.18 Module: Lesson Notes (v1.2 — đã triển khai backend)
 
 | ID | Yêu cầu |
@@ -387,6 +439,11 @@ Người học hiện đại cần hỗ trợ từ nhiều loại nội dung kh�
 | API key | Lưu client-side (localStorage), không gửi lên server ngoài |
 | SQLite | Database local, không expose qua network |
 | CORS | Chỉ gọi API Udemy từ server-side để tránh CORS |
+| **Authentication (v1.3)** | Custom JWT (HS256), HttpOnly cookie `inkgest_session` (24h expiry), remember-me via `tokenVersion` revocation |
+| **Password Security (v1.3)** | Bcrypt hashing với cost 12; password reset via email với 1h TTL token |
+| **Authorization (v1.3)** | 6-layer matrix: route level, API endpoint, data model, record level, field level, time-based; 404-not-403 pattern |
+| **Data Isolation (v1.3)** | Middleware auto-filter by `userId`; no user sees another user's data; per-user workspace |
+| **Session Management (v1.3)** | Token revocation via `tokenVersion` increment; logout clears HttpOnly cookie; session validation on middleware |
 
 ### 7.3 UX
 
@@ -424,13 +481,36 @@ Người học hiện đại cần hỗ trợ từ nhiều loại nội dung kh�
 | Validation | Zod |
 | Deploy | Docker (docker-compose, port 3939) |
 
-### 8.2 Data Model (Actual — 7 models)
+### 8.2 Data Model (Actual — 9 models, v1.3 includes User + LessonArtifact)
 
-> **Lưu ý:** Schema dưới đây phản ánh trạng thái THỰC TẾ của `prisma/schema.prisma` tính đến v1.2. Các fields `glossary`, `keyConcepts`, `Lesson.roadmap` trong kế hoạch v2.0 CHƯA được thêm vào schema — sẽ thêm khi implement Tier 2.
+> **Lưu ý:** Schema dưới đây phản ánh trạng thái THỰC TẾ của `prisma/schema.prisma` tính đến v1.2. Các fields `glossary`, `keyConcepts`, `Lesson.roadmap` trong kế hoạch v2.0 CHƯA được thêm vào schema — sẽ thêm khi implement Tier 2. **v1.3 additions:** User model, LessonArtifact model, `userId` FK trên tất cả tables.
 
 ```prisma
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  passwordHash  String
+  tokenVersion  Int          @default(0)    // for token revocation
+  avatar        String?      // URL or base64
+  theme         String       @default("light")  // light | dark
+  language      String       @default("vi")     // vi | en
+  dailyTimeMin  Int          @default(30)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  courses       Course[]
+  lessons       Lesson[]
+  lessonArtifacts LessonArtifact[]
+  progress      LessonProgress[]
+  courseProgress CourseProgress[]
+  flashcardReviews FlashcardReview[]
+  chatMessages  ChatMessage[]
+  learnerProfiles LearnerProfile[]
+}
+
 model Course {
   id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   url            String?          @unique  // nullable — manual courses dùng null
   title          String
   contentType    String           @default("course")  // v2.0: "course" | "book"
@@ -443,32 +523,55 @@ model Course {
   lessons        Lesson[]
   progress       CourseProgress?
   learnerProfile LearnerProfile?
+
+  @@unique([userId, id])
 }
 
 model Lesson {
   id               String             @id @default(cuid())
-  courseId          String
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId         String
   course           Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title            String
   order            Int
   chapterNumber    Int?               // v2.0: số thứ tự chương sách
   pageRange        String?            // v2.0: "12-34" — phạm vi trang
   transcript       String?
-  summary          String?            // AI-generated summary
-  explanation      String?            // AI-generated explanation
-  quiz             String?            // AI-generated quiz (JSON string)
-  flashcards       String?            // AI-generated flashcard set (JSON string)
-  exercises        String?            // AI-generated exercises (JSON string)
+  summary          String?            // DEPRECATED (v1.3): moved to LessonArtifact
+  explanation      String?            // DEPRECATED (v1.3): moved to LessonArtifact
+  quiz             String?            // DEPRECATED (v1.3): moved to LessonArtifact
+  flashcards       String?            // DEPRECATED (v1.3): moved to LessonArtifact
+  exercises        String?            // DEPRECATED (v1.3): moved to LessonArtifact
   notes            String?            // User notes — v1.2
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  artifacts        LessonArtifact[]
   progress         LessonProgress?
   flashcardReviews FlashcardReview[]
   chatMessages     ChatMessage[]
+
+  @@unique([userId, id])
+}
+
+model LessonArtifact {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  type      String   // "summary" | "explanation" | "quiz" | "flashcards" | "exercises" | "notes"
+  content   String   // AI-generated content (JSON)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId, type])
 }
 
 model LessonProgress {
   id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId           String
   lesson             Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   completed          Boolean   @default(false)
@@ -480,12 +583,14 @@ model LessonProgress {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  @@unique([lessonId])
+  @@unique([userId, lessonId])
 }
 
 model CourseProgress {
   id               String    @id @default(cuid())
-  courseId          String
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId         String
   course           Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   completionPct    Float     @default(0)
   currentStreak    Int       @default(0)
@@ -495,11 +600,13 @@ model CourseProgress {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  @@unique([courseId])
+  @@unique([userId, courseId])
 }
 
 model FlashcardReview {
   id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId       String
   lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   cardIndex      Int
@@ -512,11 +619,13 @@ model FlashcardReview {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([lessonId, cardIndex])
+  @@unique([userId, lessonId, cardIndex])
 }
 
 model LearnerProfile {
   id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId      String
   course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   level         String              // beginner | intermediate | advanced
@@ -527,24 +636,46 @@ model LearnerProfile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@unique([courseId])
+  @@unique([userId, courseId])
 }
 
 model ChatMessage {
   id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId  String
   lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   role      String                  // "user" | "assistant"
   content   String
   createdAt DateTime @default(now())
+
+  @@unique([userId, id])
 }
 ```
 
+> **v1.3 additions:** User model, LessonArtifact model (extract AI content to per-user storage), userId FK on all tables, token revocation via tokenVersion.
 > **v2.0 Planned additions** (chưa trong schema): `Course.glossary String?`, `Lesson.keyConcepts String?` — sẽ thêm khi implement Tier 2.
 
 ### 8.3 API Routes
 
-> **Lưu ý:** Bảng dưới đây phản ánh TOÀN BỘ routes thực tế trong codebase tính đến v1.2.
+> **Lưu ý:** Bảng dưới đây phản ánh TOÀN BỘ routes thực tế trong codebase tính đến v1.2. **v1.3 additions:** Auth, Dashboard, LessonArtifact routes.
+
+#### Authentication & User Management (v1.3)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `POST` | `/api/auth/register` | Đăng ký tài khoản mới | Email + password; Zod validation; bcrypt hashing |
+| `POST` | `/api/auth/login` | Đăng nhập; return JWT + set HttpOnly cookie | 24h session, remember-me via tokenVersion |
+| `POST` | `/api/auth/logout` | Logout; increment tokenVersion; clear cookie | |
+| `POST` | `/api/auth/forgot-password` | Send reset email với temporary token | TTL 1 giờ |
+| `POST` | `/api/auth/reset-password` | Reset password với reset token | |
+| `GET` | `/api/auth/me` | Lấy thông tin user hiện tại | Requires valid session |
+
+#### Dashboard (v1.3)
+
+| Method | Endpoint | Chức năng | Ghi chú |
+|--------|----------|-----------|---------|
+| `GET` | `/api/dashboard` | Lấy dashboard data: continue learning, SRS due, stats | Aggregated from user's courses |
 
 #### Core — Course & Lesson Management
 
@@ -653,18 +784,18 @@ model ChatMessage {
 
 ### 8.4 UI Architecture
 
-Ứng dụng là single-page với layout 3 vùng:
+Ứng dụng là single-page với layout 3 vùng (sau login):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Header (tên app + "ProfileName / model" + Settings button)  │
+│  Header (Inkgest logo + avatar dropdown + search + theme)   │
 ├──────────────┬──────────────────────────────────────────────┤
 │  Sidebar     │  Main Content (split panel)                  │
-│  - AddCourse │  ┌──────────────────┬──────────────────────┐ │
-│  - Upload    │  │  TranscriptPanel │  AIAssistantPanel    │ │
-│  - CourseList│  │  (xem + edit)    │  Tab: Summary        │ │
-│  - LessonList│  │                  │  Tab: Explain        │ │
-│              │  │                  │  Tab: Chat           │ │
+│  - Continue  │  ┌──────────────────┬──────────────────────┐ │
+│    Learning  │  │  TranscriptPanel │  AIAssistantPanel    │ │
+│  - SRS Due   │  │  (xem + edit)    │  Tab: Summary        │ │
+│  - My Courses│  │                  │  Tab: Explain        │ │
+│  - Coll/Tags │  │                  │  Tab: Chat           │ │
 │              │  │                  │  Tab: Roadmap        │ │
 │              │  │                  │  Tab: Practice       │ │
 │              │  │                  │    → QuizPlayer      │ │
@@ -674,14 +805,27 @@ model ChatMessage {
 └──────────────┴──────────────────────────────────────────────┘
 ```
 
+**Key Routes (v1.3):**
+- `/login` — Login page (public)
+- `/register` — Registration page (public)
+- `/forgot-password` — Forgot password page (public)
+- `/reset-password` — Password reset page (public)
+- `/dashboard` — Landing page after login (protected); shows Continue Learning, SRS Due, Stats, Activity
+- `/learn` — Main learning interface (protected); 3-column layout above
+- `/settings` — Full page settings route (v1.3, replaces SettingsModal); account, preferences, data management
+- `/analytics` — Analytics dashboard (protected)
+- `/review` — Full-screen SRS review session (protected)
+
 **Components chính:**
-- `Header` — thanh navigation, hiển thị "Tên profile / model", mở Settings
+- `Header` — app logo, search (Cmd+K), theme toggle, avatar dropdown menu
+- `AvatarDropdown` — user menu: profile, settings, logout (v1.3)
+- `Dashboard` — welcome, continue learning widget, SRS due widget, stats, activity (v1.3)
 - `AddCoursePanel` — form thêm khóa học thủ công + nút import Udemy + nút upload file
 - `CourseList` — danh sách khóa học, select active
 - `LessonList` — danh sách bài học của khóa học đang chọn
 - `TranscriptPanel` — hiển thị và edit transcript
 - `AIAssistantPanel` — 5 tab: Summary, Explain, Chat, Roadmap, Practice
-- `SettingsModal` — multi-profile AI settings (tạo/chuyển/xóa profile)
+- `SettingsPage` — full page route with tabs: Account, Preferences, Data Management (v1.3)
 - `ImportModal` — nhập access token và chọn khóa học từ Udemy
 - `UploadModal` — chọn file/thư mục transcript; nhập tên khóa học khi tạo mới
 - `QuizPlayer` — quiz tương tác: click chọn đáp án, chấm điểm, highlight đúng/sai
@@ -696,12 +840,43 @@ model ChatMessage {
 - `useUrlState` — đồng bộ app state với URL search params (v1.2)
 - `useMediaQuery` — responsive breakpoint detection (v1.2)
 - `useKeyboardShortcuts` — keyboard shortcuts handler (v1.2)
+- `useAuth` — check current user, login/logout, token refresh (v1.3)
 
-**shadcn/ui primitives dùng:** `button`, `dialog`, `input`, `label`, `select`, `textarea`, `badge`, `alert-dialog`, `scroll-area`, `separator`, `tabs`, `card`
+**shadcn/ui primitives dùng:** `button`, `dialog`, `input`, `label`, `select`, `textarea`, `badge`, `alert-dialog`, `scroll-area`, `separator`, `tabs`, `card`, `dropdown-menu`, `avatar`
 
 ---
 
 ## 9. User Flows
+
+### Flow 0: Registration & First Login (v1.3)
+
+```
+1. Người dùng mở ứng dụng → route `/login`
+2. Click "Tạo tài khoản" → navigate to `/register`
+3. Nhập email + password + confirm password
+4. Click "Đăng ký"
+5. Hệ thống gọi POST /api/auth/register
+   - Validate email format + password strength
+   - Hash password với bcrypt (cost 12)
+   - Tạo User record, set tokenVersion = 0
+   - Trigger bootstrap user protocol: claim tất cả NULL-userId courses/lessons (legacy data cutover)
+6. Auto-login với JWT (HttpOnly cookie `inkgest_session`, 24h)
+7. Redirect to `/dashboard`
+8. Dashboard hiển thị "Welcome, [email]!" + continue learning widget, SRS due, stats
+```
+
+### Flow 0b: Login (v1.3)
+
+```
+1. Người dùng mở ứng dụng → route `/login`
+2. Nhập email + password
+3. Click "Đăng nhập" (hoặc check "Nhớ tôi 30 ngày" → remember-me token)
+4. Hệ thống gọi POST /api/auth/login
+   - Query User by email
+   - Compare password hash với bcrypt
+   - Create JWT (HS256), set HttpOnly cookie, set tokenVersion
+5. Redirect to `/dashboard`
+```
 
 ### Flow 1: Import khóa học từ Udemy
 
@@ -913,6 +1088,52 @@ model ChatMessage {
 - **Export** — xuất bài học/khóa học ra Markdown hoặc CSV (2 routes)
 - **Learner Profile / Pre-Assessment** — profile học viên per-course: level, goal, dailyTime, learningStyle (`LearnerProfile`, 2 routes)
 - **Chat Persistence** — lưu lịch sử chat vào DB, load lại khi quay lại bài (`ChatMessage`, 3 routes)
+
+### v1.3 — Multi-User Foundation (kế hoạch)
+
+> Chuyển Inkgest từ single-user personal tool thành **multi-user platform** với authentication, user data isolation, per-user AI artifacts.
+
+**Phase 0 — Structural Decomposition (~1 tuần):**
+- Refactor Prisma schema: add User model, userId FK trên tất cả tables
+- Tạo LessonArtifact model để extract AI content từ Lesson table
+- Setup middleware: route protection, data scoping by userId
+- Database migration strategy: nullable userId → bootstrap user protocol
+
+**Phase 1 — Auth & Multi-User Foundation (~2 tuần):**
+- **M-01 → M-07**: Custom JWT auth (HS256, HttpOnly cookie, bcrypt cost 12, tokenVersion revocation)
+- **Routes**: `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/me`
+- **UI Pages**: `/login`, `/register`, `/forgot-password`, `/reset-password` (public routes)
+- **Avatar Dropdown**: user menu with profile, settings, logout
+- **Data Scoping**: Query middleware auto-filter by userId; data isolation
+- **Settings Migration**: localStorage → DB with bind-and-clear
+
+**Phase 2 — Dashboard & Onboarding (~1 tuần):**
+- **D-01 → D-06**: Dashboard page (`/dashboard`) as landing after login
+- **Widgets**: Continue Learning, SRS Due, Study Stats, Recent Activity
+- **First-time setup**: Onboarding flow, bootstrap user protocol claims legacy data
+- **Route protection**: middleware redirects to /login if no session
+
+**Phase 3 — Layout Refactor (~3-5 ngày):**
+- Update Header: replace "ProfileName/model" with avatar dropdown + user menu
+- Sidebar update: show personalized Continue Learning, SRS Due, My Courses
+- Remove multi-profile UI (stored in User account settings now)
+
+**Phase 4 — Navigation Enhancement (~2-3 ngày):**
+- Add `/settings` full page route (replace SettingsModal)
+- Route navigation: login → dashboard → learn
+- Breadcrumbs + navigation context
+
+**Phase 5 — Route Separation (~2-3 ngày):**
+- Separate layout: auth pages have minimal layout; protected routes use main layout
+- Route protection: ProtectedRoute wrapper
+- Session management: automatic token refresh, logout on expiry
+
+**Phase 6 — Visual Polish (~2-3 ngày):**
+- Visual refinement: auth pages, dashboard, settings
+- Responsive testing
+- Error handling + UX improvements
+
+**Dependency**: Requires v1.2 backend features (Progress, SRS, Analytics, Notes)
 
 ### v2.0 — Hỗ trợ Sách/Giáo trình (kế hoạch)
 

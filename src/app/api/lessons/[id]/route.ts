@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const UpdateSchema = z.object({
   title: z.string().min(1).max(200),
 });
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export const PUT = withAuth(async (req, { userId, params }) => {
+  const id = params?.id!;
   const body = await req.json();
   const parsed = UpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const lesson = await prisma.lesson.findUnique({ where: { id } });
+  // Verify lesson belongs to a course owned by this user
+  const lesson = await prisma.lesson.findFirst({
+    where: { id, course: { userId } },
+  });
   if (!lesson) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -25,13 +26,17 @@ export async function PUT(
     data: { title: parsed.data.title },
   });
   return NextResponse.json(updated);
-}
+});
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export const DELETE = withAuth(async (_req, { userId, params }) => {
+  const id = params?.id!;
+  // Verify lesson belongs to a course owned by this user
+  const lesson = await prisma.lesson.findFirst({
+    where: { id, course: { userId } },
+  });
+  if (!lesson) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   await prisma.lesson.delete({ where: { id } });
   return NextResponse.json({ success: true });
-}
+});

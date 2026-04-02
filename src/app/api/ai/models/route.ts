@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCleanHeaders } from "@/lib/ai/client";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
+import { withAuth } from "@/lib/auth";
 
 const ModelsSchema = z.object({
   baseUrl: z.string().url(),
   apiKey: z.string().min(1),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req) => {
   try {
     const { baseUrl, apiKey } = ModelsSchema.parse(await req.json());
 
@@ -56,4 +57,4 @@ export async function POST(req: NextRequest) {
     console.error("[AI Route Error]", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

@@ -43,7 +43,7 @@ function makeUploadRequest(body: unknown): NextRequest {
 describe("POST /api/courses/upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue(VALID_COURSE);
+    mockPrisma.course.findFirst.mockResolvedValue(VALID_COURSE);
     mockPrisma.lesson.count.mockResolvedValue(0);
     mockPrisma.lesson.create.mockImplementation(
       (args: { data: { title: string; transcript: string | null; order: number; courseId: string } }) =>
@@ -239,7 +239,7 @@ describe("POST /api/courses/upload", () => {
   });
 
   it("returns 404 when course does not exist", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeUploadRequest({
       courseId: "nonexistent",
@@ -287,7 +287,7 @@ describe("POST /api/courses/upload", () => {
 describe("POST /api/courses/upload — edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue(VALID_COURSE);
+    mockPrisma.course.findFirst.mockResolvedValue(VALID_COURSE);
     mockPrisma.lesson.count.mockResolvedValue(0);
     mockPrisma.lesson.create.mockImplementation(
       (args: { data: { title: string; transcript: string | null; order: number; courseId: string } }) =>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 const VALID_TYPES = ["full-notes", "all-flashcards"] as const;
 type CourseExportType = (typeof VALID_TYPES)[number];
@@ -17,7 +18,7 @@ function sanitizeFilename(name: string): string {
 }
 
 function escapeCSVField(value: string): string {
-  // M-19: Prevent spreadsheet formula injection (=, +, -, @, tab, CR)
+  // M-19: Prevent spreadsheet formula injection
   if (/^[=+\-@\t\r]/.test(value)) {
     value = "'" + value;
   }
@@ -27,14 +28,9 @@ function escapeCSVField(value: string): string {
 
 function formatFullNotes(
   courseTitle: string,
-  lessons: Array<{
-    title: string;
-    summary: string | null;
-    explanation: string | null;
-  }>
+  lessons: Array<{ title: string; summary: string | null; explanation: string | null }>
 ): string {
   const lines = [`# ${courseTitle} — Ghi chú\n`];
-
   for (const lesson of lessons) {
     if (lesson.summary === null && lesson.explanation === null) continue;
     lines.push(`## ${lesson.title}`);
@@ -49,7 +45,6 @@ function formatFullNotes(
       lines.push("");
     }
   }
-
   return lines.join("\n");
 }
 
@@ -57,7 +52,6 @@ function formatAllFlashcardsCSV(
   lessons: Array<{ flashcards: string | null }>
 ): string {
   const allLines: string[] = [];
-
   for (const lesson of lessons) {
     if (lesson.flashcards === null) continue;
     try {
@@ -65,25 +59,19 @@ function formatAllFlashcardsCSV(
       const cards = data.cards;
       if (cards && cards.length > 0) {
         for (const c of cards as Array<{ front: string; back: string }>) {
-          allLines.push(
-            `${escapeCSVField(c.front)};${escapeCSVField(c.back)}`
-          );
+          allLines.push(`${escapeCSVField(c.front)};${escapeCSVField(c.back)}`);
         }
       }
     } catch {
       // skip unparseable lessons
     }
   }
-
   return allLines.join("\n");
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
     const body = await req.json();
     const { type, format } = body as { type: string; format: string };
 
@@ -113,40 +101,56 @@ export async function POST(
       );
     }
 
-    const course = await prisma.course.findUnique({
-      where: { id },
+    const course = await prisma.course.findFirst({
+      where: { id, userId },
       select: {
         title: true,
         lessons: {
-          select: {
-            title: true,
-            summary: true,
-            explanation: true,
-            flashcards: true,
-          },
+          select: { id: true, title: true },
           orderBy: { order: "asc" },
         },
       },
     });
 
     if (!course) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
+
+    // Fetch all lesson artifacts for this course's lessons in one query
+    const lessonIds = course.lessons.map((l) => l.id);
+    const artifacts = await prisma.lessonArtifact.findMany({
+      where: { lessonId: { in: lessonIds }, userId, type: { in: ["summary", "explanation", "flashcards"] } },
+      select: { lessonId: true, type: true, content: true },
+    });
+
+    // Build per-lesson artifact map: lessonId → { summary, explanation, flashcards }
+    const artifactsByLesson = new Map<string, Record<string, string>>();
+    for (const a of artifacts) {
+      if (!artifactsByLesson.has(a.lessonId)) artifactsByLesson.set(a.lessonId, {});
+      artifactsByLesson.get(a.lessonId)![a.type] = a.content;
+    }
+
+    // Shape lessons with the fields the formatter functions expect
+    const lessons = course.lessons.map((l) => {
+      const map = artifactsByLesson.get(l.id) ?? {};
+      return {
+        title: l.title,
+        summary: map["summary"] ?? null,
+        explanation: map["explanation"] ?? null,
+        flashcards: map["flashcards"] ?? null,
+      };
+    });
 
     let content: string;
     let contentType: string;
     let ext: string;
 
     if (type === "full-notes") {
-      content = formatFullNotes(course.title, course.lessons);
+      content = formatFullNotes(course.title, lessons);
       contentType = "text/markdown; charset=utf-8";
       ext = "md";
     } else {
-      // all-flashcards
-      content = formatAllFlashcardsCSV(course.lessons);
+      content = formatAllFlashcardsCSV(lessons);
       contentType = "text/csv; charset=utf-8";
       ext = "csv";
     }
@@ -167,4 +171,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

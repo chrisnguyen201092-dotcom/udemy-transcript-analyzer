@@ -38,7 +38,11 @@ function makeRequest(lessonId: string, body: unknown): NextRequest {
 }
 
 describe("PUT /api/lessons/[id]/transcript", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Route calls findFirst for ownership check before update
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+  });
 
   it("saves transcript and returns updated lesson", async () => {
     const updatedLesson = { id: "l1", title: "Lesson 1", transcript: "Hello world" };

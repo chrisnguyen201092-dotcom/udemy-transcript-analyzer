@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const SplitSchema = z.object({
   lessonId: z.string().min(1),
@@ -14,13 +15,16 @@ const SplitSchema = z.object({
  * Original keeps related data (top half); new lesson for bottom half.
  * AI fields cleared on both (stale after content change).
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id: courseId } = await params;
+    const courseId = params?.id!;
     const { lessonId, splitIndex, newTitle } = SplitSchema.parse(await req.json());
+
+    // Verify course ownership
+    const course = await prisma.course.findFirst({ where: { id: courseId, userId } });
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
 
     const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
 
@@ -109,4 +113,4 @@ export async function POST(
     console.error("[split]", error);
     return NextResponse.json({ error: "Failed to split lesson" }, { status: 500 });
   }
-}
+});

@@ -5,6 +5,7 @@ import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
+import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same course
 const inFlightGenerations = new Map<string, Promise<void>>();
@@ -17,7 +18,7 @@ const RoadmapSchema = z.object({
   force: z.boolean().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const { courseId, apiKey, baseUrl, model, force } = RoadmapSchema.parse(await req.json());
 
@@ -28,8 +29,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid configuration" }, { status: 400 });
     }
 
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, userId },
       include: {
         lessons: {
           orderBy: { order: "asc" },
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     const cacheKey = `roadmap-${courseId}`;
     if (inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
-      const refreshed = await prisma.course.findUnique({ where: { id: courseId }, select: { roadmap: true } });
+      const refreshed = await prisma.course.findFirst({ where: { id: courseId, userId }, select: { roadmap: true } });
       if (refreshed?.roadmap) {
         return NextResponse.json({ roadmap: refreshed.roadmap, cached: true });
       }
@@ -73,9 +74,9 @@ export async function POST(req: NextRequest) {
     const lessonIds = course.lessons.map((l) => l.id);
 
     const [profile, progressRecords] = await Promise.all([
-      prisma.learnerProfile.findUnique({ where: { courseId } }),
+      prisma.learnerProfile.findFirst({ where: { courseId, userId } }),
       prisma.lessonProgress.findMany({
-        where: { lessonId: { in: lessonIds } },
+        where: { lessonId: { in: lessonIds }, userId },
       }),
     ]);
 
@@ -177,4 +178,4 @@ export async function POST(req: NextRequest) {
     console.error("[AI Route Error]", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

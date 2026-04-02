@@ -37,7 +37,98 @@
 
 ---
 
-## Module 1: Quản lý Khóa học (Course Management)
+# Danh sách Tính năng - Inkgest
+
+## Tổng quan
+
+| Module | Tổng số tính năng | Hoàn thành | Đang phát triển | Kế hoạch |
+|--------|-------------------|------------|-----------------|----------|
+| **Authentication & User Management (v1.3)** | 7 | 0 | 0 | 7 |
+| **Dashboard (v1.3)** | 6 | 0 | 0 | 6 |
+| **Multi-User Data Scoping (v1.3)** | 6 | 0 | 0 | 6 |
+| **Settings Page Route (v1.3)** | 6 | 0 | 0 | 6 |
+| Quản lý Khóa học | 4 | 4 | 0 | 0 |
+| Udemy Import | 2 | 2 | 0 | 0 |
+| Upload & Tạo khóa học từ file | 4 | 4 | 0 | 0 |
+| Upload Sách/Giáo trình | 3 | 3 | 0 | 0 |
+| Quản lý Transcript | 3 | 3 | 0 | 0 |
+| AI Assistant — Bài học | 4 | 4 | 0 | 0 |
+| AI Assistant — Luyện tập (Interactive) | 3 | 3 | 0 | 0 |
+| AI Assistant — Lộ trình | 1 | 1 | 0 | 0 |
+| AI Cache & Persistence | 4 | 4 | 0 | 0 |
+| Cài đặt (Multi-Profile) | 5 | 5 | 0 | 0 |
+| Prompt Engineering | 4 | 4 | 0 | 0 |
+| UI/UX | 4 | 4 | 0 | 0 |
+| Ghi chú bài học (Lesson Notes) | 2 | 2 | 0 | 0 |
+| Theo dõi tiến độ (Progress Tracking) | 4 | 4 | 0 | 0 |
+| Ôn tập lặp lại (SRS — Spaced Repetition) | 4 | 4 | 0 | 0 |
+| Phân tích học tập (Learning Analytics) | 2 | 2 | 0 | 0 |
+| Xuất nội dung (Export) | 2 | 2 | 0 | 0 |
+| Hồ sơ người học (Learner Profile) | 1 | 1 | 0 | 0 |
+| Lưu lịch sử Chat (Chat Persistence) | 3 | 3 | 0 | 0 |
+| Quản lý bài học nâng cao (Lesson Management) | 3 | 3 | 0 | 0 |
+| Course Collections/Tags | 1 | 1 | 0 | 0 |
+| YouTube Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| Web/URL Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| GitHub Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| Audio/Podcast Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| **Tổng cộng** | **88** | **56** | **0** | **32** |
+
+> **Ghi chú:** 
+> - Module 1–4 (Authentication, Dashboard, Data Scoping, Settings) là v1.3 Multi-User Foundation, chưa triển khai. Sẽ thêm sau khi hoàn thành cấu trúc schema.
+> - Nhiều tính năng từ Module 13–21 hiện chỉ có backend (API routes + Prisma models). UI integration đang trong kế hoạch (xem `docs/roadmap.md`).
+> - Module 25–28 (YouTube, Web, GitHub, Audio) là tầm nhìn v3.0 Multi-Source, chưa triển khai. Sẽ thêm sau khi hoàn thành v2.0 (sách).
+
+---
+
+## Module 1: Authentication & User Management (v1.3 — Multi-User Foundation)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Đăng ký tài khoản | Người dùng nhập email + password → tạo User mới với bcrypt hashing (cost 12) | 🔜 Kế hoạch | `POST /api/auth/register` + `/register` page | Zod validation; email unique; password strength check |
+| Đăng nhập | Xác thực email + password → tạo JWT (HS256) + set HttpOnly cookie `inkgest_session` (24h) | 🔜 Kế hoạch | `POST /api/auth/login` + `/login` page | Token trong HttpOnly cookie; session validation middleware |
+| Remember me (30 ngày) | Người dùng check "Nhớ tôi" → dùng refresh token mechanism via `tokenVersion` | 🔜 Kế hoạch | `POST /api/auth/login` option | Extend session lên 30 ngày; auto-refresh khi gần hết hạn |
+| Logout | Logout → increment `tokenVersion` + clear HttpOnly cookie | 🔜 Kế hoạch | `POST /api/auth/logout` | Token revocation; client clears session |
+| Forgot Password | User nhập email → gửi reset email với temporary token (TTL 1h) | 🔜 Kế hoạch | `POST /api/auth/forgot-password` + `/forgot-password` page | Token signed + TTL; send email via nodemailer/SendGrid |
+| Reset Password | User nhập new password với reset token → cập nhật passwordHash | 🔜 Kế hoạch | `POST /api/auth/reset-password` + `/reset-password` page | Validate reset token; hash new password; invalidate old tokens via tokenVersion |
+| Get Current User | API lấy thông tin user hiện tại; check session validity | 🔜 Kế hoạch | `GET /api/auth/me` | Requires valid session; return user profile |
+
+## Module 2: Dashboard (v1.3 — Multi-User Foundation)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Landing page sau login | `/dashboard` hiển thị personalized landing page | 🔜 Kế hoạch | `/dashboard` route | Protected route; redirect to /login nếu no session |
+| Continue Learning widget | Hiển thị 3-5 khóa học/bài học gần nhất + progress bar | 🔜 Kế hoạch | `GET /api/dashboard` | Query last_accessed courses/lessons; sort by `lastStudiedAt` DESC |
+| SRS Due widget | Hiển thị số flashcard đến hạn ôn tập; "Start Review" button | 🔜 Kế hoạch | `GET /api/dashboard`, `GET /api/srs/dashboard` | Query `FlashcardReview` where `nextReviewAt <= now()` |
+| Study Stats widget | Tổng thời gian học, streak hiện tại, bài học hoàn thành, flashcard đã thuộc | 🔜 Kế hoạch | `GET /api/dashboard`, aggregated từ Progress/SRS | Compute stats từ CourseProgress, LessonProgress, FlashcardReview |
+| Recent Activity feed | Timeline hoạt động gần nhất: completed lesson, flashcard reviewed, quiz finished | 🔜 Kế hoạch | `GET /api/dashboard` | Query from LessonProgress, FlashcardReview, analytics; sort by `updatedAt` DESC |
+| Responsive dashboard | Adapt layout cho desktop/tablet/mobile | 🔜 Kế hoạch | CSS Tailwind breakpoints | `sm:`, `md:`, `lg:` classes; mobile-first design |
+
+## Module 3: Multi-User Data Scoping (v1.3 — Multi-User Foundation)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Add userId FK to all tables | Tất cả models (Course, Lesson, Progress, etc.) thêm `userId` FK | 🔜 Kế hoạch | Prisma schema + migrations | `userId String @relation(User)`, cascade delete |
+| Define ownership types | 4 loại ownership: source (course), artifact (AI results), progress, config | 🔜 Kế hoạch | Schema design + comments | Document in code comments; enforce via middleware |
+| LessonArtifact model | Extract AI content (summary, explanation, quiz, flashcards, exercises) từ Lesson thành per-user artifacts | 🔜 Kế hoạch | `LessonArtifact` model, `@@unique([userId, lessonId, type])` | Separate storage; type discriminator; `content` JSON |
+| Bootstrap user protocol | First user registration claims tất cả NULL-userId records (legacy data cutover) | 🔜 Kế hoạch | `POST /api/auth/register` logic | Migration: `UPDATE ... WHERE userId IS NULL` → set to new user ID |
+| Data isolation middleware | Query middleware tự động filter by current `userId` | 🔜 Kế hoạch | Middleware + prisma client setup | Wrap queries; ensure no user sees another's data |
+| Preference migration | Migrate settings từ localStorage → DB with bind-and-clear | 🔜 Kế hoạch | useEffect + `PUT /api/user/preferences` | Load from localStorage on mount; save to DB; clear localStorage |
+
+## Module 4: Settings Page Route (v1.3 — Multi-User Foundation)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Upgrade from Modal to Full Page | Settings thay đổi từ Modal thành `/settings` route | 🔜 Kế hoạch | `/settings` route, SettingsPage component | Replace SettingsModal; add to navigation menu |
+| Account Management | Display email, profile info, avatar upload/change | 🔜 Kế hoạch | `GET/PUT /api/user/profile` | Avatar upload to server or base64; update User fields |
+| Preferences Section | AI model selection, theme (light/dark), language, daily study goal | 🔜 Kế hoạch | `GET/PUT /api/user/preferences` | Store in User table (`theme`, `language`, `dailyTimeMin`) |
+| Data Management | Export all data, delete account (cascade), data usage stats | 🔜 Kế hoạch | `POST /api/export/all`, `DELETE /api/user/account` | Generate ZIP export; confirm before delete; cascade delete all user data |
+| Notification Preferences | Email notifications, study reminders, SRS due notifications | 🔜 Kế hoạch | `GET/PUT /api/user/notifications` | Store notification prefs; integrate with email service |
+| API Keys Management | Add/revoke personal API keys cho external integrations (future) | 🔜 Kế hoạch | `POST/DELETE /api/user/api-keys` | Create APIKey model; store hashed key; return once |
+
+---
+
+## Module 5: Quản lý Khóa học (Course Management)
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
@@ -48,7 +139,7 @@
 
 ---
 
-## Module 2: Udemy Import
+## Module 6: Udemy Import
 
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|

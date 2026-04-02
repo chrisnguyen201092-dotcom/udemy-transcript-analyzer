@@ -3,8 +3,9 @@ import { NextRequest } from "next/server";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    lesson: { findUnique: vi.fn() },
-    course: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn(), findFirst: vi.fn() },
+    lessonArtifact: { findMany: vi.fn() },
+    course: { findUnique: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -23,44 +24,43 @@ function makeReq(body: object): NextRequest {
 const baseCourseData = {
   title: "JavaScript Masterclass",
   lessons: [
-    {
-      title: "Lesson 1: Variables",
-      summary: "Variables store data.",
-      explanation: "Let, const, var are ways to declare variables.",
-      flashcards: JSON.stringify({
-        cards: [
-          { type: "term_definition", front: "let", back: "Block-scoped variable", mnemonic: "" },
-          { type: "term_definition", front: "const", back: "Immutable binding", mnemonic: "" },
-        ],
-      }),
-    },
-    {
-      title: "Lesson 2: Functions",
-      summary: "Functions are reusable blocks.",
-      explanation: "Arrow functions, regular functions, and IIFE.",
-      flashcards: JSON.stringify({
-        cards: [
-          { type: "term_definition", front: "arrow fn", back: "() => {}", mnemonic: "" },
-        ],
-      }),
-    },
-    {
-      title: "Lesson 3: No AI Data",
-      summary: null,
-      explanation: null,
-      flashcards: null,
-    },
+    { id: "lesson-1", title: "Lesson 1: Variables" },
+    { id: "lesson-2", title: "Lesson 2: Functions" },
+    { id: "lesson-3", title: "Lesson 3: No AI Data" },
   ],
 };
+
+const baseCourseArtifacts = [
+  { lessonId: "lesson-1", type: "summary", content: "Variables store data." },
+  { lessonId: "lesson-1", type: "explanation", content: "Let, const, var are ways to declare variables." },
+  {
+    lessonId: "lesson-1", type: "flashcards", content: JSON.stringify({
+      cards: [
+        { type: "term_definition", front: "let", back: "Block-scoped variable", mnemonic: "" },
+        { type: "term_definition", front: "const", back: "Immutable binding", mnemonic: "" },
+      ],
+    })
+  },
+  { lessonId: "lesson-2", type: "summary", content: "Functions are reusable blocks." },
+  { lessonId: "lesson-2", type: "explanation", content: "Arrow functions, regular functions, and IIFE." },
+  {
+    lessonId: "lesson-2", type: "flashcards", content: JSON.stringify({
+      cards: [
+        { type: "term_definition", front: "arrow fn", back: "() => {}", mnemonic: "" },
+      ],
+    })
+  },
+  // lesson-3 has no artifacts
+];
 
 describe("POST /api/export/course/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.course.findFirst.mockResolvedValue(baseCourseData);
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(baseCourseArtifacts);
   });
 
   it("exports full-notes as markdown", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(baseCourseData);
-
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "c1" }),
     });
@@ -79,8 +79,6 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("exports all-flashcards as CSV", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(baseCourseData);
-
     const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
     });
@@ -128,7 +126,7 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "nonexistent" }),
@@ -140,8 +138,6 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("skips lessons with no AI data in full-notes", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(baseCourseData);
-
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "c1" }),
     });
@@ -153,8 +149,6 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("skips lessons with no flashcards in all-flashcards CSV", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(baseCourseData);
-
     const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
     });
@@ -166,21 +160,21 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("handles CSV escaping with special characters in course flashcards", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Course with Special Chars",
-      lessons: [
-        {
-          title: "L1",
-          summary: null,
-          explanation: null,
-          flashcards: JSON.stringify({
-            cards: [
-              { type: "term_definition", front: 'What is "this"?', back: "context; scope", mnemonic: "" },
-            ],
-          }),
-        },
-      ],
+      lessons: [{ id: "l1", title: "L1" }],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      {
+        lessonId: "l1",
+        type: "flashcards",
+        content: JSON.stringify({
+          cards: [
+            { type: "term_definition", front: 'What is "this"?', back: "context; scope", mnemonic: "" },
+          ],
+        }),
+      },
+    ]);
 
     const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -192,13 +186,14 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("handles course with all lessons having no flashcards", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Empty Course",
       lessons: [
-        { title: "L1", summary: null, explanation: null, flashcards: null },
-        { title: "L2", summary: null, explanation: null, flashcards: null },
+        { id: "l1", title: "L1" },
+        { id: "l2", title: "L2" },
       ],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -210,10 +205,11 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("sanitizes course title in filename", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: 'Course: "Advanced" C++/C#',
       lessons: [],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -226,17 +222,13 @@ describe("POST /api/export/course/[id]", () => {
   });
 
   it("handles full-notes with only summary (no explanation)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Partial Data Course",
-      lessons: [
-        {
-          title: "Lesson A",
-          summary: "Has summary only",
-          explanation: null,
-          flashcards: null,
-        },
-      ],
+      lessons: [{ id: "la", title: "Lesson A" }],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { lessonId: "la", type: "summary", content: "Has summary only" },
+    ]);
 
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -288,33 +280,22 @@ describe("POST /api/export/course/[id] — edge cases", () => {
   });
 
   it("handles course with mixed null/present data across lessons", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Mixed Data Course",
       lessons: [
-        {
-          title: "Lesson A",
-          summary: "Has summary",
-          explanation: "Has explanation",
-          flashcards: JSON.stringify({
-            cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }],
-          }),
-        },
-        {
-          title: "Lesson B",
-          summary: null,
-          explanation: null,
-          flashcards: null,
-        },
-        {
-          title: "Lesson C",
-          summary: "Only summary",
-          explanation: null,
-          flashcards: JSON.stringify({
-            cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }],
-          }),
-        },
+        { id: "la", title: "Lesson A" },
+        { id: "lb", title: "Lesson B" },
+        { id: "lc", title: "Lesson C" },
       ],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { lessonId: "la", type: "summary", content: "Has summary" },
+      { lessonId: "la", type: "explanation", content: "Has explanation" },
+      { lessonId: "la", type: "flashcards", content: JSON.stringify({ cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }] }) },
+      // lb has no artifacts
+      { lessonId: "lc", type: "summary", content: "Only summary" },
+      { lessonId: "lc", type: "flashcards", content: JSON.stringify({ cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }] }) },
+    ]);
 
     // full-notes: should include A and C (have summary), skip B
     const resNotes = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
@@ -328,33 +309,18 @@ describe("POST /api/export/course/[id] — edge cases", () => {
 
     // all-flashcards CSV: should include cards from A and C, skip B
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Mixed Data Course",
       lessons: [
-        {
-          title: "Lesson A",
-          summary: "Has summary",
-          explanation: "Has explanation",
-          flashcards: JSON.stringify({
-            cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }],
-          }),
-        },
-        {
-          title: "Lesson B",
-          summary: null,
-          explanation: null,
-          flashcards: null,
-        },
-        {
-          title: "Lesson C",
-          summary: "Only summary",
-          explanation: null,
-          flashcards: JSON.stringify({
-            cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }],
-          }),
-        },
+        { id: "la", title: "Lesson A" },
+        { id: "lb", title: "Lesson B" },
+        { id: "lc", title: "Lesson C" },
       ],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { lessonId: "la", type: "flashcards", content: JSON.stringify({ cards: [{ type: "term_definition", front: "A", back: "B", mnemonic: "" }] }) },
+      { lessonId: "lc", type: "flashcards", content: JSON.stringify({ cards: [{ type: "term_definition", front: "C", back: "D", mnemonic: "" }] }) },
+    ]);
 
     const resCsv = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -367,21 +333,21 @@ describe("POST /api/export/course/[id] — edge cases", () => {
 
   // Emoji in course title — sanitizeFilename strips non-ASCII for Content-Disposition header safety
   it("handles emoji in CSV course export", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       title: "Emoji Course 🎓",
-      lessons: [
-        {
-          title: "Lesson 🎉",
-          summary: null,
-          explanation: null,
-          flashcards: JSON.stringify({
-            cards: [
-              { type: "term_definition", front: "🚀 Launch", back: "Deployment 💯", mnemonic: "" },
-            ],
-          }),
-        },
-      ],
+      lessons: [{ id: "l1", title: "Lesson 🎉" }],
     });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      {
+        lessonId: "l1",
+        type: "flashcards",
+        content: JSON.stringify({
+          cards: [
+            { type: "term_definition", front: "🚀 Launch", back: "Deployment 💯", mnemonic: "" },
+          ],
+        }),
+      },
+    ]);
 
     const res = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -395,20 +361,21 @@ describe("POST /api/export/course/[id] — edge cases", () => {
 
   it("handles very large course with 50 lessons", async () => {
     const lessons = Array.from({ length: 50 }, (_, i) => ({
+      id: `lesson-${i}`,
       title: `Lesson ${i + 1}`,
-      summary: `Summary for lesson ${i + 1}`,
-      explanation: `Explanation for lesson ${i + 1}`,
-      flashcards: JSON.stringify({
-        cards: [
-          { type: "term_definition", front: `Term ${i + 1}`, back: `Definition ${i + 1}`, mnemonic: "" },
-        ],
-      }),
     }));
+    const artifacts = lessons.flatMap((l, i) => [
+      { lessonId: l.id, type: "summary", content: `Summary for lesson ${i + 1}` },
+      { lessonId: l.id, type: "explanation", content: `Explanation for lesson ${i + 1}` },
+      {
+        lessonId: l.id, type: "flashcards", content: JSON.stringify({
+          cards: [{ type: "term_definition", front: `Term ${i + 1}`, back: `Definition ${i + 1}`, mnemonic: "" }],
+        })
+      },
+    ]);
 
-    mockPrisma.course.findUnique.mockResolvedValue({
-      title: "Massive Course",
-      lessons,
-    });
+    mockPrisma.course.findFirst.mockResolvedValue({ title: "Massive Course", lessons });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(artifacts);
 
     const res = await POST(makeReq({ type: "full-notes", format: "markdown" }), {
       params: Promise.resolve({ id: "c1" }),
@@ -421,10 +388,8 @@ describe("POST /api/export/course/[id] — edge cases", () => {
 
     // Also verify CSV with 50 lessons
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue({
-      title: "Massive Course",
-      lessons,
-    });
+    mockPrisma.course.findFirst.mockResolvedValue({ title: "Massive Course", lessons });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue(artifacts.filter((a) => a.type === "flashcards"));
 
     const resCsv = await POST(makeReq({ type: "all-flashcards", format: "csv" }), {
       params: Promise.resolve({ id: "c1" }),

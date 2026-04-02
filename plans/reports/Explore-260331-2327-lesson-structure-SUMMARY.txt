@@ -1,0 +1,94 @@
+# EXPLORATION SUMMARY: Lesson Structure & Chapter Merge/Split
+
+## Quick Reference
+
+### 1. DATA MODEL
+- **Lesson fields:** id, courseId, title, order, chapterNumber, pageRange, transcript, summary, explanation, quiz, flashcards, exercises, notes
+- **Key for merge/split:** 
+  - `order` (Int): Controls sequence, updated atomically
+  - `transcript` (String?): Contains lesson content
+  - `chapterNumber` (Int?): Can track source during splits
+
+### 2. COMPONENT HIERARCHY
+```
+page.tsx (state)
+  └─ LessonList.tsx (presentation)
+     ├─ SortableLessonItem (dnd-kit)
+     ├─ Search/filter
+     ├─ Add lesson form
+     └─ Re-split button (books only)
+```
+
+### 3. API ENDPOINTS (Existing)
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | /api/courses/{id}/lessons | Create lesson |
+| PUT | /api/lessons/{id} | Update title |
+| PUT | /api/lessons/{id}/transcript | Update transcript |
+| DELETE | /api/lessons/{id} | Delete lesson |
+| PATCH | /api/courses/{id}/lessons/reorder | Reorder all |
+
+### 4. STATE MANAGEMENT PATTERN
+```
+User Action
+  → Handler (page.tsx): handleXyz()
+    → Optimistic update: setSelectedCourse({ ...lessons })
+    → API call (async)
+    → Revert on error
+    → Toast feedback
+```
+
+### 5. CHAPTER SPLIT (detectChapters)
+- **Input:** Raw text
+- **Output:** DetectedChapter[] with title, content, wordCount, confidence, patternType
+- **Patterns (priority):** keyword > lesson > markdown-h1 > roman > numbered > all-caps > dash-separator
+- **Guards:** Monotonic number check, minimum content check
+
+---
+
+## NEEDED FOR MERGE/SPLIT FEATURES
+
+### API Endpoints (New)
+1. **POST /api/lessons/{id}/split**
+   - Input: { splitPoints: Position[] }
+   - Output: { lessons: Lesson[] }
+   - Action: Split 1 lesson into N, reorder
+
+2. **POST /api/courses/{id}/lessons/merge**
+   - Input: { lessonIds: string[] }
+   - Output: { lesson: Lesson }
+   - Action: Merge N lessons into 1, delete originals, reorder
+
+### Frontend Changes
+1. Add merge/split buttons to LessonList UI
+2. Add handlers to page.tsx: handleMergeLessons(), handleSplitLesson()
+3. Optionally: Modal/dialog for split point selection
+
+### Considerations
+- **Optimistic updates:** Reorder immediately, revert on error
+- **Progress:** Aggregate LessonProgress when merging?
+- **Flashcards:** Keep from both lessons or discard?
+- **Chat history:** How to handle merged ChatMessages?
+- **Transcript dirty flag:** Reset after merge/split?
+
+---
+
+## KEY FILE PATHS
+- Schema: `prisma/schema.prisma`
+- Component: `src/components/LessonList.tsx`
+- State: `src/app/page.tsx`
+- CRUD API: `src/app/api/courses/[id]/lessons/route.ts`
+- Reorder API: `src/app/api/courses/[id]/lessons/reorder/route.ts`
+- Split logic: `src/lib/split-chapters.ts`
+
+---
+
+## NEXT STEPS
+1. Design merge/split UX (where do controls appear?)
+2. Define split point selection mechanism
+3. Implement merge API endpoint
+4. Implement split API endpoint
+5. Add frontend handlers
+6. Add LessonList buttons
+7. Handle LessonProgress/flashcards/chat aggregation
+8. Test with optimistic updates + error handling

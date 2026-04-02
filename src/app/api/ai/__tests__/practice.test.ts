@@ -28,6 +28,10 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(), update: vi.fn(), create: vi.fn(),
       findFirst: vi.fn(), count: vi.fn(), deleteMany: vi.fn(),
     },
+    lessonArtifact: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
     course: {
       findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(),
       findUnique: vi.fn(), delete: vi.fn(), update: vi.fn(),
@@ -63,12 +67,13 @@ function makeRequest(body: unknown): NextRequest {
 describe("POST /api/ai/quiz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "Some transcript",
       course: { title: "C", contentType: "course" },
     });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
     mockCreate.mockResolvedValue(makeChunkStream("Generated content"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Generated content" });
   });
 
   // ─── Mode validation ────────────────────────────────────────────────────────
@@ -88,7 +93,7 @@ describe("POST /api/ai/quiz", () => {
 
   // ─── No transcript ──────────────────────────────────────────────────────────
   it("returns 400 when lesson has no transcript", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: null,
       course: { title: "C", contentType: "course" },
     });
@@ -100,14 +105,17 @@ describe("POST /api/ai/quiz", () => {
   });
 
   // ─── Quiz mode ──────────────────────────────────────────────────────────────
-  it("mode=quiz persists to quiz field in DB", async () => {
+  it("mode=quiz persists to LessonArtifact with type 'quiz'", async () => {
     const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
     const res = await practicePost(req);
     await readStream(res);
     await new Promise((r) => setTimeout(r, 0)); // flush fullText.then()
 
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { quiz: "Generated content" } })
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "quiz" } },
+        update: { content: "Generated content" },
+      })
     );
   });
 
@@ -121,16 +129,20 @@ describe("POST /api/ai/quiz", () => {
   });
 
   // ─── Flashcards mode ────────────────────────────────────────────────────────
-  it("mode=flashcards persists to flashcards field in DB", async () => {
+  it("mode=flashcards persists to LessonArtifact with type 'flashcards'", async () => {
     mockCreate.mockResolvedValue(makeChunkStream("Flashcard content"));
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Flashcard content" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "flashcards" });
     const res = await practicePost(req);
     await readStream(res);
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { flashcards: "Flashcard content" } })
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "flashcards" } },
+        update: { content: "Flashcard content" },
+      })
     );
   });
 
@@ -145,16 +157,20 @@ describe("POST /api/ai/quiz", () => {
   });
 
   // ─── Exercises mode ─────────────────────────────────────────────────────────
-  it("mode=exercises persists to exercises field in DB", async () => {
+  it("mode=exercises persists to LessonArtifact with type 'exercises'", async () => {
     mockCreate.mockResolvedValue(makeChunkStream("Exercise content"));
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Exercise content" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "exercises" });
     const res = await practicePost(req);
     await readStream(res);
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { exercises: "Exercise content" } })
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_lessonId_type: { userId: "test-user-id", lessonId: "l1", type: "exercises" } },
+        update: { content: "Exercise content" },
+      })
     );
   });
 
@@ -172,14 +188,15 @@ describe("POST /api/ai/quiz", () => {
   it("strips <think> tags from AI result for all modes", async () => {
     for (const mode of ["quiz", "flashcards", "exercises"] as const) {
       vi.clearAllMocks();
-      mockPrisma.lesson.findUnique.mockResolvedValue({
+      mockPrisma.lesson.findFirst.mockResolvedValue({
         id: "l1", title: "L", transcript: "T",
         course: { title: "C", contentType: "course" },
       });
+      mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
       mockCreate.mockResolvedValue(
         makeChunkStream(`<think>hidden</think>Content for ${mode}`)
       );
-      mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+      mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: `Content for ${mode}` });
 
       const req = makeRequest({ ...VALID_BASE, mode });
       const res = await practicePost(req);
@@ -191,12 +208,8 @@ describe("POST /api/ai/quiz", () => {
   });
 
   // ─── Cache hit (JSON path) ──────────────────────────────────────────────────
-  it("returns cached result as JSON when quiz is already stored", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "T",
-      quiz: "cached quiz content",
-      course: { title: "C", contentType: "course" },
-    });
+  it("returns cached result as JSON when quiz artifact is already stored", async () => {
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "cached quiz content" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
     const res = await practicePost(req);
@@ -225,13 +238,9 @@ describe("POST /api/ai/quiz", () => {
 
   // ─── Edge case: force=true regenerates even with existing cache ─────────────
   it("force=true regenerates even with existing cached quiz", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "Some transcript",
-      quiz: "cached quiz content",
-      course: { title: "C", contentType: "course" },
-    });
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "cached quiz content" });
     mockCreate.mockResolvedValue(makeChunkStream("New quiz content"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "New quiz content" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "quiz", force: true });
     const res = await practicePost(req);
@@ -241,20 +250,16 @@ describe("POST /api/ai/quiz", () => {
     expect(res.status).toBe(200);
     expect(text).toBe("New quiz content");
     expect(mockCreate).toHaveBeenCalled();
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { quiz: "New quiz content" } })
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { content: "New quiz content" } })
     );
   });
 
   // ─── Edge case: AI returning invalid JSON gracefully ────────────────────────
   it("handles AI returning non-JSON text gracefully (still streams it)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      id: "l1", title: "L", transcript: "Some transcript",
-      course: { title: "C", contentType: "course" },
-    });
     // AI returns plain text instead of JSON — route should still stream it
     mockCreate.mockResolvedValue(makeChunkStream("This is not valid JSON at all"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "This is not valid JSON at all" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
     const res = await practicePost(req);
@@ -266,12 +271,12 @@ describe("POST /api/ai/quiz", () => {
 
   // ─── Edge case: short transcript ────────────────────────────────────────────
   it("still generates content for very short transcript (<200 chars)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "L", transcript: "Short",
       course: { title: "C", contentType: "course" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("Quiz for short content"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Quiz for short content" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
     const res = await practicePost(req);
@@ -283,12 +288,12 @@ describe("POST /api/ai/quiz", () => {
 
   // ─── Edge case: book contentType uses book-specific prompts ─────────────────
   it("book contentType uses book-specific prompts", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
+    mockPrisma.lesson.findFirst.mockResolvedValue({
       id: "l1", title: "Chapter 1", transcript: "Book chapter content",
       course: { title: "My Book", contentType: "book" },
     });
     mockCreate.mockResolvedValue(makeChunkStream("Book quiz"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Book quiz" });
 
     const req = makeRequest({ ...VALID_BASE, mode: "quiz" });
     const res = await practicePost(req);

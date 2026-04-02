@@ -1,10 +1,6 @@
 /**
  * POST /api/books
  * Create a book stub (Course record with contentType="book", no lessons).
- * Used by the split/confirm 2-step upload flow:
- *   1. POST /api/books → get bookId
- *   2. POST /api/books/split → preview chapters
- *   3. POST /api/books/split/confirm → create lessons
  *
  * DELETE /api/books?id=... — clean up an uncommitted stub on cancel.
  */
@@ -12,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const CreateBookSchema = z.object({
   title: z.string().min(1, "Tên sách là bắt buộc"),
@@ -20,13 +17,14 @@ const CreateBookSchema = z.object({
   publisher: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const body = await req.json();
     const parsed = CreateBookSchema.parse(body);
 
     const book = await prisma.course.create({
       data: {
+        userId,
         title: parsed.title.trim(),
         contentType: "book",
         url: `book:${randomUUID()}`,
@@ -44,9 +42,9 @@ export async function POST(req: NextRequest) {
     console.error("Create book stub error:", error);
     return NextResponse.json({ error: "Lỗi server khi tạo sách" }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withAuth(async (req, { userId }) => {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
@@ -55,20 +53,19 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    // M-10: Replace TOCTOU (findUnique → check → delete) with atomic deleteMany.
-    // All conditions are evaluated in a single WHERE clause; no race window.
+    // M-10: Atomic deleteMany with ownership check
     const result = await prisma.course.deleteMany({
       where: {
         id,
+        userId,
         contentType: "book",
         lessons: { none: {} },
       },
     });
 
     if (result.count === 0) {
-      // Deletion was rejected — diagnose why (post-hoc, non-critical read)
-      const course = await prisma.course.findUnique({
-        where: { id },
+      const course = await prisma.course.findFirst({
+        where: { id, userId },
         select: { contentType: true, _count: { select: { lessons: true } } },
       });
       if (!course) {
@@ -87,4 +84,4 @@ export async function DELETE(req: NextRequest) {
     console.error("Delete book stub error:", error);
     return NextResponse.json({ error: "Lỗi server khi xóa sách" }, { status: 500 });
   }
-}
+});

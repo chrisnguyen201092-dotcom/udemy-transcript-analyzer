@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    course: { count: vi.fn(), findUnique: vi.fn() },
+    course: { count: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
     lesson: { findMany: vi.fn() },
     lessonProgress: { count: vi.fn(), aggregate: vi.fn(), findMany: vi.fn() },
     flashcardReview: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },

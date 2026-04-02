@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const ReorderSchema = z.object({
   lessonIds: z.array(z.string().min(1)).min(1),
 });
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PATCH = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
     const { lessonIds } = ReorderSchema.parse(await req.json());
 
-    // Verify course exists
-    const course = await prisma.course.findUnique({ where: { id } });
+    // Verify course ownership
+    const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
@@ -49,4 +47,4 @@ export async function PATCH(
     console.error(error);
     return NextResponse.json({ error: "Failed to reorder lessons" }, { status: 500 });
   }
-}
+});

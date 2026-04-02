@@ -1,64 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 /**
  * GET /api/analytics/overview
- *
- * Returns aggregated learning analytics across all courses.
- * M-28: Accepts optional `tzOffset` query param (minutes) for timezone-aware date bucketing.
+ * Returns aggregated learning analytics for the authenticated user.
+ * Accepts optional `tzOffset` query param (minutes) for timezone-aware date bucketing.
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req, { userId }) => {
   try {
-    // M-28: Get timezone offset from client (minutes from UTC, e.g. -420 for UTC+7)
     const tzOffsetParam = new URL(req.url).searchParams.get("tzOffset");
     const tzOffset = tzOffsetParam ? parseInt(tzOffsetParam, 10) : 0;
 
-    // Total courses
-    const totalCourses = await prisma.course.count();
+    const totalCourses = await prisma.course.count({ where: { userId } });
 
-    // Total lessons completed
     const totalLessonsCompleted = await prisma.lessonProgress.count({
-      where: { completed: true },
+      where: { userId, completed: true },
     });
 
-    // Total time (ms → seconds)
     const timeAgg = await prisma.lessonProgress.aggregate({
+      where: { userId },
       _sum: { timeSpentMs: true },
     });
     const totalTimeSeconds = Math.round(
       (timeAgg._sum.timeSpentMs ?? 0) / 1000
     );
 
-    // Average quiz score (null if no quiz data)
     const quizAgg = await prisma.lessonProgress.aggregate({
+      where: { userId, quizScore: { not: null } },
       _avg: { quizScore: true },
-      where: { quizScore: { not: null } },
     });
     const averageQuizScore =
       quizAgg._avg.quizScore !== null
         ? Math.round(quizAgg._avg.quizScore * 100) / 100
         : null;
 
-    // Overall retention rate: cards with interval > 7 / total cards * 100
-    const totalReviews = await prisma.flashcardReview.count();
+    const totalReviews = await prisma.flashcardReview.count({ where: { userId } });
     let overallRetentionRate: number | null = null;
     if (totalReviews > 0) {
       const masteredReviews = await prisma.flashcardReview.count({
-        where: { interval: { gt: 7 } },
+        where: { userId, interval: { gt: 7 } },
       });
       overallRetentionRate =
         Math.round((masteredReviews / totalReviews) * 10000) / 100;
     }
 
-    // M-27: Use aggregate query instead of findMany to avoid loading all records
-    // Only fetch completedAt dates (not full records) — bounded by unique dates
     const completedDates = await prisma.lessonProgress.findMany({
-      where: { completed: true, completedAt: { not: null } },
+      where: { userId, completed: true, completedAt: { not: null } },
       select: { completedAt: true },
-      distinct: undefined, // We need counts per date, so group manually
     });
 
-    // M-27 + M-28: Build date→count map with timezone adjustment
     const dateCountMap = new Map<string, number>();
     for (const r of completedDates) {
       if (r.completedAt) {
@@ -88,16 +79,8 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-/**
- * Calculate current and longest streaks from a set of date strings.
- *
- * Current streak: consecutive days with ≥1 lesson completed,
- * counting backwards from today (or yesterday if today has no completions).
- *
- * Longest streak: maximum consecutive days in entire history.
- */
 function calculateStreaks(
   dateSet: Set<string>,
   tzOffset: number
@@ -106,10 +89,8 @@ function calculateStreaks(
     return { currentStreak: 0, longestStreak: 0 };
   }
 
-  // Sort dates ascending
   const sortedDates = Array.from(dateSet).sort();
 
-  // Calculate longest streak
   let longestStreak = 1;
   let currentRun = 1;
   for (let i = 1; i < sortedDates.length; i++) {
@@ -126,12 +107,8 @@ function calculateStreaks(
     }
   }
 
-  // Calculate current streak (counting backwards from today or yesterday)
-  // M-28: Use timezone-adjusted "today"
   const todayStr = toDateString(new Date(), tzOffset);
   const lastDate = sortedDates[sortedDates.length - 1];
-
-  // If last study day is not today or yesterday, current streak is 0
   const lastDateObj = new Date(lastDate);
   const todayObj = new Date(todayStr);
   const daysSinceLast = Math.round(
@@ -142,7 +119,6 @@ function calculateStreaks(
     return { currentStreak: 0, longestStreak };
   }
 
-  // Count backwards from the last date
   let currentStreak = 1;
   for (let i = sortedDates.length - 2; i >= 0; i--) {
     const curr = new Date(sortedDates[i + 1]);
@@ -160,15 +136,10 @@ function calculateStreaks(
   return { currentStreak, longestStreak };
 }
 
-/**
- * Build 365-day study frequency array.
- * M-27: Accepts pre-computed date→count map instead of raw records.
- */
 function buildStudyFrequency(
   countMap: Map<string, number>,
   tzOffset: number
 ): { date: string; lessonsCompleted: number }[] {
-  // Generate last 365 days
   const result: { date: string; lessonsCompleted: number }[] = [];
   const today = new Date();
   for (let i = 364; i >= 0; i--) {
@@ -180,14 +151,9 @@ function buildStudyFrequency(
       lessonsCompleted: countMap.get(dateStr) ?? 0,
     });
   }
-
   return result;
 }
 
-/**
- * Convert a Date to YYYY-MM-DD string.
- * M-28: Adjusts by tzOffset minutes for user's local time instead of pure UTC.
- */
 function toDateString(date: Date, tzOffset: number = 0): string {
   const adjusted = new Date(date.getTime() - tzOffset * 60000);
   return adjusted.toISOString().split("T")[0];

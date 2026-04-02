@@ -157,7 +157,7 @@ describe("GET /api/courses/[id]", () => {
 
   it("returns course when found", async () => {
     const fakeCourse = { id: "c1", title: "Course", lessons: [] };
-    mockPrisma.course.findUnique.mockResolvedValue(fakeCourse);
+    mockPrisma.course.findFirst.mockResolvedValue(fakeCourse);
 
     const req = makeParamRequest("c1");
     const res = await getCourse(req, { params: Promise.resolve({ id: "c1" }) });
@@ -168,7 +168,7 @@ describe("GET /api/courses/[id]", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeParamRequest("nonexistent");
     const res = await getCourse(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -178,7 +178,11 @@ describe("GET /api/courses/[id]", () => {
 });
 
 describe("DELETE /api/courses/[id]", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Route calls course.findFirst for ownership check before delete
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1", userId: "test-user-id" });
+  });
 
   it("deletes course and returns success", async () => {
     mockPrisma.course.delete.mockResolvedValue({ id: "c1" });
@@ -298,7 +302,11 @@ describe("POST /api/courses — book fields (B-01/B-02/B-03)", () => {
 // ─── Edge-case tests (gap analysis) ──────────────────────────────────────────
 
 describe("DELETE /api/courses/[id] — cascade behavior", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Route calls course.findFirst for ownership check before delete
+    mockPrisma.course.findFirst.mockResolvedValue({ id: "c1", userId: "test-user-id" });
+  });
 
   it("DELETE course calls prisma.course.delete which cascades all related data", async () => {
     // Prisma schema-level cascade: deleting course removes lessons, progress, etc.

@@ -16,6 +16,10 @@ const { mockPrisma } = vi.hoisted(() => ({
       count: vi.fn(),
       deleteMany: vi.fn(),
     },
+    lessonArtifact: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
     course: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -26,9 +30,11 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     learnerProfile: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     courseProgress: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -42,13 +48,8 @@ describe("GET /api/lessons/[id]/ai", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("returns all 5 AI fields as null when lesson has no AI data", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      summary: null,
-      explanation: null,
-      quiz: null,
-      flashcards: null,
-      exercises: null,
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/ai");
     const res = await getLessonAI(req, { params: Promise.resolve({ id: "l1" }) });
@@ -65,13 +66,14 @@ describe("GET /api/lessons/[id]/ai", () => {
   });
 
   it("returns saved values when AI data exists", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      summary: "Summary content",
-      explanation: "Explanation content",
-      quiz: "Quiz content",
-      flashcards: "Flashcard content",
-      exercises: "Exercise content",
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([
+      { type: "summary", content: "Summary content" },
+      { type: "explanation", content: "Explanation content" },
+      { type: "quiz", content: "Quiz content" },
+      { type: "flashcards", content: "Flashcard content" },
+      { type: "exercises", content: "Exercise content" },
+    ]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/ai");
     const res = await getLessonAI(req, { params: Promise.resolve({ id: "l1" }) });
@@ -86,7 +88,7 @@ describe("GET /api/lessons/[id]/ai", () => {
   });
 
   it("returns 404 when lesson does not exist", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/lessons/nonexistent/ai");
     const res = await getLessonAI(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -94,34 +96,22 @@ describe("GET /api/lessons/[id]/ai", () => {
     expect(res.status).toBe(404);
   });
 
-  it("queries only the 5 AI select fields (no full lesson data)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      summary: null, explanation: null, quiz: null, flashcards: null, exercises: null,
-    });
+  it("queries lessonArtifact for AI data with correct filters", async () => {
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/ai");
     await getLessonAI(req, { params: Promise.resolve({ id: "l1" }) });
 
-    expect(mockPrisma.lesson.findUnique).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      select: {
-        summary: true,
-        explanation: true,
-        quiz: true,
-        flashcards: true,
-        exercises: true,
-      },
+    expect(mockPrisma.lessonArtifact.findMany).toHaveBeenCalledWith({
+      where: { lessonId: "l1", userId: "test-user-id" },
+      select: { type: true, content: true },
     });
   });
 
   it("normalizes null DB values to null in response (not undefined)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      summary: null,
-      explanation: null,
-      quiz: null,
-      flashcards: null,
-      exercises: null,
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.findMany.mockResolvedValue([]);
 
     const req = new NextRequest("http://localhost/api/lessons/l1/ai");
     const res = await getLessonAI(req, { params: Promise.resolve({ id: "l1" }) });
@@ -137,9 +127,9 @@ describe("GET /api/courses/[id]/ai", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("returns roadmap as null when course has no roadmap", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ roadmap: null });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
-    mockPrisma.courseProgress.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ roadmap: null });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
+    mockPrisma.courseProgress.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     const res = await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
@@ -152,9 +142,9 @@ describe("GET /api/courses/[id]/ai", () => {
   });
 
   it("returns saved roadmap when it exists", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ roadmap: "## Learning Roadmap\n..." });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue({ id: "lp1", courseId: "c1" });
-    mockPrisma.courseProgress.findUnique.mockResolvedValue({ completionPct: 42 });
+    mockPrisma.course.findFirst.mockResolvedValue({ roadmap: "## Learning Roadmap\n..." });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue({ id: "lp1", courseId: "c1" });
+    mockPrisma.courseProgress.findFirst.mockResolvedValue({ completionPct: 42 });
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     const res = await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
@@ -167,7 +157,7 @@ describe("GET /api/courses/[id]/ai", () => {
   });
 
   it("returns 404 when course does not exist", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/courses/nonexistent/ai");
     const res = await getCourseAI(req, { params: Promise.resolve({ id: "nonexistent" }) });
@@ -176,15 +166,15 @@ describe("GET /api/courses/[id]/ai", () => {
   });
 
   it("queries only the roadmap field", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({ roadmap: null });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
-    mockPrisma.courseProgress.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue({ roadmap: null });
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
+    mockPrisma.courseProgress.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/courses/c1/ai");
     await getCourseAI(req, { params: Promise.resolve({ id: "c1" }) });
 
-    expect(mockPrisma.course.findUnique).toHaveBeenCalledWith({
-      where: { id: "c1" },
+    expect(mockPrisma.course.findFirst).toHaveBeenCalledWith({
+      where: { id: "c1", userId: "test-user-id" },
       select: { roadmap: true },
     });
   });

@@ -12,6 +12,7 @@ const { mockPrisma, mockDetectChapters, mockParsePdf, mockParseDocx } = vi.hoist
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
     },
     lesson: {
@@ -87,7 +88,7 @@ const VALID_SPLIT_BODY = {
 describe("POST /api/books/split", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockPrisma.course.findFirst.mockResolvedValue(MOCK_BOOK);
     mockPrisma.course.update.mockResolvedValue(MOCK_BOOK);
     mockDetectChapters.mockReturnValue(MOCK_CHAPTERS);
     mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
@@ -115,7 +116,7 @@ describe("POST /api/books/split", () => {
     });
 
     it("returns 404 if book not found", async () => {
-      mockPrisma.course.findUnique.mockResolvedValue(null);
+      mockPrisma.course.findFirst.mockResolvedValue(null);
       const req = makeSplitRequest(VALID_SPLIT_BODY);
       const res = await splitPost(req);
       expect(res.status).toBe(404);
@@ -220,7 +221,7 @@ describe("POST /api/books/split", () => {
     it("accepts all supported formats: pdf, docx, txt, md", async () => {
       for (const format of ["pdf", "docx", "txt", "md"]) {
         vi.clearAllMocks();
-        mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+        mockPrisma.course.findFirst.mockResolvedValue(MOCK_BOOK);
         mockDetectChapters.mockReturnValue(MOCK_CHAPTERS);
         // Mock binary parsers for pdf/docx — content field is treated as base64
         mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
@@ -248,7 +249,7 @@ describe("POST /api/books/split/confirm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockPrisma.course.findFirst.mockResolvedValue(MOCK_BOOK);
     mockPrisma.lesson.count.mockResolvedValue(0);
     mockPrisma.lesson.findMany.mockResolvedValue([]);
     mockPrisma.lesson.create.mockImplementation(
@@ -282,7 +283,7 @@ describe("POST /api/books/split/confirm", () => {
     });
 
     it("returns 404 if book not found", async () => {
-      mockPrisma.course.findUnique.mockResolvedValue(null);
+      mockPrisma.course.findFirst.mockResolvedValue(null);
       const req = makeConfirmRequest(VALID_CONFIRM_BODY);
       const res = await confirmPost(req);
       expect(res.status).toBe(404);
@@ -383,7 +384,7 @@ describe("POST /api/books/split/confirm", () => {
 describe("POST /api/books/split — edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.course.findUnique.mockResolvedValue(MOCK_BOOK);
+    mockPrisma.course.findFirst.mockResolvedValue(MOCK_BOOK);
     mockPrisma.course.update.mockResolvedValue(MOCK_BOOK);
     mockParsePdf.mockResolvedValue({ text: "parsed text", warning: null });
     mockParseDocx.mockResolvedValue({ text: "parsed text" });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 const ProfileSchema = z.object({
   level: z.enum(["beginner", "intermediate", "advanced"]),
@@ -29,14 +30,11 @@ function formatProfile(profile: {
   };
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const course = await prisma.course.findUnique({ where: { id } });
+    const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
@@ -52,12 +50,11 @@ export async function POST(
 
     const { level, goal, dailyTimeMin, knownTopics, learningStyle } = parsed.data;
 
-    // M-9: Remove check-then-create pattern; use DB unique constraint as guard.
-    // Catch P2002 (unique violation) atomically instead of racing findUnique+create.
     let profile;
     try {
       profile = await prisma.learnerProfile.create({
         data: {
+          userId,
           courseId: id,
           level,
           goal,
@@ -83,22 +80,19 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const course = await prisma.course.findUnique({ where: { id } });
+    const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const profile = await prisma.learnerProfile.findUnique({
-      where: { courseId: id },
+    const profile = await prisma.learnerProfile.findFirst({
+      where: { courseId: id, userId },
     });
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -111,22 +105,19 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const course = await prisma.course.findUnique({ where: { id } });
+    const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const existing = await prisma.learnerProfile.findUnique({
-      where: { courseId: id },
+    const existing = await prisma.learnerProfile.findFirst({
+      where: { courseId: id, userId },
     });
     if (!existing) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -144,7 +135,7 @@ export async function PUT(
     const { level, goal, dailyTimeMin, knownTopics, learningStyle } = parsed.data;
 
     const profile = await prisma.learnerProfile.update({
-      where: { courseId: id },
+      where: { id: existing.id },
       data: {
         level,
         goal,
@@ -161,4 +152,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});

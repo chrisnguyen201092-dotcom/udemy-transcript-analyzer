@@ -41,9 +41,9 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       count: vi.fn(),
       deleteMany: vi.fn(),
     },
-    learnerProfile: { findUnique: vi.fn() },
+    learnerProfile: { findUnique: vi.fn(), findFirst: vi.fn() },
     lessonProgress: { findMany: vi.fn() },
-    courseProgress: { findUnique: vi.fn() },
+    courseProgress: { findUnique: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -106,8 +106,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Backward compatibility ──────────────────────────────────────
 
   it("generates roadmap without profile (backward compat)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessons());
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
@@ -125,8 +125,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Profile found ───────────────────────────────────────────────
 
   it("injects profile context into prompt when profile exists", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessons());
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue({
       id: "p1",
       courseId: "c1",
       level: "beginner",
@@ -158,8 +158,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Profile not found ──────────────────────────────────────────
 
   it("generates normally when profile not found (no error)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessons());
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeChunkStream("## Generic Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
@@ -176,8 +176,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
 
   it("injects progress context into prompt when progress exists", async () => {
     const course = makeCourseWithLessons({ lessonIds: ["l1", "l2"] });
-    mockPrisma.course.findUnique.mockResolvedValue(course);
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(course);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([
       { lessonId: "l1", completed: true },
     ]);
@@ -200,8 +200,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── No progress ────────────────────────────────────────────────
 
   it("does not include progress section when no progress data", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessons());
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeChunkStream("## Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
@@ -217,8 +217,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
 
   it("injects both profile and progress when both exist", async () => {
     const course = makeCourseWithLessons({ lessonIds: ["l1", "l2"] });
-    mockPrisma.course.findUnique.mockResolvedValue(course);
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue(course);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue({
       id: "p1",
       courseId: "c1",
       level: "intermediate",
@@ -248,8 +248,8 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Profile with empty knownTopics ─────────────────────────────
 
   it("handles profile with empty knownTopics gracefully", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessons());
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessons());
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue({
       id: "p1",
       courseId: "c1",
       level: "advanced",
@@ -274,7 +274,7 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Cache guard works ──────────────────────────────────────────
 
   it("returns cached roadmap without calling AI", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(
+    mockPrisma.course.findFirst.mockResolvedValue(
       makeCourseWithLessons({ roadmap: "## Cached" })
     );
 
@@ -284,16 +284,16 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
     expect(res.status).toBe(200);
     expect(json.roadmap).toBe("## Cached");
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(mockPrisma.learnerProfile.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.learnerProfile.findFirst).not.toHaveBeenCalled();
   });
 
   // ── force=true regenerates ─────────────────────────────────────
 
   it("regenerates when force=true despite cached roadmap", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(
+    mockPrisma.course.findFirst.mockResolvedValue(
       makeCourseWithLessons({ roadmap: "## Old", lessonIds: ["l1", "l2"] })
     );
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeChunkStream("## New Roadmap"));
     mockPrisma.course.update.mockResolvedValue({ id: "c1" });
@@ -311,7 +311,7 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── Course not found ───────────────────────────────────────────
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const res = await roadmapPost(makeRequest(VALID_BODY));
 
@@ -321,7 +321,7 @@ describe("POST /api/ai/roadmap — LearnerProfile + Progress", () => {
   // ── No transcripts ─────────────────────────────────────────────
 
   it("returns 400 when no transcripts available", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Empty",
       roadmap: null,
@@ -351,15 +351,15 @@ describe("GET /api/courses/[id]/ai — hasProfile + progressPercent", () => {
   }
 
   it("returns roadmap, hasProfile=true and progressPercent when data exists", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       roadmap: "## My Roadmap",
     });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue({
       id: "p1",
       courseId: "c1",
     });
-    mockPrisma.courseProgress.findUnique.mockResolvedValue({
+    mockPrisma.courseProgress.findFirst.mockResolvedValue({
       id: "cp1",
       courseId: "c1",
       completionPct: 42.5,
@@ -376,12 +376,12 @@ describe("GET /api/courses/[id]/ai — hasProfile + progressPercent", () => {
   });
 
   it("returns hasProfile=false and progressPercent=0 when no profile/progress", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       roadmap: null,
     });
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
-    mockPrisma.courseProgress.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
+    mockPrisma.courseProgress.findFirst.mockResolvedValue(null);
 
     const { req, params } = makeGetRequest("c1");
     const res = await courseAiGet(req, { params });
@@ -394,7 +394,7 @@ describe("GET /api/courses/[id]/ai — hasProfile + progressPercent", () => {
   });
 
   it("returns 404 when course not found", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const { req, params } = makeGetRequest("nonexistent");
     const res = await courseAiGet(req, { params });
@@ -444,8 +444,8 @@ describe("POST /api/ai/roadmap — learningStyle + level enum coverage", () => {
   it.each(["theory_first", "hands_on", "mixed"])(
     "handles learningStyle=%s in profile prompt",
     async (learningStyle) => {
-      mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessonsLocal());
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+      mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessonsLocal());
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue({
         id: "p1",
         courseId: "c1",
         level: "beginner",
@@ -470,8 +470,8 @@ describe("POST /api/ai/roadmap — learningStyle + level enum coverage", () => {
   it.each(["beginner", "intermediate", "advanced"])(
     "handles level=%s in profile prompt",
     async (level) => {
-      mockPrisma.course.findUnique.mockResolvedValue(makeCourseWithLessonsLocal());
-      mockPrisma.learnerProfile.findUnique.mockResolvedValue({
+      mockPrisma.course.findFirst.mockResolvedValue(makeCourseWithLessonsLocal());
+      mockPrisma.learnerProfile.findFirst.mockResolvedValue({
         id: "p1",
         courseId: "c1",
         level,

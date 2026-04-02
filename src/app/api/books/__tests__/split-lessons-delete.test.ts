@@ -12,6 +12,7 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     lesson: {
       count: vi.fn(),
@@ -61,7 +62,7 @@ function setupMocks(overrides: {
     deletedCount = 5,
   } = overrides;
 
-  mockPrisma.course.findUnique.mockResolvedValue(book);
+  mockPrisma.course.findFirst.mockResolvedValue(book);
   mockPrisma.lesson.count.mockResolvedValue(lessonCount);
   mockPrisma.lessonProgress.count.mockResolvedValue(progress);
   mockPrisma.flashcardReview.count.mockResolvedValue(reviews);
@@ -183,7 +184,7 @@ describe("DELETE /api/books/split/lessons", () => {
   // ── Error handling ──────────────────────────────────────────────────────
   describe("error handling", () => {
     it("returns 500 on DB error during preview build", async () => {
-      mockPrisma.course.findUnique.mockRejectedValue(new Error("DB timeout"));
+      mockPrisma.course.findFirst.mockRejectedValue(new Error("DB timeout"));
 
       const res = await DELETE(makeReq({ bookId: "book-1" }));
       expect(res.status).toBe(500);

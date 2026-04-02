@@ -16,6 +16,7 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     course: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     lesson: {
       count: vi.fn(),
@@ -158,7 +159,7 @@ describe("Re-Split Recovery Flow", () => {
         chats = 30,
         deletedCount = 10,
       } = overrides;
-      mockPrisma.course.findUnique.mockResolvedValue(book);
+      mockPrisma.course.findFirst.mockResolvedValue(book);
       mockPrisma.lesson.count.mockResolvedValue(lessonCount);
       mockPrisma.lessonProgress.count.mockResolvedValue(progress);
       mockPrisma.flashcardReview.count.mockResolvedValue(reviews);
@@ -211,9 +212,9 @@ describe("Re-Split Recovery Flow", () => {
         where: { courseId: "book-1" },
       });
       // course.findUnique was called for validation, NOT for deletion
-      expect(mockPrisma.course.findUnique).toHaveBeenCalledWith(
+      expect(mockPrisma.course.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "book-1" },
+          where: { id: "book-1", userId: "test-user-id" },
           select: { id: true, title: true },
         })
       );
@@ -251,7 +252,7 @@ describe("Re-Split Recovery Flow", () => {
   describe("recovery edge cases", () => {
     it("concurrent delete requests both succeed (idempotent)", async () => {
       // First call: book exists with lessons
-      mockPrisma.course.findUnique.mockResolvedValue({ id: "book-1", title: "Book" });
+      mockPrisma.course.findFirst.mockResolvedValue({ id: "book-1", title: "Book" });
       mockPrisma.lesson.count.mockResolvedValueOnce(5);
       mockPrisma.lessonProgress.count.mockResolvedValue(0);
       mockPrisma.flashcardReview.count.mockResolvedValue(0);
@@ -269,7 +270,7 @@ describe("Re-Split Recovery Flow", () => {
 
     it("rejects non-book course IDs gracefully", async () => {
       // Course exists but is not a book (API doesn't check contentType)
-      mockPrisma.course.findUnique.mockResolvedValue({ id: "video-1", title: "Video Course" });
+      mockPrisma.course.findFirst.mockResolvedValue({ id: "video-1", title: "Video Course" });
       mockPrisma.lesson.count.mockResolvedValue(10);
       mockPrisma.lessonProgress.count.mockResolvedValue(0);
       mockPrisma.flashcardReview.count.mockResolvedValue(0);

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { parseVtt, parseSrt, parseTxt, removeExtension } from "@/lib/parse-transcript";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const FileSchema = z.object({
   name: z.string().min(1),
@@ -18,33 +19,31 @@ const UploadSchema = z.object({
   message: "courseId hoặc courseTitle là bắt buộc",
 });
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const body = await req.json();
     const parsed = UploadSchema.parse(body);
     const { files } = parsed;
 
-    // Resolve or create the course
     let resolvedCourseId: string;
-    // M-2: track whether we created a new course to enable orphan cleanup if all files fail
     let isNewCourse = false;
 
     if (parsed.courseId) {
-      const course = await prisma.course.findUnique({ where: { id: parsed.courseId } });
+      const course = await prisma.course.findFirst({
+        where: { id: parsed.courseId, userId },
+      });
       if (!course) {
         return NextResponse.json({ error: "Course không tồn tại" }, { status: 404 });
       }
       resolvedCourseId = parsed.courseId;
     } else {
-      // courseTitle is guaranteed by the refine above
       const newCourse = await prisma.course.create({
-        data: { title: parsed.courseTitle!, url: `manual:${randomUUID()}` },
+        data: { userId, title: parsed.courseTitle!, url: `manual:${randomUUID()}` },
       });
       resolvedCourseId = newCourse.id;
       isNewCourse = true;
     }
 
-    // Get current lesson count for ordering
     const existingCount = await prisma.lesson.count({
       where: { courseId: resolvedCourseId },
     });
@@ -55,7 +54,6 @@ export async function POST(req: NextRequest) {
 
     for (const file of files) {
       let transcript: string | null = null;
-
       try {
         const ext = file.type.toLowerCase();
         switch (ext) {
@@ -88,7 +86,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // M-2: if we created a new course and all files failed, delete the orphan course
     if (isNewCourse && created.length === 0) {
       await prisma.course.delete({ where: { id: resolvedCourseId } }).catch(() => {});
       return NextResponse.json({ error: "Không parse được file nào" }, { status: 400 });
@@ -105,4 +102,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

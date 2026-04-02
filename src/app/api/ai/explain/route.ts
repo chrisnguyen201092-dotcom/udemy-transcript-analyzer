@@ -5,6 +5,7 @@ import { getExplainPrompt, getSystemPrompt, type ExplainDepth, type CodeRatio, t
 import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
+import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
 const inFlightGenerations = new Map<string, Promise<void>>();
@@ -39,7 +40,7 @@ function classifyCodeRatio(transcript: string): CodeRatio {
   return "hybrid";
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const parsed = ExplainSchema.parse(await req.json());
     const {
@@ -61,8 +62,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid configuration" }, { status: 400 });
     }
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, course: { userId } },
       include: { course: true },
     });
 
@@ -76,20 +77,26 @@ export async function POST(req: NextRequest) {
     const contentType = (lesson.course.contentType ?? "course") as ContentType;
 
     // Cache guard — only for non-selectedText mode
-    if (!selectedText && lesson.explanation && !force) {
-      return NextResponse.json({
-        explanation: lesson.explanation,
-        depthActual: depth,
+    if (!selectedText && !force) {
+      const cachedArtifact = await prisma.lessonArtifact.findUnique({
+        where: { userId_lessonId_type: { userId, lessonId, type: "explanation" } },
+        select: { content: true },
       });
+      if (cachedArtifact?.content) {
+        return NextResponse.json({ explanation: cachedArtifact.content, depthActual: depth });
+      }
     }
 
     // M-11: If another request is already generating explanation for this lesson, wait then re-check cache
     const cacheKey = `explain-${lessonId}`;
     if (!selectedText && inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
-      const refreshed = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { explanation: true } });
-      if (refreshed?.explanation) {
-        return NextResponse.json({ explanation: refreshed.explanation, depthActual: depth, cached: true });
+      const refreshed = await prisma.lessonArtifact.findUnique({
+        where: { userId_lessonId_type: { userId, lessonId, type: "explanation" } },
+        select: { content: true },
+      });
+      if (refreshed?.content) {
+        return NextResponse.json({ explanation: refreshed.content, depthActual: depth, cached: true });
       }
     }
 
@@ -105,8 +112,8 @@ export async function POST(req: NextRequest) {
     // Fetch LearnerProfile (optional, no error if missing or model not available)
     let learnerProfile: { level: string } | null = null;
     try {
-      learnerProfile = await prisma.learnerProfile.findUnique({
-        where: { courseId: lesson.courseId },
+      learnerProfile = await prisma.learnerProfile.findFirst({
+        where: { courseId: lesson.courseId, userId },
       });
     } catch {
       // LearnerProfile model may not exist yet — gracefully ignore
@@ -153,9 +160,10 @@ export async function POST(req: NextRequest) {
       const generationPromise = fullText.then(async (explanation) => {
         if (!explanation) return;
         try {
-          await prisma.lesson.update({
-            where: { id: lessonId },
-            data: { explanation },
+          await prisma.lessonArtifact.upsert({
+            where: { userId_lessonId_type: { userId, lessonId, type: "explanation" } },
+            create: { userId, lessonId, type: "explanation", content: explanation },
+            update: { content: explanation },
           });
         } catch (dbError) {
           console.error("[explain] DB persistence failed:", dbError);
@@ -174,4 +182,4 @@ export async function POST(req: NextRequest) {
     console.error("[AI Route Error]", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

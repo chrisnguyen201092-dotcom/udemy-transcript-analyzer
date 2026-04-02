@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 const VALID_TYPES = ["summary", "explanation", "quiz", "flashcards", "exercises"] as const;
 type ExportType = (typeof VALID_TYPES)[number];
@@ -17,7 +18,6 @@ function sanitizeFilename(name: string): string {
 }
 
 function escapeCSVField(value: string): string {
-  // M-19: Prevent spreadsheet formula injection (=, +, -, @, tab, CR)
   if (/^[=+\-@\t\r]/.test(value)) {
     value = "'" + value;
   }
@@ -45,15 +45,7 @@ function formatQuiz(title: string, quizJson: string): string {
   }
   const lines = [`# ${title} — Quiz\n`];
   questions.forEach(
-    (
-      q: {
-        question: string;
-        options?: string[];
-        answer: string;
-        explanation?: string;
-      },
-      i: number
-    ) => {
+    (q: { question: string; options?: string[]; answer: string; explanation?: string }, i: number) => {
       lines.push(`## Câu ${i + 1}: ${q.question}`);
       if (q.options) {
         const labels = ["A", "B", "C", "D", "E", "F", "G", "H"];
@@ -62,9 +54,7 @@ function formatQuiz(title: string, quizJson: string): string {
         });
       }
       lines.push(`- **Đáp án đúng: ${q.answer}**`);
-      if (q.explanation) {
-        lines.push(`> ${q.explanation}`);
-      }
+      if (q.explanation) lines.push(`> ${q.explanation}`);
       lines.push("");
     }
   );
@@ -76,23 +66,16 @@ function formatFlashcardsCSV(flashcardsJson: string): string {
   const cards = data.cards;
   if (!cards || cards.length === 0) return "";
   return cards
-    .map((c: { front: string; back: string }) => {
-      return `${escapeCSVField(c.front)};${escapeCSVField(c.back)}`;
-    })
+    .map((c: { front: string; back: string }) =>
+      `${escapeCSVField(c.front)};${escapeCSVField(c.back)}`
+    )
     .join("\n");
 }
 
-function formatFlashcardsMarkdown(
-  title: string,
-  flashcardsJson: string
-): string {
+function formatFlashcardsMarkdown(title: string, flashcardsJson: string): string {
   const data = JSON.parse(flashcardsJson);
   const cards = data.cards;
-  const lines = [
-    `# ${title} — Flashcards\n`,
-    "| Mặt trước | Mặt sau |",
-    "|---|---|",
-  ];
+  const lines = [`# ${title} — Flashcards\n`, "| Mặt trước | Mặt sau |", "|---|---|"];
   if (cards && cards.length > 0) {
     cards.forEach((c: { front: string; back: string }) => {
       lines.push(`| ${escapeMdTable(c.front)} | ${escapeMdTable(c.back)} |`);
@@ -109,15 +92,7 @@ function formatExercises(title: string, exercisesJson: string): string {
   }
   const lines = [`# ${title} — Bài tập\n`];
   exercises.forEach(
-    (
-      ex: {
-        title: string;
-        description: string;
-        hints?: string[];
-        solution?: string;
-      },
-      i: number
-    ) => {
+    (ex: { title: string; description: string; hints?: string[]; solution?: string }, i: number) => {
       lines.push(`## Bài tập ${i + 1}: ${ex.title}`);
       lines.push(ex.description);
       lines.push("");
@@ -135,17 +110,11 @@ function formatExercises(title: string, exercisesJson: string): string {
   return lines.join("\n");
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
     const body = await req.json();
-    const { type, format } = body as {
-      type: string;
-      format: string;
-    };
+    const { type, format } = body as { type: string; format: string };
 
     if (
       !type ||
@@ -153,62 +122,50 @@ export async function POST(
       !VALID_TYPES.includes(type as ExportType) ||
       !VALID_FORMATS.includes(format as ExportFormat)
     ) {
-      return NextResponse.json(
-        { error: "type hoặc format không hợp lệ" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "type hoặc format không hợp lệ" }, { status: 400 });
     }
 
     if (format === "csv" && type !== "flashcards") {
-      return NextResponse.json(
-        { error: "Chỉ flashcards hỗ trợ format CSV" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Chỉ flashcards hỗ trợ format CSV" }, { status: 400 });
     }
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
-      select: {
-        title: true,
-        summary: true,
-        explanation: true,
-        quiz: true,
-        flashcards: true,
-        exercises: true,
-      },
+    // Verify lesson belongs to a course owned by userId
+    const lesson = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
+      select: { title: true },
     });
 
     if (!lesson) {
-      return NextResponse.json(
-        { error: "Lesson not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
+    const artifacts = await prisma.lessonArtifact.findMany({
+      where: { lessonId: id, userId, type: { in: VALID_TYPES as unknown as string[] } },
+      select: { type: true, content: true },
+    });
+    const artifactMap = Object.fromEntries(artifacts.map((a) => [a.type, a.content]));
+
     const fieldMap: Record<ExportType, string | null | undefined> = {
-      summary: lesson.summary,
-      explanation: lesson.explanation,
-      quiz: lesson.quiz,
-      flashcards: lesson.flashcards,
-      exercises: lesson.exercises,
+      summary: artifactMap["summary"] ?? null,
+      explanation: artifactMap["explanation"] ?? null,
+      quiz: artifactMap["quiz"] ?? null,
+      flashcards: artifactMap["flashcards"] ?? null,
+      exercises: artifactMap["exercises"] ?? null,
     };
 
     const fieldValue = fieldMap[type as ExportType];
     if (fieldValue === null || fieldValue === undefined) {
       return NextResponse.json(
-        {
-          error: `Dữ liệu chưa được tạo. Vui lòng tạo ${type} trước khi xuất.`,
-        },
+        { error: `Dữ liệu chưa được tạo. Vui lòng tạo ${type} trước khi xuất.` },
         { status: 404 }
       );
     }
 
+    const exportType = type as ExportType;
+    const exportFormat = format as ExportFormat;
     let content: string;
     let contentType: string;
     let ext: string;
-
-    const exportType = type as ExportType;
-    const exportFormat = format as ExportFormat;
 
     if (exportType === "summary") {
       content = formatSummary(lesson.title, fieldValue);
@@ -233,7 +190,6 @@ export async function POST(
         ext = "md";
       }
     } else {
-      // exercises
       content = formatExercises(lesson.title, fieldValue);
       contentType = "text/markdown; charset=utf-8";
       ext = "md";
@@ -250,15 +206,9 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        { error: "Dữ liệu JSON trong DB bị lỗi" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Dữ liệu JSON trong DB bị lỗi" }, { status: 500 });
     }
     console.error("[export-lesson]", error);
-    return NextResponse.json(
-      { error: "Lỗi server không xác định" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Lỗi server không xác định" }, { status: 500 });
   }
-}
+});

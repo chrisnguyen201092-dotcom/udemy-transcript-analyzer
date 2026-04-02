@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const Schema = z.object({
   cookie: z.string().min(1),
@@ -16,7 +17,7 @@ function validateNextUrl(url: string): string | null {
   }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req) => {
   try {
     const { cookie } = Schema.parse(await req.json());
 
@@ -98,4 +99,4 @@ export async function POST(req: NextRequest) {
     console.error(error);
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }
-}
+});

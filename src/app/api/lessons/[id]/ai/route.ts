@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { withAuth } from "@/lib/auth";
 
 // M-21: Zod validation for AI data update
 const AiUpdateSchema = z.object({
@@ -14,15 +15,11 @@ const AiUpdateSchema = z.object({
   { message: "At least one AI field must be provided" }
 );
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
     const body = await req.json();
 
-    // M-21: Validate with Zod before processing
     const parsed = AiUpdateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -31,7 +28,6 @@ export async function PUT(
       );
     }
 
-    // Only allow updating specific AI fields
     const allowedFields = ["summary", "explanation", "quiz", "flashcards", "exercises"] as const;
     const data: Record<string, string> = {};
     for (const field of allowedFields) {
@@ -47,8 +43,8 @@ export async function PUT(
       );
     }
 
-    const exists = await prisma.lesson.findUnique({
-      where: { id },
+    const exists = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
       select: { id: true },
     });
 
@@ -56,10 +52,16 @@ export async function PUT(
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
-    await prisma.lesson.update({
-      where: { id },
-      data,
-    });
+    // Upsert each provided field as a separate LessonArtifact record
+    await Promise.all(
+      Object.entries(data).map(([type, content]) =>
+        prisma.lessonArtifact.upsert({
+          where: { userId_lessonId_type: { userId, lessonId: id, type } },
+          create: { userId, lessonId: id, type, content },
+          update: { content },
+        })
+      )
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -69,37 +71,33 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const { id } = await params;
+    const id = params?.id!;
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
-      select: {
-        summary: true,
-        explanation: true,
-        quiz: true,
-        flashcards: true,
-        exercises: true,
-      },
+    // Verify lesson ownership
+    const lesson = await prisma.lesson.findFirst({
+      where: { id, course: { userId } },
+      select: { id: true },
     });
 
     if (!lesson) {
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      summary: lesson.summary ?? null,
-      explanation: lesson.explanation ?? null,
-      quiz: lesson.quiz ?? null,
-      flashcards: lesson.flashcards ?? null,
-      exercises: lesson.exercises ?? null,
+    const artifacts = await prisma.lessonArtifact.findMany({
+      where: { lessonId: id, userId },
+      select: { type: true, content: true },
     });
+
+    const artifactMap = Object.fromEntries(artifacts.map((a) => [a.type, a.content]));
+    const AI_FIELDS = ["summary", "explanation", "quiz", "flashcards", "exercises"] as const;
+
+    return NextResponse.json(
+      Object.fromEntries(AI_FIELDS.map((f) => [f, artifactMap[f] ?? null]))
+    );
   } catch (error) {
     console.error("[lesson-ai]", error);
     return NextResponse.json(
@@ -107,4 +105,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

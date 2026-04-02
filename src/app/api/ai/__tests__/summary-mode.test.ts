@@ -17,6 +17,10 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       count: vi.fn(),
       deleteMany: vi.fn(),
     },
+    lessonArtifact: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
     course: {
       findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(),
       findUnique: vi.fn(), delete: vi.fn(), update: vi.fn(),
@@ -83,12 +87,14 @@ async function readStream(res: Response): Promise<string> {
 describe("POST /api/ai/summary — mode parameter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "" });
   });
 
   it("uses detailed prompt when no mode param is provided (default)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
     mockCreate.mockResolvedValue(makeChunkStream("Detailed summary"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Detailed summary" });
 
     const req = makeRequest(VALID_BODY);
     const res = await summaryPost(req);
@@ -104,9 +110,9 @@ describe("POST /api/ai/summary — mode parameter", () => {
   });
 
   it("uses quick prompt when mode='quick'", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
     mockCreate.mockResolvedValue(makeChunkStream("Quick summary"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Quick summary" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick" });
     const res = await summaryPost(req);
@@ -122,9 +128,9 @@ describe("POST /api/ai/summary — mode parameter", () => {
   });
 
   it("uses detailed prompt when mode='detailed' (explicit)", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
     mockCreate.mockResolvedValue(makeChunkStream("Detailed summary"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "Detailed summary" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "detailed" });
     const res = await summaryPost(req);
@@ -147,10 +153,8 @@ describe("POST /api/ai/summary — mode parameter", () => {
   });
 
   it("returns cached summary without calling AI when summary exists and force is not set", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...LESSON_WITH_TRANSCRIPT,
-      summary: "Cached summary",
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "Cached summary" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick" });
     const res = await summaryPost(req);
@@ -159,16 +163,13 @@ describe("POST /api/ai/summary — mode parameter", () => {
     expect(res.status).toBe(200);
     expect(json.summary).toBe("Cached summary");
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(mockPrisma.lesson.update).not.toHaveBeenCalled();
+    expect(mockPrisma.lessonArtifact.upsert).not.toHaveBeenCalled();
   });
 
   it("regenerates summary with force=true even when cached", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...LESSON_WITH_TRANSCRIPT,
-      summary: "Old cached summary",
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
     mockCreate.mockResolvedValue(makeChunkStream("New quick summary"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "New quick summary" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick", force: true });
     const res = await summaryPost(req);
@@ -178,10 +179,9 @@ describe("POST /api/ai/summary — mode parameter", () => {
     expect(res.status).toBe(200);
     expect(text).toBe("New quick summary");
     expect(mockCreate).toHaveBeenCalled();
-    expect(mockPrisma.lesson.update).toHaveBeenCalledWith({
-      where: { id: "l1" },
-      data: { summary: "New quick summary" },
-    });
+    expect(mockPrisma.lessonArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { content: "New quick summary" } })
+    );
 
     // Verify quick prompt was used
     const callArgs = mockCreate.mock.calls[0][0];
@@ -190,7 +190,7 @@ describe("POST /api/ai/summary — mode parameter", () => {
   });
 
   it("returns appropriate error when lesson not found", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue(null);
+    mockPrisma.lesson.findFirst.mockResolvedValue(null);
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick" });
     const res = await summaryPost(req);
@@ -233,15 +233,15 @@ describe("getSystemPrompt — summary-quick type", () => {
 describe("POST /api/ai/summary — mode switching edge cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue(null);
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "" });
   });
 
-  it("mode switching: quick cache exists, request detailed → still returns cached (summary field is shared)", async () => {
-    // The summary route uses a single `summary` field regardless of mode.
-    // When cached summary exists and force is not set, it returns cached regardless of mode.
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...LESSON_WITH_TRANSCRIPT,
-      summary: "Quick summary previously cached",
-    });
+  it("mode switching: quick cache exists, request detailed → still returns cached (summary artifact is shared)", async () => {
+    // The summary route uses a single artifact type "summary" regardless of mode.
+    // When cached artifact exists and force is not set, it returns cached regardless of mode.
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
+    mockPrisma.lessonArtifact.findUnique.mockResolvedValue({ content: "Quick summary previously cached" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "detailed" });
     const res = await summaryPost(req);
@@ -254,12 +254,9 @@ describe("POST /api/ai/summary — mode switching edge cases", () => {
   });
 
   it("mode switching: detailed cache exists, request quick with force=true → calls AI with quick prompt", async () => {
-    mockPrisma.lesson.findUnique.mockResolvedValue({
-      ...LESSON_WITH_TRANSCRIPT,
-      summary: "Detailed summary previously cached",
-    });
+    mockPrisma.lesson.findFirst.mockResolvedValue(LESSON_WITH_TRANSCRIPT);
     mockCreate.mockResolvedValue(makeChunkStream("New quick summary"));
-    mockPrisma.lesson.update.mockResolvedValue({ id: "l1" });
+    mockPrisma.lessonArtifact.upsert.mockResolvedValue({ content: "New quick summary" });
 
     const req = makeRequest({ ...VALID_BODY, mode: "quick", force: true });
     const res = await summaryPost(req);

@@ -32,7 +32,7 @@ const { mockCreate, mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(), update: vi.fn(), create: vi.fn(),
       findFirst: vi.fn(), count: vi.fn(), deleteMany: vi.fn(),
     },
-    learnerProfile: { findUnique: vi.fn() },
+    learnerProfile: { findUnique: vi.fn(), findFirst: vi.fn() },
     lessonProgress: { findMany: vi.fn() },
   },
 }));
@@ -66,12 +66,12 @@ describe("POST /api/ai/roadmap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default mocks for profile/progress (added with profile integration)
-    mockPrisma.learnerProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.learnerProfile.findFirst.mockResolvedValue(null);
     mockPrisma.lessonProgress.findMany.mockResolvedValue([]);
   });
 
   it("returns 404 when course does not exist", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue(null);
+    mockPrisma.course.findFirst.mockResolvedValue(null);
 
     const req = makeRequest(VALID_BODY);
     const res = await roadmapPost(req);
@@ -80,7 +80,7 @@ describe("POST /api/ai/roadmap", () => {
   });
 
   it("returns 400 when no lessons have transcripts", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Course",
       lessons: [
@@ -96,7 +96,7 @@ describe("POST /api/ai/roadmap", () => {
   });
 
   it("returns 200 with roadmap when lessons have transcripts", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "JS Course",
       lessons: [
@@ -116,7 +116,7 @@ describe("POST /api/ai/roadmap", () => {
   });
 
   it("persists roadmap to Course (not Lesson)", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: "Text" }],
     });
@@ -137,7 +137,7 @@ describe("POST /api/ai/roadmap", () => {
 
   it("truncates each transcript to 4000 chars", async () => {
     const longTranscript = "A".repeat(5000);
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: longTranscript }],
     });
@@ -160,7 +160,7 @@ describe("POST /api/ai/roadmap", () => {
   });
 
   it("strips <think> tags from roadmap response", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1", title: "C",
       lessons: [{ title: "L", order: 1, transcript: "T" }],
     });
@@ -176,7 +176,7 @@ describe("POST /api/ai/roadmap", () => {
   });
 
   it("includes lesson list in AI prompt user message", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1", title: "My Course",
       lessons: [
         { title: "Intro", order: 1, transcript: "Content" },
@@ -218,7 +218,7 @@ describe("POST /api/ai/roadmap", () => {
 
   // ─── Edge case: course with empty lessons array ─────────────────────────────
   it("handles course with no lessons (empty array) — returns 400", async () => {
-    mockPrisma.course.findUnique.mockResolvedValue({
+    mockPrisma.course.findFirst.mockResolvedValue({
       id: "c1",
       title: "Empty Course",
       lessons: [],

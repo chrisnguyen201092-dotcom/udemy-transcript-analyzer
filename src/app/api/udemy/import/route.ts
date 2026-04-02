@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { withAuth } from "@/lib/auth";
 
 const Schema = z.object({
   courseId: z.number().int().positive(),
@@ -43,11 +44,7 @@ interface CurriculumItem {
   title: string;
   object_index: number;
   asset?: {
-    captions?: Array<{
-      locale_id: string;
-      url: string;
-      source: string;
-    }>;
+    captions?: Array<{ locale_id: string; url: string; source: string }>;
   };
 }
 
@@ -56,13 +53,11 @@ async function fetchTranscript(captionUrl: string): Promise<string | null> {
     const res = await fetch(captionUrl, { cache: "no-store" });
     if (!res.ok) return null;
     const text = await res.text();
-    // VTT format → strip timestamps and tags, join lines
     const lines = text
       .split("\n")
       .filter((l) => l.trim() && !l.startsWith("WEBVTT") && !/^\d{2}:\d{2}/.test(l) && !/^-->/.test(l))
       .map((l) => l.replace(/<[^>]+>/g, "").trim())
       .filter(Boolean);
-    // Deduplicate consecutive identical lines (VTT repeats)
     const deduped: string[] = [];
     for (const line of lines) {
       if (deduped[deduped.length - 1] !== line) deduped.push(line);
@@ -73,26 +68,24 @@ async function fetchTranscript(captionUrl: string): Promise<string | null> {
   }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req, { userId }) => {
   try {
     const { courseId, cookie } = Schema.parse(await req.json());
 
-    // 1. Fetch course info
     const courseInfoRes = await fetch(
       `https://www.udemy.com/api-2.0/courses/${courseId}/?fields[course]=id,title,url`,
-      {
-        headers: { Authorization: `Bearer ${cookie}` },
-        cache: "no-store",
-      }
+      { headers: { Authorization: `Bearer ${cookie}` }, cache: "no-store" }
     );
     if (!courseInfoRes.ok) {
-      return NextResponse.json({ error: "Không thể lấy thông tin course. Kiểm tra lại access_token." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Không thể lấy thông tin course. Kiểm tra lại access_token." },
+        { status: 400 }
+      );
     }
     const courseInfo = await courseInfoRes.json();
     const courseTitle: string = courseInfo.title ?? `Udemy Course ${courseId}`;
     const courseUrl: string = `https://www.udemy.com${courseInfo.url ?? ""}`;
 
-    // 2. Fetch all curriculum items (paginated)
     const allItems: CurriculumItem[] = [];
     let nextPage: string | null =
       `https://www.udemy.com/api-2.0/courses/${courseId}/cached-subscriber-curriculum-items/` +
@@ -109,23 +102,19 @@ export async function POST(req: NextRequest) {
       nextPage = validateUdemyNextUrl(d.next ?? null);
     }
 
-    // Filter only lectures
     const lectures = allItems.filter((item) => item._class === "lecture");
 
-    // --- PHASE A (outside transaction): fetch all transcripts into memory ---
-    // H-12: all network I/O happens here, keeping the DB transaction short
-
-    // H-20: guard against empty or suspicious data before touching the DB
     if (lectures.length === 0) {
-      return NextResponse.json({ error: "No lectures found — import aborted." }, { status: 400 });
+      return NextResponse.json(
+        { error: "No lectures found — import aborted." },
+        { status: 400 }
+      );
     }
 
-    // Build transcript map keyed by lecture array index
     const transcriptMap = new Map<number, string | null>();
     for (let i = 0; i < lectures.length; i++) {
       const lecture = lectures[i];
       const captions = lecture.asset?.captions ?? [];
-      // Prefer English, then any
       const caption =
         captions.find((c) => c.locale_id === "en_US") ??
         captions.find((c) => c.locale_id?.startsWith("en")) ??
@@ -133,7 +122,6 @@ export async function POST(req: NextRequest) {
         null;
 
       if (caption?.url) {
-        // H-17: validate caption URL origin before fetching
         if (!isAllowedCaptionUrl(caption.url)) {
           console.warn("[Udemy Import] Skipping non-Udemy caption URL:", caption.url);
           transcriptMap.set(i, null);
@@ -145,12 +133,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- PHASE B (inside transaction): pure DB ops only ---
-    // H-12: transaction now only does DB work — no network I/O inside
     const { importedCount, dbCourseId } = await prisma.$transaction(async (tx) => {
-      const existingCourse = await tx.course.findFirst({ where: { url: courseUrl } });
+      const existingCourse = await tx.course.findFirst({
+        where: { url: courseUrl, userId },
+      });
 
-      // H-20: if re-importing, guard against partial pagination wiping full data
       if (existingCourse) {
         const existingLessonCount = await tx.lesson.count({ where: { courseId: existingCourse.id } });
         if (existingLessonCount > 0 && lectures.length < existingLessonCount * 0.5) {
@@ -162,9 +149,8 @@ export async function POST(req: NextRequest) {
 
       const dbCourse = existingCourse
         ? await tx.course.update({ where: { id: existingCourse.id }, data: { title: courseTitle } })
-        : await tx.course.create({ data: { url: courseUrl, title: courseTitle } });
+        : await tx.course.create({ data: { userId, url: courseUrl, title: courseTitle } });
 
-      // Delete existing lessons to re-import fresh
       if (existingCourse) {
         await tx.lesson.deleteMany({ where: { courseId: dbCourse.id } });
       }
@@ -195,11 +181,10 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    // Surface H-20 guard message to the client
     if (error instanceof Error && error.message.startsWith("Suspicious reduction")) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error(error);
     return NextResponse.json({ error: "Lỗi server khi import" }, { status: 500 });
   }
-}
+});
