@@ -10,7 +10,7 @@ vi.mock("@/lib/ai/client", () => ({
   getCleanHeaders: vi.fn((apiKey: string) => ({
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
-    "User-Agent": "udemy-learner/1.0",
+    "User-Agent": "inkgest/1.0",
   })),
 }));
 

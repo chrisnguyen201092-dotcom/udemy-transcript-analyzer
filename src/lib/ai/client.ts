@@ -20,7 +20,7 @@ export function createAIClient(apiKey: string, baseUrl: string): OpenAI {
     baseURL: baseUrl.replace(/\/$/, ""),
     defaultHeaders: {
       // Override bot-looking User-Agent with a clean one
-      "User-Agent": "udemy-learner/1.0",
+      "User-Agent": "inkgest/1.0",
       // Strip all X-Stainless-* telemetry headers (null = omit entirely)
       "X-Stainless-Lang": null,
       "X-Stainless-Package-Version": null,
@@ -42,6 +42,6 @@ export function getCleanHeaders(apiKey: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
-    "User-Agent": "udemy-learner/1.0",
+    "User-Agent": "inkgest/1.0",
   };
 }

@@ -31,9 +31,9 @@ describe("getCleanHeaders", () => {
     expect(headers["Content-Type"]).toBe("application/json");
   });
 
-  it("returns User-Agent as udemy-learner/1.0", () => {
+  it("returns User-Agent as inkgest/1.0", () => {
     const headers = getCleanHeaders("sk-test123");
-    expect(headers["User-Agent"]).toBe("udemy-learner/1.0");
+    expect(headers["User-Agent"]).toBe("inkgest/1.0");
   });
 
   it("returns exactly 3 keys (no extra headers)", () => {
@@ -72,12 +72,12 @@ describe("createAIClient", () => {
     expect(callArgs.apiKey).toBe("sk-mykey");
   });
 
-  it("sets User-Agent to udemy-learner/1.0 in defaultHeaders", () => {
+  it("sets User-Agent to inkgest/1.0 in defaultHeaders", () => {
     createAIClient("sk-test", "https://api.openai.com/v1");
     const callArgs = mockOpenAIConstructor.mock.calls[0][0] as {
       defaultHeaders: Record<string, string | null>;
     };
-    expect(callArgs.defaultHeaders["User-Agent"]).toBe("udemy-learner/1.0");
+    expect(callArgs.defaultHeaders["User-Agent"]).toBe("inkgest/1.0");
   });
 
   it("sets X-Stainless-Lang to null in defaultHeaders (strips telemetry)", () => {

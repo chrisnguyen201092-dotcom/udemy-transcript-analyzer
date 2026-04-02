@@ -1,4 +1,4 @@
-# Danh sách Tính năng - Udemy App
+# Danh sách Tính năng - Inkgest
 
 ## Tổng quan
 
@@ -25,9 +25,15 @@
 | Lưu lịch sử Chat (Chat Persistence) | 3 | 3 | 0 | 0 |
 | Quản lý bài học nâng cao (Lesson Management) | 3 | 3 | 0 | 0 |
 | Course Collections/Tags | 1 | 1 | 0 | 0 |
-| **Tổng cộng** | **56** | **56** | **0** | **0** |
+| YouTube Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| Web/URL Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| GitHub Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| Audio/Podcast Import **(v3.0)** | 3 | 0 | 0 | 3 |
+| **Tổng cộng** | **68** | **56** | **0** | **12** |
 
-> **Ghi chú:** Nhiều tính năng từ Module 13–21 hiện chỉ có backend (API routes + Prisma models). UI integration đang trong kế hoạch (xem `docs/roadmap.md`).
+> **Ghi chú:** 
+> - Nhiều tính năng từ Module 13–21 hiện chỉ có backend (API routes + Prisma models). UI integration đang trong kế hoạch (xem `docs/roadmap.md`).
+> - Module 25–28 (YouTube, Web, GitHub, Audio) là tầm nhìn v3.0 Multi-Source, chưa triển khai. Sẽ thêm sau khi hoàn thành v2.0 (sách).
 
 ---
 
@@ -238,6 +244,46 @@
 | Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
 |---------------|-------|------------|------------------------|------------------|
 | Quản lý collection/tags cho khóa học | CRUD tags/collections per course | ✅ Backend | `GET/POST/DELETE /api/courses/[id]/collection` | Phân loại và tổ chức khóa học |
+
+---
+
+## Module 25: YouTube Import (v3.0)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Nhập URL video YouTube | Người dùng nhập URL YouTube → hệ thống lấy metadata (title, channel) | 📋 Kế hoạch | `POST /api/youtube/import` | Dùng YouTube Data API hoặc youtube-transcript-api |
+| Tự động lấy transcript video | Hệ thống tác động tải transcript video từ YouTube (nếu có sẵn) hoặc Whisper (nếu không) | 📋 Kế hoạch | `POST /api/youtube/transcript` | Tích hợp Whisper API cho video không có transcript |
+| Tạo course từ video YouTube | Một video → một course (contentType="youtube") với một lesson | 📋 Kế hoạch | — | Tự động điều chỉnh prompt dựa trên `contentType="youtube"` |
+
+---
+
+## Module 26: Web/URL Import (v3.0)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Nhập URL website/blog | Người dùng nhập URL → hệ thống scrape nội dung | 📋 Kế hoạch | `POST /api/web/import` | Dùng cheerio hoặc playwright để scrape; trích xuất main content (loại nav, footer, ads) |
+| Phân tích cấu trúc bài viết | AI phân tích bài viết, đề xuất cách chia nhỏ thành các lessons | 📋 Kế hoạch | — | Optional: heuristic detect headings → auto-split |
+| Tạo course từ URL | Một URL → một course (contentType="web") với các lessons tương ứng | 📋 Kế hoạch | — | Prompt tối ưu cho web content (loại ASR rules, thêm citation) |
+
+---
+
+## Module 27: GitHub Import (v3.0)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Nhập URL GitHub repo | Người dùng nhập URL repo → hệ thống lấy README, key docs, code files | 📋 Kế hoạch | `POST /api/github/import` | Dùng GitHub API hoặc raw file URLs; parse README.md, /docs, key .py/.js files |
+| Phân tích codebase | AI phân tích repo: mục đích, architecture, main modules, learning path | 📋 Kế hoạch | — | Trích xuất docstrings, comments, architecture docs |
+| Tạo course từ repo | Một repo → một course (contentType="code") với lessons: Overview, Architecture, Key Modules, Examples | 📋 Kế hoạch | — | Prompt dành cho code: explain design, patterns, best practices |
+
+---
+
+## Module 28: Audio/Podcast Import (v3.0)
+
+| Tên tính năng | Mô tả | Trạng thái | Module/Route liên quan | Ghi chú kỹ thuật |
+|---------------|-------|------------|------------------------|------------------|
+| Upload tệp audio | Người dùng upload `.mp3`, `.m4a`, `.wav` từ máy tính | 📋 Kế hoạch | `POST /api/podcasts/upload` | Multipart upload; hỗ trợ audio formats phổ biến |
+| Tự động transcribe | Hệ thống gửi audio tới Whisper API → nhận transcript | 📋 Kế hoạch | `POST /api/podcasts/transcribe` | Whisper support multilingual; cache transcript |
+| Tạo course từ podcast | Một audio file → một course (contentType="podcast") với một lesson (transcript đầy đủ) | 📋 Kế hoạch | — | Prompt tối ưu cho podcast: capture key insights, timestamps |
 
 ---
 

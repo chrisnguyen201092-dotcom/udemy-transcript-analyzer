@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Udemy Learner",
-  description: "AI-powered Udemy course learning assistant",
+  title: "Inkgest",
+  description: "AI-powered personal learning hub for any knowledge source",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="dark" storageKey="udemy-learner-theme">
+        <ThemeProvider attribute="class" defaultTheme="dark" storageKey="inkgest-theme">
           {children}
           <Toaster richColors position="bottom-right" />
         </ThemeProvider>

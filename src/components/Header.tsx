@@ -19,7 +19,7 @@ export function Header({ isConfigured, profileName, currentModel, onOpenSettings
           <Zap className="w-4 h-4 text-white fill-white" />
         </div>
         <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
-          Udemy Learner
+          Inkgest
         </span>
       </div>
 

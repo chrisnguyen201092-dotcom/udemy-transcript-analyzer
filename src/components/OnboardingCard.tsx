@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { X, BookOpen, Upload, Globe, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const STORAGE_KEY = "udemy_onboarding_dismissed";
+const STORAGE_KEY = "inkgest_onboarding_dismissed";
 
 function getSnapshot(): boolean {
   return localStorage.getItem(STORAGE_KEY) === "true";
@@ -54,7 +54,7 @@ export function OnboardingCard({ onImport, onUpload, onAddManual }: OnboardingCa
         </div>
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Chào mừng đến Udemy Learner!
+            Chào mừng đến Inkgest!
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
             Trợ lý AI giúp bạn học hiệu quả hơn. Bắt đầu bằng cách thêm khóa học đầu tiên.

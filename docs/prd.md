@@ -1,19 +1,26 @@
-# PRD: Udemy Learner
+# PRD: Inkgest
 
 > **Loại tài liệu:** Product Requirements Document  
-> **Phiên bản:** 2.0  
-> **Ngày:** 2026-03-30  
-> **Trạng thái:** v1.1 đã triển khai · v2.0 đang thiết kế (Book/Textbook support)
+> **Phiên bản:** 3.0  
+> **Ngày:** 2026-04-02  
+> **Trạng thái:** v1.1 đã triển khai · v2.0 sách hỗ trợ đang thiết kế · v3.0 đa nguồn (Multi-Source) vision
 
 ---
 
 ## 1. Tổng quan sản phẩm
 
-**Udemy Learner** là một ứng dụng web hỗ trợ học tập hiệu quả hơn nhờ AI. Ứng dụng cho phép import khóa học từ tài khoản Udemy, tạo khóa học từ file transcript cục bộ, hoặc **upload sách/giáo trình (PDF, EPUB, DOCX)** — sau đó dùng AI để tóm tắt, giải thích sâu, chat trực tiếp, luyện tập tương tác (quiz/flashcard/bài tập), và tạo lộ trình học tập cá nhân hóa.
+**Inkgest** là một ứng dụng web hỗ trợ học tập hiệu quả hơn nhờ AI từ **bất kỳ nguồn học tập nào**. Ứng dụng cho phép nhập nội dung từ:
+- **Udemy** — import khóa học + transcript video
+- **YouTube** — tự động lấy transcript video
+- **PDF/Web URL** — scrape tài liệu web hoặc upload PDF
+- **GitHub/Code Repos** — phân tích README, documentation, code
+- **Podcast/Audio** — upload tệp âm thanh, tự động transcribe
 
-Mục tiêu cốt lõi: **biến nội dung học tập thô (transcript, sách, tài liệu) thành kiến thức có cấu trúc**, giúp người học nắm bài nhanh hơn và sâu hơn.
+Tất cả loại nội dung được xử lý qua **cùng một AI engine** để tóm tắt, giải thích sâu, chat trực tiếp, luyện tập tương tác (quiz/flashcard/bài tập), và tạo lộ trình học tập cá nhân hóa.
 
-> **v2.0 Note:** Từ phiên bản 2.0, app mở rộng từ "Udemy transcript analyzer" thành **"AI Learning Assistant đa nguồn"** — hỗ trợ cả sách, giáo trình, tài liệu bên cạnh video courses.
+Mục tiêu cốt lõi: **biến nội dung học tập thô từ bất kỳ nguồn (transcript, sách, code, podcast) thành kiến thức có cấu trúc**, giúp người học nắm bài nhanh hơn và sâu hơn — toàn bộ trong một giao diện duy nhất.
+
+> **v3.0 Vision:** Từ phiên bản 3.0, app mở rộng từ "Udemy + sách analyzer" thành **"Inkgest — Trợ thủ học tập AI đa nguồn toàn diện"** — hỗ trợ tất cả loại nội dung học tập dưới một mái nhà.
 
 ---
 
@@ -41,7 +48,17 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 - File sách (PDF, EPUB, DOCX) cần được parse và chia chương tự động — thao tác thủ công mất thời gian
 - Thuật ngữ chuyên ngành rải rác khắp sách, khó tổng hợp thành glossary
 
-**Udemy Learner** giải quyết tất cả vấn đề này trong một giao diện duy nhất — cho cả video courses lẫn sách/giáo trình.
+### 2.3 Vấn đề với đa nguồn học tập (v3.0)
+
+Người học hiện đại cần hỗ trợ từ nhiều loại nội dung khác nhau:
+
+- **YouTube videos** — transcript không dễ tiếp cận, phải tìm cách khác để tóm tắt/học
+- **Web content & articles** — những trang hữu ích nhưng ngoài lẻ, khó tổng hợp kiến thức
+- **Code & technical docs** — GitHub repos, README, documentation cần phải "hiểu được" như một nội dung học tập
+- **Podcast & audio** — nội dung quý giá nhưng khó tìm kiếm, tóm tắt mà không có transcript
+- **Fragmentation** — người học phải chuyển qua lại nhiều app khác nhau cho mỗi loại nội dung
+
+**Inkgest** giải quyết tất cả vấn đề này trong một giao diện duy nhất — hỗ trợ tất cả loại nội dung với cùng một AI engine.
 
 ---
 
@@ -49,25 +66,29 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 
 | Nhóm | Mô tả |
 |------|-------|
-| **Học viên kỹ thuật** | Lập trình viên, data scientist học khóa Udemy để nâng kỹ năng |
-| **Self-learner** | Người tự học có tài khoản Udemy, muốn học có hệ thống hơn |
-| **Người học từ file cục bộ** | Không cần Udemy — upload transcript từ máy tính để học với AI |
+| **Học viên kỹ thuật** | Lập trình viên, data scientist học khóa Udemy, xem YouTube tutorials, đọc GitHub docs để nâng kỹ năng |
+| **Self-learner** | Người tự học từ nhiều nguồn khác nhau (sách, YouTube, web, podcast), muốn học có hệ thống hơn |
+| **Người học từ file cục bộ** | Không cần nền tảng nào — upload transcript, sách, PDF từ máy tính để học với AI |
 | **Người đọc sách/giáo trình** | Upload PDF/EPUB/DOCX sách → AI tóm tắt, giải thích, quiz theo chương **(v2.0)** |
+| **Developer tìm hiểu code** | Upload GitHub repo/README hoặc paste code → AI giải thích, tạo learning path **(v3.0)** |
+| **Người nghe podcast** | Upload file podcast/audio hoặc paste transcript → AI tóm tắt và tạo quiz **(v3.0)** |
+| **Content curator** | Nhập URL website/blog hoặc YouTube → Inkgest scrape nội dung tự động **(v3.0)** |
 | **Developer tự dùng** | Người cài ứng dụng local để dùng riêng với API key của mình |
 
-**Điều kiện tiên quyết:** Người dùng phải có API key từ một nhà cung cấp tương thích OpenAI. Tài khoản Udemy chỉ cần thiết khi dùng tính năng import từ Udemy; không cần khi upload file transcript thủ công.
+**Điều kiện tiên quyết:** Người dùng phải có API key từ một nhà cung cấp tương thích OpenAI. Các tài khoản (Udemy, YouTube, GitHub) và API (Whisper, scraping) chỉ cần thiết cho tính năng nhập tương ứng; không cần khi upload file trực tiếp.
 
 ---
 
 ## 4. Mục tiêu sản phẩm
 
-1. Import và lưu trữ khóa học Udemy cùng transcript một cách tự động
-2. Cung cấp 5 chế độ AI hỗ trợ học: Summary, Explain, Chat, Practice (Quiz/Flashcard/Exercises), Roadmap
-3. Cho phép tạo khóa học từ file cục bộ (`.vtt`, `.srt`, `.txt`) hoặc thư mục — không cần Udemy
-4. Lưu trữ và cache kết quả AI vào database để tái sử dụng, hỗ trợ force-regenerate
-5. Chạy hoàn toàn local, không phụ thuộc backend bên ngoài ngoài AI provider
-6. Hỗ trợ nhiều profile AI — chuyển đổi giữa nhiều provider/model dễ dàng
-7. **Upload sách/giáo trình (PDF, EPUB, DOCX)** và áp dụng toàn bộ AI features cho nội dung sách — tóm tắt chương, giải thích, quiz, flashcard, lộ trình đọc **(v2.0)**
+1. Hỗ trợ **bất kỳ nguồn nội dung học tập nào** — Udemy, YouTube, PDF/Web, GitHub/code, Podcast/Audio — dưới một giao diện duy nhất
+2. Cung cấp **cùng một AI engine** cho tất cả loại nội dung: Summary, Explain, Chat, Practice (Quiz/Flashcard/Exercises), Roadmap
+3. Import tự động từ các nguồn: Udemy (credential), YouTube (video URL), GitHub (repo URL), Web (scraping), Audio (Whisper transcription)
+4. Upload trực tiếp: File transcript (`.vtt`, `.srt`, `.txt`), Sách (`.pdf`, `.epub`, `.docx`), Audio (`.mp3`, `.m4a`, `.wav`), hoặc thư mục batch
+5. Lưu trữ và cache kết quả AI vào database để tái sử dụng, hỗ trợ force-regenerate
+6. Chạy hoàn toàn local, không phụ thuộc backend bên ngoài ngoài AI provider
+7. Hỗ trợ nhiều profile AI — chuyển đổi giữa nhiều provider/model dễ dàng
+8. **AI engine đáp ứng theo loại nội dung** — prompt tự động điều chỉnh dựa trên `contentType` (course, book, code, podcast, web)
 
 ---
 
@@ -80,6 +101,10 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 - **Upload sách/giáo trình từ file `.pdf`, `.epub`, `.docx`, `.txt`, `.md`** — tự động tạo course (contentType="book") + lessons (chương) **(v2.0)**
 - **Auto chapter splitting** — phát hiện chương tự động từ heading/page break + AI-assisted detection + xác nhận thủ công **(v2.0)**
 - **Book metadata** — lưu tác giả, ISBN, nhà xuất bản cho sách **(v2.0)**
+- **YouTube import** — nhập URL video → tự động lấy transcript (YouTube Data API / youtube-transcript-api) → tạo course **(v3.0)**
+- **Web/URL import** — nhập URL website/blog → scrape nội dung → tạo course **(v3.0)**
+- **GitHub import** — nhập URL repo → parse README, docs, key code files → tạo course (contentType="code") **(v3.0)**
+- **Audio/Podcast upload** — upload file `.mp3`, `.m4a`, `.wav` → Whisper transcription → tạo course (contentType="podcast") **(v3.0)**
 - Quản lý khóa học và bài học thủ công (CRUD)
 - Xem và chỉnh sửa transcript từng bài học
 - AI Summary: tóm tắt bài học theo chuẩn giáo học pháp (Bloom's Taxonomy)
@@ -87,17 +112,17 @@ Người đọc sách kỹ thuật và giáo trình gặp thêm các rào cản 
 - AI Chat: chat nhiều lượt có streaming với context bài học
 - AI Practice: Quiz tương tác (clickable MCQ), Flashcard lật thẻ (SRS), Bài tập accordion (Deliberate Practice)
 - AI Roadmap: phân tích toàn khóa, đề xuất lộ trình học tập cá nhân hóa
-- **AI Prompt Adaptation cho sách** — prompt thay đổi theo contentType: bỏ ASR rules, đổi label "bài học"→"chương", thêm academic framing **(v2.0)**
-- **UI Adaptation cho sách** — label, icon, badge phân biệt sách vs khóa học **(v2.0)**
+- **AI Prompt Adaptation theo contentType** — prompt thay đổi cho book, code, podcast, web; bỏ ASR rules cho non-video sources **(v3.0)**
+- **UI Adaptation theo contentType** — label, icon, badge phân biệt các loại nội dung **(v3.0)**
 - AI Cache: kết quả được lưu vào DB, trả về ngay khi đã có; hỗ trợ force-regenerate
 - Multi-profile AI settings (base URL, API key, model, Udemy cookie per profile)
 - Giao diện hoàn toàn bằng tiếng Việt
 - Docker support cho deployment (port 3939)
 
-### Out of Scope
+### Out of Scope (v3.0)
 
-- Xem video trực tiếp từ Udemy
-- Đồng bộ tiến độ học lên Udemy
+- Xem video trực tiếp từ Udemy / YouTube
+- Đồng bộ tiến độ học lên các nền tảng gốc
 - Multi-user / authentication hệ thống
 - Mobile app (chỉ web)
 - Xuất nội dung ra PDF/Word (hiện hỗ trợ Markdown/CSV — xem Module Export)
