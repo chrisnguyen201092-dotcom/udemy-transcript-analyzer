@@ -172,13 +172,23 @@ function HomeContent() {
     setCoursesLoading(true);
     try {
       const res = await fetch("/api/courses");
+      if (res.status === 401) {
+        // Session expired or invalid — redirect to login
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) {
+        toast.error("Lỗi khi tải danh sách courses");
+        return;
+      }
       const data = await res.json();
-      setCourses(data);
+      const list = Array.isArray(data) ? data : [];
+      setCourses(list);
 
       // Auto-select course from ?courseId= query param (e.g. from dashboard)
       const courseId = searchParams.get("courseId");
       if (courseId && !selectedCourse) {
-        const match = data.find((c: Course) => c.id === courseId);
+        const match = list.find((c: Course) => c.id === courseId);
         if (match) setSelectedCourse(match);
       }
     } catch {

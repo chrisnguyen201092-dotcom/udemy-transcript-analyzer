@@ -1,0 +1,25 @@
+"use client";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <html>
+      <body style={{ fontFamily: "system-ui", padding: "2rem" }}>
+        <h2>Something went wrong</h2>
+        <pre style={{ whiteSpace: "pre-wrap", color: "red" }}>
+          {error.message}
+        </pre>
+        <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", color: "#666" }}>
+          {error.stack}
+        </pre>
+        {error.digest && <p>Digest: {error.digest}</p>}
+        <button onClick={() => reset()}>Try again</button>
+      </body>
+    </html>
+  );
+}
