@@ -310,49 +310,49 @@ src/app/
 
 ## Todo List
 
-- [ ] 8.1 Add `lastAccessedAt DateTime?` to Course model in schema
-- [ ] 8.2 Run `npx prisma db push`
-- [ ] 8.3 Create `src/app/api/dashboard/route.ts` — Dashboard data API
-- [ ] 8.4 Create `src/app/(protected)/layout.tsx` — Protected page layout
-- [ ] 8.5 Create `src/app/(protected)/dashboard/page.tsx` — Dashboard page
-- [ ] 8.6 Create `src/components/dashboard/continue-learning-widget.tsx`
-- [ ] 8.7 Create `src/components/dashboard/srs-due-widget.tsx`
-- [ ] 8.8 Create `src/components/dashboard/my-courses-widget.tsx`
-- [ ] 8.9 Create `src/components/dashboard/study-stats-widget.tsx`
-- [ ] 8.10 Create `src/components/dashboard/recent-activity-widget.tsx`
-- [ ] 8.11 Create `src/components/dashboard/empty-dashboard.tsx`
-- [ ] 8.12 Create `src/app/api/user/preferences/route.ts` — GET/PUT preferences
-- [ ] 8.13 Create `src/app/api/user/preferences/migrate/route.ts` — Preference migration
-- [ ] 8.14 Create `src/app/api/user/profile/route.ts` — User profile
-- [ ] 8.15 Create `src/app/api/user/delete/route.ts` — Delete account
-- [ ] 8.16 Create `src/app/(protected)/settings/page.tsx` — Settings page
-- [ ] 8.17 Create `src/components/settings/account-settings.tsx`
-- [ ] 8.18 Create `src/components/settings/preferences-settings.tsx`
-- [ ] 8.19 Create `src/components/settings/data-management-settings.tsx`
-- [ ] 8.20 Create `src/lib/preference-migration.ts` — localStorage migration client logic
-- [ ] 8.21 Update useAuth to call preference migration on login/register
-- [ ] 8.22 Update lesson view routes to set Course.lastAccessedAt
-- [ ] 8.23 Deprecate SettingsModal (add redirect banner to /settings)
-- [ ] 8.24 Write tests for dashboard API route
-- [ ] 8.25 Write tests for settings API routes
-- [ ] 8.26 Write tests for preference migration
-- [ ] 8.27 Run `npm run quality-gate`
+- [x] 8.1 Add `lastAccessedAt DateTime?` to Course model in schema
+- [x] 8.2 Run `npx prisma db push`
+- [x] 8.3 Create `src/app/api/dashboard/route.ts` — Dashboard data API
+- [x] 8.4 Create `src/app/(protected)/layout.tsx` — Protected page layout
+- [x] 8.5 Create `src/app/(protected)/dashboard/page.tsx` — Dashboard page
+- [x] 8.6 Create `src/components/dashboard/continue-learning-widget.tsx`
+- [x] 8.7 Create `src/components/dashboard/srs-due-widget.tsx`
+- [x] 8.8 Create `src/components/dashboard/my-courses-widget.tsx`
+- [x] 8.9 Create `src/components/dashboard/study-stats-widget.tsx`
+- [x] 8.10 Create `src/components/dashboard/recent-activity-widget.tsx`
+- [x] 8.11 Create `src/components/dashboard/empty-dashboard.tsx`
+- [x] 8.12 Create `src/app/api/user/preferences/route.ts` — GET/PUT preferences
+- [x] 8.13 Create `src/app/api/user/preferences/migrate/route.ts` — Preference migration
+- [x] 8.14 Create `src/app/api/user/profile/route.ts` — User profile
+- [x] 8.15 Create `src/app/api/user/delete/route.ts` — Delete account
+- [x] 8.16 Create `src/app/(protected)/settings/page.tsx` — Settings page
+- [x] 8.17 Create `src/components/settings/account-settings.tsx`
+- [x] 8.18 Create `src/components/settings/preferences-settings.tsx`
+- [x] 8.19 Create `src/components/settings/data-management-settings.tsx`
+- [x] 8.20 Create `src/lib/preference-migration.ts` — localStorage migration client logic
+- [x] 8.21 Update useAuth to call preference migration on login/register
+- [x] 8.22 Update lesson view routes to set Course.lastAccessedAt
+- [x] 8.23 Deprecate SettingsModal (add redirect banner to /settings)
+- [x] 8.24 Write tests for dashboard API route
+- [x] 8.25 Write tests for settings API routes
+- [x] 8.26 Write tests for preference migration
+- [x] 8.27 Run `npm run quality-gate`
 
 ## Success Criteria
 
-- [ ] Dashboard loads at `/dashboard` after login with personalized widgets
-- [ ] Continue Learning shows last accessed course + lesson with progress
-- [ ] SRS Due shows correct count of flashcards due today
-- [ ] My Courses displays user's courses sorted by last accessed
-- [ ] Study Stats shows weekly aggregated metrics
-- [ ] Recent Activity shows last 7 days of actions
-- [ ] First-time user sees empty dashboard with onboarding CTA
-- [ ] Settings page at `/settings` with 3 tabs (Account, Preferences, Data)
-- [ ] Preferences migrated from localStorage to DB on first login
-- [ ] Delete account cascades all user data
-- [ ] Dashboard responsive: 2-col (desktop), 1-col (tablet/mobile)
-- [ ] All widgets show skeleton loading and proper empty states
-- [ ] All tests pass, quality gate passes
+- [x] Dashboard loads at `/dashboard` after login with personalized widgets
+- [x] Continue Learning shows last accessed course + lesson with progress
+- [x] SRS Due shows correct count of flashcards due today
+- [x] My Courses displays user's courses sorted by last accessed
+- [x] Study Stats shows weekly aggregated metrics
+- [x] Recent Activity shows last 7 days of actions
+- [x] First-time user sees empty dashboard with onboarding CTA
+- [x] Settings page at `/settings` with 3 tabs (Account, Preferences, Data)
+- [x] Preferences migrated from localStorage to DB on first login
+- [x] Delete account cascades all user data
+- [x] Dashboard responsive: 2-col (desktop), 1-col (tablet/mobile)
+- [x] All widgets show skeleton loading and proper empty states
+- [x] All tests pass, quality gate passes
 
 ## Risk Assessment
 

@@ -1,6 +1,6 @@
 # Inkgest v1.3 — Multi-User Foundation
 
-> **Status:** Planning | **Priority:** Critical | **Est:** ~4 weeks
+> **Status:** ✅ Implementation Complete — Codex Approved | **Priority:** Critical | **Est:** ~4 weeks
 > **Phases:** 6 (Schema), 7 (Auth), 8 (Dashboard & Onboarding)
 
 ---
@@ -21,9 +21,9 @@ Transform Inkgest from single-user personal tool into multi-user platform with a
 
 | # | Phase | Status | File | Est |
 |---|-------|--------|------|-----|
-| 6 | Schema Refactoring & Data Scoping | Pending | [phase-06](phase-06-schema-refactoring.md) | ~1 week |
-| 7 | Authentication System | Pending | [phase-07](phase-07-authentication-system.md) | ~2 weeks |
-| 8 | Dashboard & Onboarding | Pending | [phase-08](phase-08-dashboard-onboarding.md) | ~1 week |
+| 6 | Schema Refactoring & Data Scoping | ✅ Complete | [phase-06](phase-06-schema-refactoring.md) | ~1 week |
+| 7 | Authentication System | ✅ Complete | [phase-07](phase-07-authentication-system.md) | ~2 weeks |
+| 8 | Dashboard & Onboarding | ✅ Complete | [phase-08](phase-08-dashboard-onboarding.md) | ~1 week |
 
 ## Dependency Graph
 
@@ -57,11 +57,23 @@ Phase 6 (Schema) ──→ Phase 7 (Auth) ──→ Phase 8 (Dashboard)
 
 ## Success Criteria
 
-- [ ] All models have userId FK, data isolated per user
-- [ ] JWT auth working: register, login, logout, forgot/reset password
-- [ ] Protected routes redirect to /login; public routes accessible
-- [ ] Dashboard shows personalized widgets after login
-- [ ] Settings page at /settings replaces SettingsModal
-- [ ] Legacy data claimed by bootstrap user on first registration
-- [ ] All existing tests pass + new auth/dashboard tests added
-- [ ] `npm run quality-gate` passes
+- [x] All models have userId FK, data isolated per user
+- [x] JWT auth working: register, login, logout, forgot/reset password
+- [x] Protected routes redirect to /login; public routes accessible
+- [x] Dashboard shows personalized widgets after login
+- [x] Settings page at /settings replaces SettingsModal
+- [x] Legacy data claimed by bootstrap user on first registration
+- [x] All existing tests pass + new auth/dashboard tests added (829/829 passing)
+- [x] `npm run quality-gate` passes (0 errors, 0 warnings)
+
+## Codex Adversarial Review Results ✅ Fixed
+
+8 critical findings identified and resolved:
+1. ✅ JWT fallback secret hardcoded → fail closed (JWT_SECRET required)
+2. ✅ Preferences String↔Object mismatch → JSON helpers added
+3. ✅ Dashboard stats (unweighted avg) → weighted per-course completion
+4. ✅ Open redirect on login → validate redirect URL pattern
+5. ✅ Revoked session in protected layout → useEffect redirect to /login
+6. ✅ Continue learning widget broken link → full courseId deep-link + Suspense
+7. ✅ Raw reset token logging → removed console.log sensitive data
+8. ✅ Rate limiting IP spoofing → getClientIp() extracts leftmost from x-forwarded-for

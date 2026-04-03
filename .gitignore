@@ -51,3 +51,7 @@ dev.db
 dev.db-journal
 dev-server.log
 nul
+
+# claude code / codex review
+.claude/
+.codex-review/

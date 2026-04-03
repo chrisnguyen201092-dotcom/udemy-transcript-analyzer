@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
+import { useAuth } from "@/hooks/useAuth";
 import { AddCoursePanel } from "@/components/AddCoursePanel";
 import { CourseList } from "@/components/CourseList";
 import { LessonList } from "@/components/LessonList";
@@ -66,7 +68,9 @@ interface UdemyCourse {
   num_lectures: number;
 }
 
-export default function Home() {
+function HomeContent() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [courses, setCourses] = useState<Course[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -170,6 +174,13 @@ export default function Home() {
       const res = await fetch("/api/courses");
       const data = await res.json();
       setCourses(data);
+
+      // Auto-select course from ?courseId= query param (e.g. from dashboard)
+      const courseId = searchParams.get("courseId");
+      if (courseId && !selectedCourse) {
+        const match = data.find((c: Course) => c.id === courseId);
+        if (match) setSelectedCourse(match);
+      }
     } catch {
       toast.error("Lỗi khi tải danh sách courses");
     } finally {
@@ -698,10 +709,8 @@ export default function Home() {
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col overflow-hidden">
       {/* Topbar */}
       <Header
-        isConfigured={isConfigured}
-        profileName={profile.name}
+        user={user}
         currentModel={settings.model}
-        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Body */}
@@ -1008,5 +1017,13 @@ export default function Home() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   );
 }

@@ -1,46 +1,71 @@
 /**
  * Authentication helper for API routes (v1.3 Multi-User Foundation)
  *
- * Phase 6: Stub that returns first user or null (no JWT yet).
- * Phase 7: Will implement real JWT validation from HttpOnly cookie.
+ * Phase 7: Real JWT validation from HttpOnly cookie.
+ * Uses LRU cache for tokenVersion checks to minimize DB hits.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyToken, SESSION_COOKIE, type TokenPayload } from "@/lib/jwt";
+import { LRUCache } from "@/lib/lru-cache";
 
-/** Result of auth extraction — userId or null if unauthenticated */
-export type AuthResult = { userId: string } | null;
+/** Cached tokenVersion per userId (TTL 60s, max 1000 users) */
+const tokenVersionCache = new LRUCache<number>(1000, 60_000);
 
 /**
- * Extract authenticated userId from request.
- *
- * Phase 6 (current): Returns the first User in DB, or null if no users exist.
- * Phase 7 (future): Will parse JWT from `inkgest_session` cookie, validate
- *   signature + tokenVersion, and return userId.
+ * Extract authenticated user from JWT cookie.
+ * Verifies signature, expiration, and tokenVersion against DB (with LRU cache).
+ */
+export async function getSessionUser(
+  req: NextRequest
+): Promise<TokenPayload | null> {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload?.userId) return null;
+
+  // Check tokenVersion (revocation) with LRU cache
+  let dbVersion = tokenVersionCache.get(payload.userId);
+  if (dbVersion === undefined) {
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { tokenVersion: true },
+    });
+    if (!user) return null;
+    dbVersion = user.tokenVersion;
+    tokenVersionCache.set(payload.userId, dbVersion);
+  }
+
+  if (payload.tokenVersion !== dbVersion) {
+    tokenVersionCache.delete(payload.userId);
+    return null;
+  }
+
+  return payload;
+}
+
+/**
+ * Convenience: extract just the userId string.
  */
 export async function getAuthUserId(
-  _req: NextRequest
+  req: NextRequest
 ): Promise<string | null> {
-  // STUB: Return first user in DB (bootstrap user)
-  // TODO(phase-7): Replace with JWT cookie parsing + validation
-  const user = await prisma.user.findFirst({
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-  });
-  return user?.id ?? null;
+  const session = await getSessionUser(req);
+  return session?.userId ?? null;
+}
+
+/**
+ * Invalidate cached tokenVersion for a user (call after logout/password change).
+ */
+export function invalidateUserCache(userId: string): void {
+  tokenVersionCache.delete(userId);
 }
 
 /**
  * Wrap an API route handler with authentication.
  * Returns 401 if no authenticated user found.
- *
- * Usage:
- * ```ts
- * export const GET = withAuth(async (req, { userId }) => {
- *   const courses = await prisma.course.findMany({ where: { userId } });
- *   return NextResponse.json(courses);
- * });
- * ```
  */
 export function withAuth(
   handler: (

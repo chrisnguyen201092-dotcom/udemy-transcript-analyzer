@@ -43,6 +43,7 @@ model Course {
   publisher      String?
   roadmap        String?
   rawContent     String?          /// Original pre-split source text (canonical, immutable after first upload)
+  lastAccessedAt DateTime?        /// Updated when user views a lesson in this course
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   lessons        Lesson[]

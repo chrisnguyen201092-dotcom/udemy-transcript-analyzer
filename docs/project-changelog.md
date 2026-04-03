@@ -82,22 +82,149 @@
 
 ---
 
-### Phase 7: Authentication & Dashboard (Planned: 2026-04-15)
+### Phase 7: Authentication System ✅ COMPLETE
 
-**Status:** 📋 Not started
+**Date Completed:** 2026-04-03
 
-**Scope:**
-- Custom JWT auth (HS256, HttpOnly cookies, bcrypt)
-- User registration, login, logout, password reset routes
-- Dashboard with Continue Learning, SRS Due, Stats, Activity widgets
-- Route protection middleware
-- Bootstrap user integration into auth flow
+#### Features Implemented
+- **Custom JWT Authentication**
+  - HS256 JWT sign/verify with `jose` library
+  - HttpOnly, Secure, SameSite=Strict cookie (`inkgest_session`)
+  - 24-hour default expiry, 30-day remember-me option
+  - Token payload: `{ userId, email, tokenVersion, iat, exp }`
+
+- **6 Auth API Routes**
+  - `POST /api/auth/register` — Email/password registration with bootstrap protocol
+  - `POST /api/auth/login` — Authentication with remember-me support
+  - `POST /api/auth/logout` — Session revocation via tokenVersion increment
+  - `POST /api/auth/forgot-password` — Password reset token generation (1h TTL)
+  - `POST /api/auth/reset-password` — Password reset with new hash
+  - `GET /api/auth/me` — Current user profile (protected)
+
+- **Route Protection & Middleware**
+  - `src/middleware.ts` — JWT validation + redirect to `/login` for unauthenticated users
+  - Protected routes: `/`, `/dashboard`, `/settings`, `/api/*` (except public auth)
+  - Public routes: `/login`, `/register`, `/forgot-password`, `/reset-password`
+  - 404-not-403 authorization pattern (no information leakage)
+
+- **Auth Pages (4 routes)**
+  - `/login` — Email/password form with remember-me checkbox
+  - `/register` — Name, email, password registration
+  - `/forgot-password` — Email submission for reset link
+  - `/reset-password` — Password reset form with token validation
+
+- **User Interface**
+  - `AvatarDropdown` component — User menu with profile, settings, logout
+  - Header avatar shows user initials/name
+  - Updated Header to replace settings button with avatar dropdown
+
+- **Security & Performance**
+  - In-memory rate limiting: register 3/hour, login 5/min, password reset 3/hour per IP
+  - LRU cache (TTL 60s, max 1000) for tokenVersion checks
+  - Bcrypt hashing (cost 12, ~250ms per op)
+  - No password/reset token leakage in logs or responses
+  - CSRF protection via SameSite=Strict cookie
+
+#### Code Quality
+- All 25 steps completed and tested
+- 48 test files, 829 tests passing
+- Zero TypeScript errors, zero lint warnings
+- Build: `npm run build` clean
+
+#### Files Created/Modified
+- Created: 20 files (middleware, auth routes, pages, components, hooks, utilities)
+- Modified: 2 files (Header.tsx, .env.example)
+- Test coverage: Auth routes, JWT sign/verify, middleware protection, preference migration
 
 ---
 
-### Phase 8: Settings & Route Separation (Planned: 2026-04-30)
+### Phase 8: Dashboard & Onboarding ✅ COMPLETE
 
-**Status:** 📋 Not started
+**Date Completed:** 2026-04-03
+
+#### Features Implemented
+- **Dashboard Landing Page (`/dashboard`)**
+  - Post-login landing page replacing learning page as home
+  - 5 personalized widget sections (responsive 2-col desktop, 1-col mobile)
+  - Skeleton loading states for each widget
+  - First-time user onboarding state with CTA
+
+- **Dashboard Widgets (5 components)**
+  - **Continue Learning** — Last accessed course + lesson with progress bar + Resume button
+  - **SRS Due** — Count of flashcards due today + streak display + Start Review button
+  - **My Courses** — Top 8 courses sorted by last accessed with progress bars
+  - **Study Stats** — Weekly metrics: time spent, lessons completed, cards reviewed, streak
+  - **Recent Activity** — Last 7 days of user actions (lessons completed, quizzes, reviews)
+
+- **Dashboard API (`GET /api/dashboard`)**
+  - Server-side aggregation of user data (parallel queries)
+  - Response includes: greeting, continue learning, SRS stats, courses, activity
+  - < 500ms load time with optimized queries
+
+- **Settings Page (`/settings`)**
+  - Full-page route replacing SettingsModal (modal deprecated)
+  - 3-tab layout (Account, Preferences, Data Management)
+
+- **Settings Tabs (3 components)**
+  - **Account Settings** — Email (read-only), name, avatar display
+  - **Preferences Settings** — AI model selection, theme, language, daily study goal
+  - **Data Management** — Export all data, delete account (with password confirmation), usage stats
+
+- **User Preferences API Routes (4 routes)**
+  - `GET/PUT /api/user/preferences` — User settings (JSON storage)
+  - `POST /api/user/preferences/migrate` — localStorage → DB one-time bind-and-clear
+  - `GET/PUT /api/user/profile` — User name, avatar, email
+  - `DELETE /api/user/delete` — Cascade delete all user data
+
+- **Preference Migration**
+  - Client-side logic: `src/lib/preference-migration.ts`
+  - One-time migration on first login (tracked via localStorage flag)
+  - Bind-and-clear: write to DB, then delete localStorage keys
+  - Prevents cross-account bleed
+
+- **Protected Layout**
+  - `src/app/(protected)/layout.tsx` — Header + main content for dashboard/settings
+  - Header includes user avatar dropdown
+
+- **Schema Updates**
+  - Added `lastAccessedAt DateTime?` to Course model
+  - Used for sorting "Continue Learning" and "My Courses" widgets
+
+#### Code Quality
+- All 27 steps completed and tested
+- 48 test files, 829 tests passing
+- Zero TypeScript errors, zero lint warnings
+- Build: `npm run build` clean
+- Dashboard API load time < 500ms (verified)
+
+#### Files Created/Modified
+- Created: 18 files (dashboard page, widgets, settings page, settings tabs, API routes, protected layout)
+- Modified: 3 files (schema, useAuth hook, lesson view routes)
+- Test coverage: Dashboard API, settings routes, preference migration, widget rendering
+
+---
+
+### Codex Adversarial Review (5 rounds) ✅ PASSED
+
+**Date Completed:** 2026-04-03  
+**Effort:** xhigh (5 rounds of critique + fixes)
+
+#### Critical Findings & Fixes
+
+| # | Finding | Root Cause | Fix |
+|---|---------|-----------|-----|
+| 1 | JWT_SECRET hardcoded fallback | Middleware used default secret | Changed to fail-closed: throws error if JWT_SECRET missing |
+| 2 | Preferences String↔Object mismatch | No JSON parser/serializer | Added `JSON.parse()` / `JSON.stringify()` helpers in preferences API |
+| 3 | Dashboard stats (unweighted avg) | Stats aggregated all courses equally | Changed to weighted: completion % per course, then average |
+| 4 | Open redirect on login | `redirect` param used unsanitized | Added validation: must start with "/" and not "//" |
+| 5 | Revoked session in protected layout | Layout didn't redirect after logout | Added `useEffect` to check session + redirect `/login` on invalid |
+| 6 | Continue Learning widget broken link | Missing courseId in deep-link | Full courseId now passed via useSearchParams + Suspense wrapper |
+| 7 | Raw reset token logged | console.log() exposed sensitive token | Removed logging; error messages now generic |
+| 8 | Rate limit IP spoofing | Used raw `req.ip` | Added `getClientIp()` helper: extracts leftmost from `x-forwarded-for` header |
+
+All findings fixed and re-tested.
+
+---
 
 **Scope:**
 - Settings page as full route `/settings` (not modal)

@@ -282,45 +282,45 @@ MaxAge: 86400 (24h) or 2592000 (30 days with remember-me)
 
 ## Todo List
 
-- [ ] 7.1 Create `src/lib/jwt.ts` — JWT sign/verify with jose (HS256)
-- [ ] 7.2 Create `src/lib/rate-limit.ts` — In-memory rate limiter
-- [ ] 7.3 Create `src/lib/lru-cache.ts` — LRU cache for tokenVersion
-- [ ] 7.4 Upgrade `src/lib/auth.ts` — Real withAuth + getSessionUser
-- [ ] 7.5 Create `src/app/api/auth/register/route.ts` — Registration with bootstrap protocol
-- [ ] 7.6 Create `src/app/api/auth/login/route.ts` — Login with JWT cookie
-- [ ] 7.7 Create `src/app/api/auth/logout/route.ts` — Logout with tokenVersion increment
-- [ ] 7.8 Create `src/app/api/auth/forgot-password/route.ts` — Reset token generation
-- [ ] 7.9 Create `src/app/api/auth/reset-password/route.ts` — Password reset
-- [ ] 7.10 Create `src/app/api/auth/me/route.ts` — Get current user
-- [ ] 7.11 Create `src/middleware.ts` — Route protection middleware
-- [ ] 7.12 Create `src/app/(auth)/layout.tsx` — Minimal auth layout
-- [ ] 7.13 Create `src/app/(auth)/login/page.tsx` — Login page
-- [ ] 7.14 Create `src/app/(auth)/register/page.tsx` — Register page
-- [ ] 7.15 Create `src/app/(auth)/forgot-password/page.tsx` — Forgot password page
-- [ ] 7.16 Create `src/app/(auth)/reset-password/page.tsx` — Reset password page
-- [ ] 7.17 Create `src/hooks/useAuth.ts` — Auth client hook
-- [ ] 7.18 Create `src/components/AvatarDropdown.tsx` — User menu dropdown
-- [ ] 7.19 Update `src/components/Header.tsx` — Replace settings with avatar dropdown
-- [ ] 7.20 Add `JWT_SECRET` and `BCRYPT_ROUNDS` to `.env.example`
-- [ ] 7.21 Install dependencies: `jose`, `bcryptjs` (+ `@types/bcryptjs`)
-- [ ] 7.22 Write tests for JWT sign/verify
-- [ ] 7.23 Write tests for auth API routes (register, login, logout, me)
-- [ ] 7.24 Write tests for middleware route protection
-- [ ] 7.25 Run `npm run quality-gate`
+- [x] 7.1 Create `src/lib/jwt.ts` — JWT sign/verify with jose (HS256)
+- [x] 7.2 Create `src/lib/rate-limit.ts` — In-memory rate limiter
+- [x] 7.3 Create `src/lib/lru-cache.ts` — LRU cache for tokenVersion
+- [x] 7.4 Upgrade `src/lib/auth.ts` — Real withAuth + getSessionUser
+- [x] 7.5 Create `src/app/api/auth/register/route.ts` — Registration with bootstrap protocol
+- [x] 7.6 Create `src/app/api/auth/login/route.ts` — Login with JWT cookie
+- [x] 7.7 Create `src/app/api/auth/logout/route.ts` — Logout with tokenVersion increment
+- [x] 7.8 Create `src/app/api/auth/forgot-password/route.ts` — Reset token generation
+- [x] 7.9 Create `src/app/api/auth/reset-password/route.ts` — Password reset
+- [x] 7.10 Create `src/app/api/auth/me/route.ts` — Get current user
+- [x] 7.11 Create `src/middleware.ts` — Route protection middleware
+- [x] 7.12 Create `src/app/(auth)/layout.tsx` — Minimal auth layout
+- [x] 7.13 Create `src/app/(auth)/login/page.tsx` — Login page
+- [x] 7.14 Create `src/app/(auth)/register/page.tsx` — Register page
+- [x] 7.15 Create `src/app/(auth)/forgot-password/page.tsx` — Forgot password page
+- [x] 7.16 Create `src/app/(auth)/reset-password/page.tsx` — Reset password page
+- [x] 7.17 Create `src/hooks/useAuth.ts` — Auth client hook
+- [x] 7.18 Create `src/components/AvatarDropdown.tsx` — User menu dropdown
+- [x] 7.19 Update `src/components/Header.tsx` — Replace settings with avatar dropdown
+- [x] 7.20 Add `JWT_SECRET` and `BCRYPT_ROUNDS` to `.env.example`
+- [x] 7.21 Install dependencies: `jose`, `bcryptjs` (+ `@types/bcryptjs`)
+- [x] 7.22 Write tests for JWT sign/verify
+- [x] 7.23 Write tests for auth API routes (register, login, logout, me)
+- [x] 7.24 Write tests for middleware route protection
+- [x] 7.25 Run `npm run quality-gate`
 
 ## Success Criteria
 
-- [ ] User can register with email + password
-- [ ] User can login and receive HttpOnly JWT cookie
-- [ ] User can logout (token revoked via tokenVersion)
-- [ ] Forgot/reset password flow works end-to-end
-- [ ] Protected routes redirect to /login when no session
-- [ ] Public auth routes redirect to /dashboard when authenticated
-- [ ] API routes return 401 for unauthenticated requests
-- [ ] Avatar dropdown shows in Header with user menu
-- [ ] Remember me extends session to 30 days
-- [ ] Rate limiting active on auth endpoints
-- [ ] All tests pass, quality gate passes
+- [x] User can register with email + password
+- [x] User can login and receive HttpOnly JWT cookie
+- [x] User can logout (token revoked via tokenVersion)
+- [x] Forgot/reset password flow works end-to-end
+- [x] Protected routes redirect to /login when no session
+- [x] Public auth routes redirect to /dashboard when authenticated
+- [x] API routes return 401 for unauthenticated requests
+- [x] Avatar dropdown shows in Header with user menu
+- [x] Remember me extends session to 30 days
+- [x] Rate limiting active on auth endpoints
+- [x] All tests pass, quality gate passes
 
 ## Risk Assessment
 
