@@ -22,6 +22,7 @@ import {
 interface UploadModalProps {
   open: boolean;
   courseId: string | null;
+  initialMode?: UploadMode;
   onClose: () => void;
   onUploadComplete: (newCourseId: string) => void;
 }
@@ -88,10 +89,16 @@ async function readFileContent(file: File): Promise<string> {
 export function UploadModal({
   open,
   courseId,
+  initialMode,
   onClose,
   onUploadComplete,
 }: UploadModalProps) {
   const [mode, setMode] = useState<UploadMode>("transcript");
+
+  // Sync mode when modal opens with a specific initialMode
+  useEffect(() => {
+    if (open && initialMode) setMode(initialMode);
+  }, [open, initialMode]);
 
   // ── Transcript state ──────────────────────────────────────────────────
   const [files, setFiles] = useState<SelectedFile[]>([]);
@@ -259,7 +266,7 @@ export function UploadModal({
       setResult(null);
     }
     if (rejectedCount > 0) {
-      toast.warning(`${rejectedCount} file bị bỏ qua (chỉ hỗ trợ .vtt, .srt, .txt)`);
+      toast.warning(`${rejectedCount} file bị bỏ qua. Chỉ hỗ trợ .vtt, .srt, .txt — dùng "Upload sách" cho PDF/EPUB.`);
     }
   }, []);
 
@@ -639,7 +646,7 @@ export function UploadModal({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              Transcript
+              Upload files
             </button>
             <button
               type="button"
@@ -651,7 +658,7 @@ export function UploadModal({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              Sách / Giáo trình
+              Upload sách
             </button>
           </div>
         )}
@@ -659,6 +666,9 @@ export function UploadModal({
         {/* ── TRANSCRIPT MODE ─────────────────────────────────────── */}
         {mode === "transcript" && (
           <div className="flex flex-col gap-3 py-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Upload transcripts, documents, notes. Mỗi file = 1 bài học.
+            </p>
             {!courseId && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
@@ -776,6 +786,9 @@ export function UploadModal({
         {/* ── BOOK MODE: FORM ─────────────────────────────────────── */}
         {mode === "book" && (splitStep === "form" || splitStep === "analyzing") && (
           <div className="flex flex-col gap-3 py-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Upload sách, giáo trình. Hệ thống tự tách chương thành bài học.
+            </p>
             {/* Metadata extraction loading indicator */}
             {metadataLoading && (
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-1">

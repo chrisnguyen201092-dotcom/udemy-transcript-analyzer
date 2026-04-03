@@ -25,6 +25,16 @@ export const POST = withAuth(async (req, { userId }) => {
     const parsed = UploadSchema.parse(body);
     const { files } = parsed;
 
+    // Reject PDF/EPUB — these belong in the book upload flow
+    const bookExts = [".pdf", ".epub"];
+    const bookFile = files.find((f) => bookExts.some((ext) => f.name.toLowerCase().endsWith(ext)));
+    if (bookFile) {
+      return NextResponse.json(
+        { error: "PDF/EPUB không hỗ trợ trong transcript upload. Dùng 'Upload sách' để upload PDF/EPUB." },
+        { status: 400 },
+      );
+    }
+
     let resolvedCourseId: string;
     let isNewCourse = false;
 

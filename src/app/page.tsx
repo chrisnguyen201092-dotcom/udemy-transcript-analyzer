@@ -93,6 +93,7 @@ function HomeContent() {
   const [showSettings, setShowSettings] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"transcript" | "book">("transcript");
   const [showCollection, setShowCollection] = useState(false);
   const [udemyCourses, setUdemyCourses] = useState<UdemyCourse[]>([]);
   const [fetchingUdemy, setFetchingUdemy] = useState(false);
@@ -735,8 +736,8 @@ function HomeContent() {
                 setShowImport(true);
                 handleFetchUdemyCourses(settings.udemyCookie);
               }}
-              onOpenUpload={() => setShowUpload(true)}
-              onOpenUploadBook={() => setShowUpload(true)}
+              onOpenUpload={() => { setUploadMode("transcript"); setShowUpload(true); }}
+              onOpenUploadBook={() => { setUploadMode("book"); setShowUpload(true); }}
               onOpenSettings={() => setShowSettings(true)}
             />
 
@@ -920,10 +921,10 @@ function HomeContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowUpload(true)}
+                    onClick={() => { setUploadMode("transcript"); setShowUpload(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] cursor-pointer transition-colors"
                   >
-                    Upload file
+                    Upload files
                   </button>
                 </div>
               )}
@@ -931,10 +932,10 @@ function HomeContent() {
                 <div className="flex gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={() => setShowUpload(true)}
+                    onClick={() => { setUploadMode("transcript"); setShowUpload(true); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] cursor-pointer transition-colors"
                   >
-                    Upload transcript
+                    Upload files
                   </button>
                 </div>
               )}
@@ -970,6 +971,7 @@ function HomeContent() {
       <UploadModal
         open={showUpload}
         courseId={selectedCourse?.id ?? null}
+        initialMode={uploadMode}
         onClose={() => setShowUpload(false)}
         onUploadComplete={async (newCourseId: string) => {
           await fetchCourses();

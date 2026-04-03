@@ -280,6 +280,33 @@ describe("POST /api/courses/upload", () => {
     const createCall = mockPrisma.lesson.create.mock.calls[0][0];
     expect(createCall.data.title).toBe("My Lesson Title");
   });
+
+  // ─── PDF/EPUB rejection guard ──────────────────────────────────────────────
+  it("returns 400 when uploading a PDF file (should use book flow)", async () => {
+    const req = makeUploadRequest({
+      courseId: "c1",
+      files: [{ name: "textbook.pdf", content: "base64data", type: ".pdf" }],
+    });
+
+    const res = await uploadPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("Upload sách");
+  });
+
+  it("returns 400 when uploading an EPUB file (should use book flow)", async () => {
+    const req = makeUploadRequest({
+      courseId: "c1",
+      files: [{ name: "novel.epub", content: "base64data", type: ".epub" }],
+    });
+
+    const res = await uploadPost(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("Upload sách");
+  });
 });
 
 // ─── Edge-case tests (gap analysis) ──────────────────────────────────────────

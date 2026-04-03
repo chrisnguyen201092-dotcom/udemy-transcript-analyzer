@@ -65,9 +65,10 @@ export function AddCoursePanel({
         size="sm"
         className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
         onClick={onOpenUpload}
+        title="Upload transcripts, documents. Mỗi file = 1 bài học"
       >
         <FileUp className="w-3.5 h-3.5" />
-        Upload từ file
+        Upload files
       </Button>
 
       <Button
@@ -75,9 +76,10 @@ export function AddCoursePanel({
         size="sm"
         className="w-full gap-2 cursor-pointer justify-start border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-400 dark:hover:border-amber-600 text-xs h-8"
         onClick={onOpenUploadBook}
+        title="Upload sách, giáo trình. Hệ thống tự tách chương"
       >
         <BookOpen className="w-3.5 h-3.5" />
-        Upload sách (EPUB/PDF)
+        Upload sách
       </Button>
 
       <form onSubmit={handleSubmit} className="flex gap-1.5">

@@ -1,7 +1,52 @@
 # Project Changelog — Inkgest
 
 > **Last Updated:** 2026-04-03  
-> **Version:** v2.0.0 COMPLETE (910/910 tests passing)
+> **Version:** v2.0.1 (912/912 tests passing)
+
+---
+
+## [v2.0.1] — 2026-04-03 (Upload UX Improvement)
+
+### Upload UX Improvement ✅ COMPLETE
+
+**Date Completed:** 2026-04-03
+
+#### Features Implemented
+- **Phase 1: UI Labels, Descriptions & Mode Routing**
+  - Added `initialMode` prop to UploadModal component
+  - Wired `uploadMode` state in page.tsx with differentiated callbacks
+  - Renamed sidebar buttons: "Upload files" (transcript) & "Upload sách" (book)
+  - Added tooltips on buttons for contextual guidance
+  - Updated UploadModal tab labels: "📄 Upload files" & "📚 Upload sách"
+  - Added description text per mode (transcript vs book)
+  - Updated empty-state button labels in page.tsx
+
+- **Phase 2: Validation & Error Messages**
+  - Enhanced drag-drop rejection toast to mention "Upload sách" alternative
+  - Added server-side PDF/EPUB guard in `/api/courses/upload` route (400 error)
+  - Improved error messaging for cross-mode file uploads
+  - Added 2 new test cases for PDF/EPUB rejection scenarios
+
+#### Files Created/Modified
+- Modified: `src/components/UploadModal.tsx` (initialMode prop + labels + descriptions)
+- Modified: `src/components/AddCoursePanel.tsx` (button labels + tooltips)
+- Modified: `src/app/page.tsx` (uploadMode state + callbacks + empty-state labels)
+- Modified: `src/app/api/courses/upload/route.ts` (PDF/EPUB server-side guard)
+- Modified: `src/app/api/courses/__tests__/upload.test.ts` (added 2 new tests)
+
+#### Testing & Verification
+- ✅ All 912/912 tests passing (includes 2 new validation tests)
+- ✅ 0 TypeScript errors
+- ✅ Build clean: `npm run build`
+- ✅ UI tested: buttons route to correct modal tabs
+- ✅ Tooltips verified on hover
+- ✅ Error messages tested for PDF rejection
+
+#### UX Improvements
+- Users now see clearly differentiated buttons: "Upload files" vs "Upload sách"
+- Clicking each button opens the correct modal tab immediately
+- Helpful error messages guide users to correct upload mode when they make a mistake
+- Tooltips explain the difference between the two upload types
 
 ---
 

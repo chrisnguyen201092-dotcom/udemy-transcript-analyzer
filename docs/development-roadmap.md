@@ -1,8 +1,8 @@
 # Development Roadmap — Inkgest
 
-> **Phiên bản tài liệu:** v3.3  
+> **Phiên bản tài liệu:** v3.4  
 > **Cập nhật lần cuối:** 2026-04-03  
-> **Trạng thái:** v2.0 HOÀN THÀNH (ALL PHASES 1-6 COMPLETE, 910/910 tests passing)  
+> **Trạng thái:** v2.0.1 HOÀN THÀNH (ALL PHASES 1-6 + UPLOAD UX IMPROVEMENT COMPLETE, 912/912 tests passing)  
 
 ---
 
@@ -15,6 +15,7 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 | **v1.0–v1.2** | Phase 1–5 | Udemy Learning Assistant | ✅ Hoàn thành | 2026-03-31 |
 | **v1.3** | Phase 6–8 | Multi-User Foundation | ✅ Hoàn thành | 2026-04-03 |
 | **v2.0** | Phase 1–6 | Udemy + Books (Multi-Format) | ✅ HOÀN THÀNH | 2026-04-03 |
+| **v2.0.1** | Upload UX | Upload UX Improvement | ✅ HOÀN THÀNH | 2026-04-03 |
 | **v3.0** | Phase 7–10 | Inkgest (Multi-Source Hub) | 📋 Kế hoạch | 2026-09-30 |
 
 ---
@@ -60,7 +61,7 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 
 **Hoàn thành:** 2026-04-03
 
-**Build Status:** 0 errors, 0 warnings | Tests: 829/829 passing | Quality gate: ✅ PASS
+**Build Status:** 0 errors, 0 warnings | Tests: 910/910 passing | Quality gate: ✅ PASS
 
 **Code Review:** Codex adversarial review (xhigh effort, 5 rounds) — 8 critical findings identified and fixed:
 1. JWT_SECRET fallback → fail-closed
@@ -129,7 +130,32 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 
 ---
 
-## v3.0: Inkgest — Multi-Source Learning Hub
+## v2.0.1: Upload UX Improvement
+
+### Trạng thái: ✅ HOÀN THÀNH
+
+**Phạm vi:** Cải thiện UX của upload modal — phân biệt rõ giữa "Upload files" (transcript) và "Upload sách" (book). Yêu cầu v2.0 hoàn thành.
+
+**Tính năng chính:**
+- ✅ Phân biệt button sidebar: "Upload files" vs "Upload sách" với tooltip
+- ✅ Modal mở trực tiếp ở tab chính xác (initialMode prop)
+- ✅ Enhanced validation + error messages cho cross-mode uploads
+- ✅ Server-side guard: PDF/EPUB trên transcript endpoint → 400 error
+
+**Modules v2.0.1:**
+- ✅ Module 1: UI Labels & Mode Routing
+- ✅ Module 2: Validation & Error Messages
+
+**Hoàn thành:** 2026-04-03
+
+**Build Status:** 0 errors, 0 warnings | Tests: 912/912 passing | Quality gate: ✅ PASS
+
+**Dependencies:**
+- ✅ Requires v2.0 completion (books support)
+- ✅ All phases complete; v2.0.1 release ready
+- ✅ Improves UX before moving to v3.0 (multi-source)
+
+---
 
 ### Trạng thái: 📋 KẾ HOẠCH
 

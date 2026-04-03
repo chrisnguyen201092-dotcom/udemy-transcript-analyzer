@@ -28,6 +28,7 @@ Mở rộng Udemy Learner từ "trợ lý học từ khóa Udemy" thành **"tr�
 | ID | Tên tính năng | Mô tả | Module/Route liên quan |
 |----|---------------|-------|------------------------|
 | B-00 | Fix upload URL unique constraint | Upload route set `url: ""` khi tạo course mới → vi phạm unique constraint khi tạo 2+ course. Cần đổi thành `manual:{uuid}` | `POST /api/courses/upload` |
+| B-00a | **Upload UX Improvement** — Clear separation of use cases | Rename "Upload file" → "Upload files" (plural); clarify two distinct flows: (1) multi-file transcripts → many lessons, (2) single book → chapter-split lessons. Add descriptions/tooltips to prevent user confusion. | UI/UX only; no API changes |
 
 ---
 
