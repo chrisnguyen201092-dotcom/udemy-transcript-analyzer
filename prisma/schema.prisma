@@ -42,6 +42,7 @@ model Course {
   isbn           String?
   publisher      String?
   roadmap        String?
+  glossary       String?          /// JSON: [{ term, definition, chapters: [{ id, title }], category }]
   rawContent     String?          /// Original pre-split source text (canonical, immutable after first upload)
   lastAccessedAt DateTime?        /// Updated when user views a lesson in this course
   createdAt      DateTime         @default(now())
@@ -68,6 +69,7 @@ model Lesson {
   flashcards       String?            /// Legacy AI field — will be migrated to LessonArtifact
   exercises        String?            /// Legacy AI field — will be migrated to LessonArtifact
   notes            String?            /// Legacy AI field — will be migrated to LessonArtifact
+  keyConcepts      String?            /// AI-extracted key concepts JSON: [{ term, definition, category, relatedTerms }]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   progress         LessonProgress[]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Upload, FileUp, Settings2 } from "lucide-react";
+import { Plus, Upload, FileUp, Settings2, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -10,6 +10,7 @@ interface AddCoursePanelProps {
   onAddManual: (title: string) => void;
   onOpenImport: () => void;
   onOpenUpload: () => void;
+  onOpenUploadBook: () => void;
   onOpenSettings: () => void;
 }
 
@@ -18,6 +19,7 @@ export function AddCoursePanel({
   onAddManual,
   onOpenImport,
   onOpenUpload,
+  onOpenUploadBook,
   onOpenSettings,
 }: AddCoursePanelProps) {
   const [title, setTitle] = useState("");
@@ -66,6 +68,16 @@ export function AddCoursePanel({
       >
         <FileUp className="w-3.5 h-3.5" />
         Upload từ file
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 cursor-pointer justify-start border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-400 dark:hover:border-amber-600 text-xs h-8"
+        onClick={onOpenUploadBook}
+      >
+        <BookOpen className="w-3.5 h-3.5" />
+        Upload sách (EPUB/PDF)
       </Button>
 
       <form onSubmit={handleSubmit} className="flex gap-1.5">

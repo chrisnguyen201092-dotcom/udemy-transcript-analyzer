@@ -5,8 +5,9 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Clock } from "lucide-react";
+import { BookOpen, Clock, Play } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getLabels } from "@/lib/content-type-labels";
 
 interface CourseItem {
   id: string;
@@ -53,12 +54,19 @@ export function ContinueLearningWidget({ courses }: ContinueLearningWidgetProps)
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                  {course.title}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  {course.contentType === "book" ? (
+                    <BookOpen className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 text-[#A435F0] shrink-0" />
+                  )}
+                  <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
+                    {course.title}
+                  </p>
+                </div>
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>
-                    {course.completedLessons}/{course.totalLessons} bài
+                    {course.completedLessons}/{course.totalLessons} {getLabels(course.contentType).lesson.toLowerCase()}
                   </span>
                   {course.lastAccessedAt && (
                     <>

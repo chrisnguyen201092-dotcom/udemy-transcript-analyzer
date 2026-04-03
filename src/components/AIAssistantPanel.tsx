@@ -15,6 +15,8 @@ import {
   Trash2,
   X,
   BarChart3,
+  Lightbulb,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,9 @@ import { LearnerProfileModal } from "@/components/LearnerProfileModal";
 import { ExportDropdown } from "@/components/ExportDropdown";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { AnalyticsCourseDetail } from "@/components/AnalyticsCourseDetail";
+import { KeyConceptsPanel } from "@/components/KeyConceptsPanel";
+import { GlossaryPanel } from "@/components/GlossaryPanel";
+import { StudyPlanPanel } from "@/components/StudyPlanPanel";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -69,9 +74,10 @@ interface AIAssistantPanelProps {
   externalExplainText?: string | null;
   onExternalExplainHandled?: () => void;
   onQuizComplete?: (lessonId: string, score: number) => void;
+  onNavigateToChapter?: (chapterId: string) => void;
 }
 
-type TabType = "summary" | "explain" | "chat" | "roadmap" | "notes" | "practice" | "analytics";
+type TabType = "summary" | "explain" | "chat" | "roadmap" | "notes" | "practice" | "analytics" | "concepts" | "glossary" | "study-plan";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -87,6 +93,9 @@ const TABS: { key: TabType; label: string; icon: React.ElementType }[] = [
   { key: "roadmap", label: "Lộ trình", icon: Map },
   { key: "notes", label: "Ghi chú", icon: StickyNote },
   { key: "practice", label: "Luyện tập", icon: GraduationCap },
+  { key: "concepts", label: "Khái niệm", icon: Lightbulb },
+  { key: "glossary", label: "Thuật ngữ", icon: BookOpen },
+  { key: "study-plan", label: "Kế hoạch", icon: Calendar },
   { key: "analytics", label: "Thống kê", icon: BarChart3 },
 ];
 
@@ -103,6 +112,7 @@ export function AIAssistantPanel({
   externalExplainText,
   onExternalExplainHandled,
   onQuizComplete,
+  onNavigateToChapter,
 }: AIAssistantPanelProps) {
   // Tab
   const [activeTab, setActiveTab] = useState<TabType>("summary");
@@ -131,6 +141,15 @@ export function AIAssistantPanel({
   const [flashcardsLoading, setFlashcardsLoading] = useState(false);
   const [exercisesLoading, setExercisesLoading] = useState(false);
   const [practiceMode, setPracticeMode] = useState<"quiz" | "flashcards" | "exercises">("quiz");
+
+  // Concepts state (book only)
+  const [conceptsResult, setConceptsResult] = useState<Array<{ term: string; definition: string; category?: string; relatedTerms?: string[] }>>([]);
+  const [conceptsLoading, setConceptsLoading] = useState(false);
+
+  // Glossary state (book only, course-level)
+  const [glossaryResult, setGlossaryResult] = useState<Array<{ term: string; definition: string; chapters?: { id: string; title: string }[]; category?: string }>>([]);
+  const [glossaryLoading, setGlossaryLoading] = useState(false);
+  const [hasKeyConcepts, setHasKeyConcepts] = useState(false);
 
   // SRS state
   const [srsMode, setSrsMode] = useState(false);
@@ -239,6 +258,7 @@ export function AIAssistantPanel({
     setExercisesResult("");
     setNotesContent("");
     setSrsMode(false);
+    setConceptsResult([]);
     lastSavedChatCountRef.current = 0;
 
     // Load saved AI data from DB (lesson-level: summary + explanation + practice)
@@ -303,6 +323,8 @@ export function AIAssistantPanel({
 
   useEffect(() => {
     setRoadmapResult("");
+    setGlossaryResult([]);
+    setHasKeyConcepts(false);
 
     const loadCourseAI = async () => {
       try {
@@ -310,6 +332,15 @@ export function AIAssistantPanel({
         if (res.ok) {
           const data = await res.json();
           if (data.roadmap) setRoadmapResult(data.roadmap);
+          if (data.hasKeyConcepts) setHasKeyConcepts(true);
+          if (data.glossary) {
+            try {
+              const parsed = JSON.parse(data.glossary);
+              if (Array.isArray(parsed)) setGlossaryResult(parsed);
+            } catch {
+              // Invalid cached glossary — ignore
+            }
+          }
         }
       } catch {
         // Silently fail
@@ -619,10 +650,80 @@ export function AIAssistantPanel({
     setLoading(false);
   };
 
+  const handleConcepts = async () => {
+    if (!hasTranscript || !isConfigured || conceptsLoading) return;
+    const controller = createAbortController("concepts");
+    setConceptsLoading(true);
+    startGenTimer();
+    try {
+      const res = await fetch("/api/ai/concepts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...apiBody(), force: conceptsResult.length > 0 }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error((err as { error?: string }).error ?? "Failed to extract concepts");
+      }
+      const data = await res.json() as { concepts?: unknown };
+      if (Array.isArray(data.concepts)) {
+        setConceptsResult(data.concepts as Array<{ term: string; definition: string; category?: string; relatedTerms?: string[] }>);
+        if (data.concepts.length > 0) setHasKeyConcepts(true);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.info("Đã hủy trích xuất khái niệm");
+      } else {
+        toast.error("Lỗi khi trích xuất khái niệm");
+      }
+    }
+    clearAbortController("concepts");
+    stopGenTimer();
+    setConceptsLoading(false);
+  };
+
+  const handleGlossary = async () => {
+    if (!isConfigured || glossaryLoading) return;
+    const controller = createAbortController("glossary");
+    setGlossaryLoading(true);
+    startGenTimer();
+    try {
+      const res = await fetch("/api/ai/glossary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl,
+          model: settings.model,
+          force: glossaryResult.length > 0,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error((err as { error?: string }).error ?? "Failed to generate glossary");
+      }
+      const data = await res.json() as { glossary?: unknown };
+      if (Array.isArray(data.glossary)) {
+        setGlossaryResult(data.glossary as Array<{ term: string; definition: string; chapters?: { id: string; title: string }[]; category?: string }>);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.info("Đã hủy tạo bảng thuật ngữ");
+      } else {
+        toast.error("Lỗi khi tạo bảng thuật ngữ");
+      }
+    }
+    clearAbortController("glossary");
+    stopGenTimer();
+    setGlossaryLoading(false);
+  };
+
   const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasTranscript || !chatInput.trim() || !isConfigured || chatLoading)
-      return;
+    if (!hasTranscript || !chatInput.trim() || !isConfigured || chatLoading) return;
 
     const currentLessonId = lesson.id; // Capture lessonId at call time
     const userMsg: ChatMessage = { role: "user", content: chatInput.trim() };
@@ -888,7 +989,7 @@ export function AIAssistantPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeTab !== "chat" && activeTab !== "notes" && activeTab !== "analytics" && (
+          {activeTab !== "chat" && activeTab !== "notes" && activeTab !== "analytics" && activeTab !== "concepts" && activeTab !== "glossary" && activeTab !== "study-plan" && (
             <ExportDropdown
               lessonId={lesson.id}
               courseId={courseId}
@@ -911,7 +1012,7 @@ export function AIAssistantPanel({
 
       {/* Tab bar */}
       <div className="flex border-b border-gray-100 dark:border-gray-800 px-5">
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => (tab.key !== "concepts" && tab.key !== "glossary" && tab.key !== "study-plan") || contentType === "book").map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
           return (
@@ -1401,6 +1502,45 @@ export function AIAssistantPanel({
             </form>
             </div>
           </>
+        )}
+
+        {/* Tab: Concepts (book only) */}
+        {activeTab === "concepts" && contentType === "book" && (
+          <KeyConceptsPanel
+            concepts={conceptsResult}
+            isLoading={conceptsLoading}
+            onExtract={handleConcepts}
+            isConfigured={isConfigured}
+            hasTranscript={hasTranscript}
+            elapsedSeconds={elapsedSeconds}
+            glossary={glossaryResult}
+            onNavigateToChapter={onNavigateToChapter}
+          />
+        )}
+
+        {/* Tab: Glossary (book only, course-level) */}
+        {activeTab === "glossary" && contentType === "book" && (
+          <GlossaryPanel
+            glossary={glossaryResult}
+            isLoading={glossaryLoading}
+            onGenerate={handleGlossary}
+            isConfigured={isConfigured}
+            hasChaptersWithConcepts={hasKeyConcepts || conceptsResult.length > 0}
+            elapsedSeconds={elapsedSeconds}
+            onNavigateToChapter={onNavigateToChapter}
+          />
+        )}
+
+        {/* Tab: Study Plan (book only, course-level) */}
+        {activeTab === "study-plan" && contentType === "book" && (
+          <StudyPlanPanel
+            courseId={courseId}
+            isConfigured={isConfigured}
+            apiKey={settings.apiKey}
+            baseUrl={settings.baseUrl}
+            model={settings.model}
+            onNavigateToChapter={onNavigateToChapter}
+          />
         )}
 
         {/* Tab: Analytics */}

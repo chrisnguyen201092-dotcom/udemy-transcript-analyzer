@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, FileText, Trash2, Search, GripVertical, CheckCircle2, Circle, RefreshCw, AlertTriangle, Loader2, ChevronsDown, Scissors } from "lucide-react";
 import { SplitChapterDialog } from "@/components/SplitChapterDialog";
+import { getLabels } from "@/lib/content-type-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -231,9 +232,9 @@ function SortableLessonItem({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Xóa bài học?</AlertDialogTitle>
+              <AlertDialogTitle>{getLabels(contentType).deleteLesson}</AlertDialogTitle>
               <AlertDialogDescription>
-                Hành động này không thể hoàn tác. Bài học &ldquo;{lesson.title}&rdquo; sẽ bị xóa vĩnh viễn.
+                Hành động này không thể hoàn tác. {getLabels(contentType).lessonSingular} &ldquo;{lesson.title}&rdquo; sẽ bị xóa vĩnh viễn.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -290,13 +291,13 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-1">
-        Bài học {lessons.length > 0 && <span className="font-normal normal-case tracking-normal">({filtered.length}/{lessons.length})</span>}
+        {getLabels(contentType).lesson} {lessons.length > 0 && <span className="font-normal normal-case tracking-normal">({filtered.length}/{lessons.length})</span>}
       </p>
 
       {lessons.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-5 gap-1.5 text-gray-400 dark:text-gray-500">
           <FileText className="w-5 h-5 opacity-30" />
-          <p className="text-xs">Chưa có bài học nào</p>
+          <p className="text-xs">{getLabels(contentType).noLessons}</p>
         </div>
       ) : (
         <>
@@ -305,7 +306,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm bài học..."
+              placeholder={getLabels(contentType).searchPlaceholder}
               className="text-xs h-7 pl-7 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
             />
           </div>
@@ -368,7 +369,7 @@ export function LessonList({ lessons, selectedLessonId, onSelect, onAddLesson, o
         <Input
           value={newLessonTitle}
           onChange={(e) => setNewLessonTitle(e.target.value)}
-          placeholder="Tên bài học..."
+          placeholder={getLabels(contentType).lessonPlaceholder}
           className="flex-1 text-xs h-7 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
         />
         <Button

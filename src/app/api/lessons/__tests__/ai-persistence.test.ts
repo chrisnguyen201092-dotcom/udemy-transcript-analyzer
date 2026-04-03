@@ -124,7 +124,10 @@ describe("GET /api/lessons/[id]/ai", () => {
 });
 
 describe("GET /api/courses/[id]/ai", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.lesson.count.mockResolvedValue(0);
+  });
 
   it("returns roadmap as null when course has no roadmap", async () => {
     mockPrisma.course.findFirst.mockResolvedValue({ roadmap: null });
@@ -175,7 +178,7 @@ describe("GET /api/courses/[id]/ai", () => {
 
     expect(mockPrisma.course.findFirst).toHaveBeenCalledWith({
       where: { id: "c1", userId: "test-user-id" },
-      select: { roadmap: true },
+      select: { roadmap: true, glossary: true },
     });
   });
 });

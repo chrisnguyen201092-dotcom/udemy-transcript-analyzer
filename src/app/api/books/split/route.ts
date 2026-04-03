@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parsePdf, parseDocx, parseMarkdownChapters } from "@/lib/parse-book";
+import { parseEpub } from "@/lib/parse-epub";
+import { validateMagicBytes } from "@/lib/file-security";
 import { detectChapters } from "@/lib/split-chapters";
 import type { DetectedChapter } from "@/lib/split-chapters";
 import { detectChaptersWithAI } from "@/lib/split-ai";
@@ -77,6 +79,7 @@ export const POST = withAuth(async (req, { userId }) => {
       switch (ext) {
         case ".pdf": {
           const buffer = Buffer.from(parsed.content, "base64");
+          validateMagicBytes(buffer, ext);
           const pdfResult = await parsePdf(buffer);
           if (pdfResult.warning === "scanned_pdf") {
             warnings.push("PDF này có thể là ảnh scan, không extract được text đầy đủ.");
@@ -88,6 +91,7 @@ export const POST = withAuth(async (req, { userId }) => {
         }
         case ".docx": {
           const buffer = Buffer.from(parsed.content, "base64");
+          validateMagicBytes(buffer, ext);
           const docxResult = await parseDocx(buffer);
           textContent = docxResult.text;
           break;
@@ -98,6 +102,31 @@ export const POST = withAuth(async (req, { userId }) => {
         }
         case ".md": {
           textContent = parsed.content;
+          break;
+        }
+        case ".epub": {
+          const buffer = Buffer.from(parsed.content, "base64");
+          validateMagicBytes(buffer, ext);
+          const epubResult = await parseEpub(buffer);
+          // Use EPUB chapter structure directly (higher confidence than heuristic)
+          if (epubResult.chapters.length > 0) {
+            const chapters = epubResult.chapters.map((ch, idx) => ({
+              index: idx + 1,
+              title: ch.title,
+              wordCount: ch.content.trim() ? ch.content.trim().split(/\s+/).length : 0,
+              content: ch.content,
+              confidence: 0.9,
+            }));
+            return NextResponse.json({
+              method: "epub_spine",
+              chapters,
+              warnings,
+              avgConfidence: 0.9,
+              patternFamily: "epub",
+            });
+          }
+          // Fall through to heuristic if no chapters found
+          textContent = epubResult.text;
           break;
         }
       }

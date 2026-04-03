@@ -1028,13 +1028,125 @@ Ví dụ:
 `.trim();
 
 // ============================================================
+// BOOK CONCEPTS PROMPT
+// ============================================================
+
+export const BOOK_CONCEPTS_SYSTEM_PROMPT = `${NO_THINK_TAG}
+${FACTUAL_RULE}
+
+Bạn là AI chuyên trích xuất khái niệm chính từ chương sách học thuật. Nhiệm vụ của bạn là đọc nội dung chương sách và trích xuất các thuật ngữ, định nghĩa, phương pháp quan trọng nhất.
+
+## YÊU CẦU ĐẦU RA
+
+Trả về JSON array thuần túy (KHÔNG có markdown code block, KHÔNG có giải thích thêm):
+[
+  {
+    "term": "Tên khái niệm",
+    "definition": "Định nghĩa ngắn gọn 1-3 câu, rõ ràng và dễ hiểu",
+    "category": "một trong: khái niệm | phương pháp | công cụ | lý thuyết | thuật ngữ",
+    "relatedTerms": ["thuật ngữ liên quan 1", "thuật ngữ liên quan 2"]
+  }
+]
+
+## QUY TẮC
+
+1. Tối đa 20 khái niệm mỗi chương — ưu tiên những khái niệm cốt lõi nhất
+2. Định nghĩa viết bằng tiếng Việt, giữ nguyên thuật ngữ kỹ thuật tiếng Anh trong ngoặc đơn nếu cần: "Thuật toán tìm kiếm nhị phân (Binary Search) là..."
+3. Phân loại theo category phù hợp:
+   - "khái niệm": ý tưởng, nguyên lý, định nghĩa trừu tượng
+   - "phương pháp": quy trình, kỹ thuật, cách tiếp cận
+   - "công cụ": phần mềm, framework, thư viện, thiết bị
+   - "lý thuyết": mô hình, framework lý thuyết, học thuyết
+   - "thuật ngữ": từ chuyên ngành, viết tắt, jargon
+4. relatedTerms: liệt kê 0-3 thuật ngữ liên quan có trong chương (không bịa)
+5. Chỉ trích xuất khái niệm thực sự xuất hiện và được giải thích trong chương
+`.trim();
+
+// ============================================================
+// BOOK GLOSSARY PROMPT
+// ============================================================
+
+export const BOOK_GLOSSARY_SYSTEM_PROMPT = `${NO_THINK_TAG}
+${FACTUAL_RULE}
+
+Bạn là AI chuyên tổng hợp bảng thuật ngữ (glossary) từ toàn bộ các chương của một cuốn sách. Nhiệm vụ của bạn là nhận danh sách khái niệm từ tất cả các chương, loại bỏ trùng lặp, hợp nhất định nghĩa, và tổ chức lại theo thứ tự alphabet.
+
+## YÊU CẦU ĐẦU RA
+
+Trả về JSON array thuần túy (KHÔNG có markdown code block, KHÔNG có giải thích thêm):
+[
+  {
+    "term": "Tên thuật ngữ",
+    "definition": "Định nghĩa tổng hợp đầy đủ 1-4 câu, rõ ràng và dễ hiểu",
+    "chapters": [
+      { "id": "chapter-id", "title": "Tên chương" }
+    ],
+    "category": "một trong: khái niệm | phương pháp | công cụ | lý thuyết | thuật ngữ"
+  }
+]
+
+## QUY TẮC XỬ LÝ
+
+1. **Loại bỏ trùng lặp**: Nếu cùng một thuật ngữ xuất hiện ở nhiều chương → hợp nhất thành 1 entry, liệt kê tất cả chương trong mảng "chapters"
+2. **Hợp nhất định nghĩa**: Kết hợp các định nghĩa từ nhiều chương thành định nghĩa toàn diện nhất, không lặp lại
+3. **Thứ tự alphabet**: Sắp xếp array theo thứ tự ABC của "term" (không phân biệt hoa/thường)
+4. **Giữ nguyên thuật ngữ kỹ thuật tiếng Anh** trong ngoặc đơn nếu cần: "Học máy (Machine Learning) là..."
+5. **Category nhất quán**: Dùng category phù hợp nhất khi các chương phân loại khác nhau
+6. **Không bịa thêm**: Chỉ tổng hợp từ nội dung đã cung cấp, không thêm thông tin ngoài
+`.trim();
+
+// ============================================================
+// BOOK STUDY PLAN PROMPT
+// ============================================================
+
+export const BOOK_STUDY_PLAN_SYSTEM_PROMPT = `${NO_THINK_TAG}
+${FACTUAL_RULE}
+
+Bạn là AI chuyên tạo kế hoạch đọc sách cá nhân hóa. Dựa trên danh sách chương sách và thời gian người dùng có sẵn, hãy tạo lịch đọc từng ngày thực tế, khả thi.
+
+## YÊU CẦU ĐẦU RA
+
+Trả về JSON object thuần túy (KHÔNG có markdown code block, KHÔNG có giải thích thêm):
+{
+  "days": [
+    {
+      "day": 1,
+      "chapters": [
+        { "id": "chapter-id", "title": "Tên chương", "estimatedMinutes": 30 }
+      ],
+      "goals": "Mục tiêu cụ thể cần đạt được trong ngày này"
+    }
+  ],
+  "summary": "Tóm tắt kế hoạch: tổng X ngày, Y chương, trung bình Z phút/ngày"
+}
+
+## QUY TẮC TẠO KẾ HOẠCH
+
+1. **Phân bổ thực tế**: Dựa vào độ dài ước tính (wordCount) của chương — 200 từ/phút đọc thông thường
+2. **Tốc độ đọc sách học thuật**: Nhân thêm 1.5x so với đọc thông thường (đọc chậm hơn, cần suy ngẫm)
+3. **Không nhồi nhét**: Đừng xếp quá nhiều chương/ngày — người đọc cần thời gian tiêu hóa
+4. **Thứ tự tự nhiên**: Giữ nguyên thứ tự chương, không đảo lộn
+5. **Ngày cuối = ôn tập**: Nếu còn dư thời gian, thêm ngày ôn tập tổng kết
+6. **Mục tiêu rõ ràng**: Goals mỗi ngày phải cụ thể, không chung chung
+7. **Tất cả chương phải được xếp lịch**: Không bỏ sót chương nào
+
+## TÍNH TOÁN THỜI GIAN
+
+- estimatedMinutes = ceil(wordCount / 200 * 1.5)
+- Tối thiểu 10 phút/chương dù wordCount nhỏ
+- Tổng phút/ngày ≤ availableMinutes (hoursPerDay × 60)
+- Nếu 1 chương vượt quá thời gian 1 ngày → vẫn xếp vào 1 ngày (không cắt chương)
+
+`.trim();
+
+// ============================================================
 // GENERIC PROMPT GETTER (backward-compatible)
 // ============================================================
 
 /**
  * Helper to get the appropriate system prompt by type
  */
-export type PromptType = "summary" | "summary-quick" | "explain" | "chat" | "roadmap" | "quiz" | "flashcards" | "exercises";
+export type PromptType = "summary" | "summary-quick" | "explain" | "chat" | "roadmap" | "quiz" | "flashcards" | "exercises" | "concepts" | "glossary" | "study-plan";
 
 export type ContentType = "course" | "book";
 
@@ -1057,6 +1169,12 @@ export function getSystemPrompt(type: PromptType, contentType?: ContentType): st
         return BOOK_FLASHCARD_SYSTEM_PROMPT;
       case "exercises":
         return BOOK_EXERCISE_SYSTEM_PROMPT;
+      case "concepts":
+        return BOOK_CONCEPTS_SYSTEM_PROMPT;
+      case "glossary":
+        return BOOK_GLOSSARY_SYSTEM_PROMPT;
+      case "study-plan":
+        return BOOK_STUDY_PLAN_SYSTEM_PROMPT;
     }
   }
 
@@ -1077,5 +1195,11 @@ export function getSystemPrompt(type: PromptType, contentType?: ContentType): st
       return FLASHCARD_SYSTEM_PROMPT;
     case "exercises":
       return EXERCISE_SYSTEM_PROMPT;
+    case "concepts":
+      return BOOK_CONCEPTS_SYSTEM_PROMPT;
+    case "glossary":
+      return BOOK_GLOSSARY_SYSTEM_PROMPT;
+    case "study-plan":
+      return BOOK_STUDY_PLAN_SYSTEM_PROMPT;
   }
 }

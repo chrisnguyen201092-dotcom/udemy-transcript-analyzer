@@ -736,6 +736,7 @@ function HomeContent() {
                 handleFetchUdemyCourses(settings.udemyCookie);
               }}
               onOpenUpload={() => setShowUpload(true)}
+              onOpenUploadBook={() => setShowUpload(true)}
               onOpenSettings={() => setShowSettings(true)}
             />
 
@@ -855,6 +856,7 @@ function HomeContent() {
               <TranscriptPanel
                 key={selectedLesson.id}
                 lesson={selectedLesson}
+                contentType={selectedCourse?.contentType}
                 onSaveTranscript={handleSaveTranscript}
                 onDirtyChange={setTranscriptDirty}
                 onExplainSelection={(text) => setExplainSelectedText(text)}
@@ -870,6 +872,10 @@ function HomeContent() {
                 externalExplainText={explainSelectedText}
                 onExternalExplainHandled={() => setExplainSelectedText(null)}
                 onQuizComplete={handleQuizComplete}
+                onNavigateToChapter={(chapterId) => {
+                  const target = selectedCourse!.lessons.find((l) => l.id === chapterId);
+                  if (target) setSelectedLesson(target);
+                }}
               />
             </div>
           ) : (

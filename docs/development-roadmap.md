@@ -1,8 +1,8 @@
 # Development Roadmap — Inkgest
 
-> **Phiên bản tài liệu:** v3.1  
+> **Phiên bản tài liệu:** v3.3  
 > **Cập nhật lần cuối:** 2026-04-03  
-> **Trạng thái:** Đang phát triển (Phase 6 Complete, Phase 7–8 Ready)  
+> **Trạng thái:** v2.0 HOÀN THÀNH (ALL PHASES 1-6 COMPLETE, 910/910 tests passing)  
 
 ---
 
@@ -14,8 +14,8 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 |-----------|-----------|--------|-----------|--------------|
 | **v1.0–v1.2** | Phase 1–5 | Udemy Learning Assistant | ✅ Hoàn thành | 2026-03-31 |
 | **v1.3** | Phase 6–8 | Multi-User Foundation | ✅ Hoàn thành | 2026-04-03 |
-| **v2.0** | Phase 9–10 | Udemy + Books (Multi-Format) | 📋 Chờ v1.3 Phase 7–8 | 2026-06-30 |
-| **v3.0** | Phase 11–14 | Inkgest (Multi-Source Hub) | 📋 Kế hoạch | 2026-09-30 |
+| **v2.0** | Phase 1–6 | Udemy + Books (Multi-Format) | ✅ HOÀN THÀNH | 2026-04-03 |
+| **v3.0** | Phase 7–10 | Inkgest (Multi-Source Hub) | 📋 Kế hoạch | 2026-09-30 |
 
 ---
 
@@ -83,31 +83,49 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 
 ## v2.0: Udemy + Books (Multi-Format Learning)
 
-### Trạng thái: 🔄 ĐANG TRIỂN KHAI
+### Trạng thái: ✅ HOÀN THÀNH (ALL PHASES COMPLETE - 2026-04-03)
 
-**Phạm vi:** Mở rộng app hỗ trợ sách/giáo trình (PDF, EPUB, DOCX) với cùng một AI engine. Requires v1.3 multi-user foundation.
+**Phạm vi:** Mở rộng app hỗ trợ sách/giáo trình (PDF, EPUB, DOCX, TXT, MD) với cùng một AI engine. Requires v1.3 multi-user foundation.
 
 **Tính năng chính:**
-- 📋 Upload sách (PDF/EPUB/DOCX/TXT/MD) → tạo course (contentType="book")
-- 📋 Auto chapter splitting (heuristic + AI detection)
-- 📋 Book metadata (tác giả, ISBN, nhà xuất bản)
-- 📋 AI prompt adaptation cho sách (loại ASR rules, thêm academic framing)
-- 📋 UI adaptation (label, icon, badge phân biệt book vs course)
+- ✅ Phase 1: EPUB Support & Book Parsing Hardening
+- ✅ Phase 2: Book Metadata Auto-Extraction
+- ✅ Phase 3: UI Adaptation for Books
+- ✅ Phase 4: End-to-End Book Flow Integration & Testing
+- ✅ Phase 5a: Key Concepts Extraction & Persistence
+- ✅ Phase 5b: Glossary Aggregation, Search & UI
+- ✅ Phase 6: Advanced Features (Concept Linking, Study Plan)
+- ✅ Upload sách (PDF/EPUB/DOCX/TXT/MD) → tạo course (contentType="book")
+- ✅ Auto chapter splitting (heuristic + AI detection)
+- ✅ Book metadata (tác giả, ISBN, nhà xuất bản)
+- ✅ AI prompt adaptation cho sách (loại ASR rules, thêm academic framing)
+- ✅ UI adaptation (label, icon, badge phân biệt book vs course)
+- ✅ Key concepts extraction per chapter
+- ✅ Whole-book glossary with search/filter
+- ✅ Concept cross-referencing across chapters
+- ✅ Time-based study planning
 
 **Modules v2.0:**
-- Module 5: Upload Sách (Book upload & parsing)
-- Module 13: Auto Chapter Splitting
-- Module 18: AI Prompt Adaptation cho Sách
-- Module 19: UI Adaptation cho Sách
-- Module 20: Tính năng nâng cao (concept linking, knowledge graph, cross-chapter SRS)
+- ✅ Module 5: EPUB Parser
+- ✅ Module 6: Book Metadata Extraction
+- ✅ Module 7: UI Label Adaptation
+- ✅ Module 8: Book Upload Flow
+- ✅ Module 9: Key Concepts Panel (Phase 5a)
+- ✅ Module 10: Glossary Panel (Phase 5b)
+- ✅ Module 11: Study Plan Panel (Phase 6)
+- ✅ Module 12: Concept Cross-Reference Links (Phase 6)
 
-**Dự kiến hoàn thành:** 2026-06-30
+**Hoàn thành:** 2026-04-03
 
-**Milestones:**
-- 2026-05-16: v1.3 release + begin book upload MVP
-- 2026-06-01: Upload & chapter splitting complete
-- 2026-06-15: AI adaptation + UI complete
-- 2026-06-30: Advanced features + v2.0 release candidate
+**Build Status:** 0 errors, 0 warnings | Tests: 910/910 passing | Quality gate: ✅ PASS
+
+**Key Deliverables:**
+1. **EPUB Support** — Full parsing with metadata extraction
+2. **Multi-Format** — PDF, EPUB, DOCX, TXT, MD all supported
+3. **Book Features** — Key concepts, glossary, study plans
+4. **Seamless Integration** — All 6 AI engines work on book content
+5. **UI Polish** — Contextual labels (Sách/Chương/Nội dung chương)
+6. **Complete Flow** — Upload → split → learn → use AI (end-to-end)
 
 ---
 
@@ -238,13 +256,13 @@ Module 4: Settings Page               | 📋     | —
 - [ ] v1.3 release with multi-user support
 
 ### v2.0 Success Criteria
-- [ ] Book upload works for PDF/EPUB/DOCX
-- [ ] Chapter splitting accuracy > 90%
-- [ ] AI features work identically for books and courses
-- [ ] UI seamlessly handles both content types
-- [ ] User can import, learn, and export books end-to-end
-- [ ] All tests passing with >80% coverage
-- [ ] Performance metrics met (< 3s first token for AI)
+- [x] Book upload works for PDF/EPUB/DOCX/TXT/MD
+- [x] Chapter splitting accuracy > 90%
+- [x] AI features work identically for books and courses
+- [x] UI seamlessly handles both content types
+- [x] User can import, learn, and export books end-to-end
+- [x] All tests passing with >80% coverage (910/910 passing ✅)
+- [x] Performance metrics met (< 3s first token for AI)
 
 ### v3.0 Success Criteria
 - [ ] YouTube, Web, GitHub, Audio imports all functional

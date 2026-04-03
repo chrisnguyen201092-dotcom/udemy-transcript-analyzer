@@ -67,6 +67,12 @@ export function EmptyDashboard() {
           Thêm khoá học đầu tiên
         </Button>
       </Link>
+      <Link href="/?openUploadBook=1" className="block mt-3">
+        <Button variant="outline" className="gap-2 cursor-pointer border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+          <BookOpen className="w-4 h-4" />
+          Upload sách (EPUB/PDF)
+        </Button>
+      </Link>
     </div>
   );
 }

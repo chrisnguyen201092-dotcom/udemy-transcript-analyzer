@@ -55,8 +55,8 @@ function getFileExtension(name: string): string {
 }
 
 const TRANSCRIPT_EXTENSIONS = [".vtt", ".srt", ".txt"];
-const BOOK_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
-const BINARY_EXTENSIONS = new Set([".pdf", ".docx"]);
+const BOOK_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".epub"];
+const BINARY_EXTENSIONS = new Set([".pdf", ".docx", ".epub"]);
 
 function isAcceptedTranscript(file: File): boolean {
   return TRANSCRIPT_EXTENSIONS.includes(getFileExtension(file.name));
@@ -103,6 +103,7 @@ export function UploadModal({
   const [bookAuthor, setBookAuthor] = useState("");
   const [bookIsbn, setBookIsbn] = useState("");
   const [bookPublisher, setBookPublisher] = useState("");
+  const [metadataLoading, setMetadataLoading] = useState(false);
 
   // ── Book split/confirm state ──────────────────────────────────────────
   const [splitStep, setSplitStep] = useState<SplitStep>("form");
@@ -199,6 +200,7 @@ export function UploadModal({
     setUploading(false);
     setResult(null);
     setIsDragging(false);
+    setMetadataLoading(false);
     dragCounterRef.current = 0;
   }, []);
 
@@ -261,6 +263,33 @@ export function UploadModal({
     }
   }, []);
 
+  /** Call /api/books/metadata-preview and prefill form fields */
+  const fetchMetadataPreview = useCallback(async (file: File) => {
+    setMetadataLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/books/metadata-preview", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json() as Record<string, string>;
+      if (!res.ok) {
+        toast.warning(`Không đọc được metadata: ${data.error ?? "unknown"}`);
+        return;
+      }
+      // Only prefill fields the user hasn't already typed into
+      if (data.title) setBookTitle((prev) => prev.trim() ? prev : data.title);
+      if (data.author) setBookAuthor((prev) => prev.trim() ? prev : data.author);
+      if (data.isbn) setBookIsbn((prev) => prev.trim() ? prev : data.isbn);
+      if (data.publisher) setBookPublisher((prev) => prev.trim() ? prev : data.publisher);
+    } catch {
+      toast.warning("Không thể tự động đọc thông tin sách. Vui lòng nhập thủ công.");
+    } finally {
+      setMetadataLoading(false);
+    }
+  }, []);
+
   const handleDropBook = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -272,17 +301,18 @@ export function UploadModal({
 
     const file = droppedFiles[0];
     if (!isAcceptedBook(file)) {
-      toast.warning("Định dạng không hỗ trợ. Chấp nhận: .pdf, .docx, .txt, .md");
+      toast.warning("Định dạng không hỗ trợ. Chấp nhận: .pdf, .docx, .txt, .md, .epub");
       return;
     }
     setBookFile({ file, status: "pending" });
     setResult(null);
-    if (!bookTitle.trim()) {
-      // Auto-fill title from filename
-      const dot = file.name.lastIndexOf(".");
-      setBookTitle(dot >= 0 ? file.name.slice(0, dot) : file.name);
-    }
-  }, [bookTitle]);
+    // Auto-fill title from filename as immediate fallback
+    const dot = file.name.lastIndexOf(".");
+    const nameWithoutExt = dot >= 0 ? file.name.slice(0, dot) : file.name;
+    setBookTitle((prev) => prev.trim() ? prev : nameWithoutExt);
+    // Kick off server-side metadata extraction
+    void fetchMetadataPreview(file);
+  }, [fetchMetadataPreview]);
 
   // ── File pickers ──────────────────────────────────────────────────────
   const handleTranscriptFileChange = useCallback(
@@ -308,13 +338,15 @@ export function UploadModal({
       const file = selected[0];
       setBookFile({ file, status: "pending" });
       setResult(null);
-      if (!bookTitle.trim()) {
-        const dot = file.name.lastIndexOf(".");
-        setBookTitle(dot >= 0 ? file.name.slice(0, dot) : file.name);
-      }
+      // Auto-fill title from filename as immediate fallback
+      const dot = file.name.lastIndexOf(".");
+      const nameWithoutExt = dot >= 0 ? file.name.slice(0, dot) : file.name;
+      setBookTitle((prev) => prev.trim() ? prev : nameWithoutExt);
+      // Kick off server-side metadata extraction
+      void fetchMetadataPreview(file);
       if (bookInputRef.current) bookInputRef.current.value = "";
     },
-    [bookTitle]
+    [fetchMetadataPreview]
   );
 
   const handleRemoveTranscriptFile = useCallback((index: number) => {
@@ -580,7 +612,7 @@ export function UploadModal({
   };
 
   const canUploadTranscript = files.length > 0 && (!!courseId || !!courseTitle.trim());
-  const canAnalyzeBook = !!bookFile && !!bookTitle.trim();
+  const canAnalyzeBook = !!bookFile && !!bookTitle.trim() && !metadataLoading;
   const isInPreview = splitStep === "preview" || splitStep === "confirming";
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -744,6 +776,13 @@ export function UploadModal({
         {/* ── BOOK MODE: FORM ─────────────────────────────────────── */}
         {mode === "book" && (splitStep === "form" || splitStep === "analyzing") && (
           <div className="flex flex-col gap-3 py-1">
+            {/* Metadata extraction loading indicator */}
+            {metadataLoading && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#A435F0]" />
+                Đang đọc thông tin sách...
+              </div>
+            )}
             {/* Book metadata */}
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-1.5">
@@ -755,7 +794,7 @@ export function UploadModal({
                   onChange={(e) => setBookTitle(e.target.value)}
                   placeholder="Ví dụ: Clean Code, Lập trình Python cơ bản..."
                   className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
-                  disabled={uploading}
+                  disabled={uploading || metadataLoading}
                 />
               </div>
 
@@ -769,7 +808,7 @@ export function UploadModal({
                     onChange={(e) => setBookAuthor(e.target.value)}
                     placeholder="Robert C. Martin..."
                     className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
-                    disabled={uploading}
+                    disabled={uploading || metadataLoading}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -781,7 +820,7 @@ export function UploadModal({
                     onChange={(e) => setBookPublisher(e.target.value)}
                     placeholder="NXB Khoa học kỹ thuật..."
                     className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
-                    disabled={uploading}
+                    disabled={uploading || metadataLoading}
                   />
                 </div>
               </div>
@@ -795,7 +834,7 @@ export function UploadModal({
                   onChange={(e) => setBookIsbn(e.target.value)}
                   placeholder="978-0-13-468599-1"
                   className="text-sm h-9 border-gray-200 dark:border-gray-700 focus-visible:ring-[#A435F0]/30"
-                  disabled={uploading}
+                  disabled={uploading || metadataLoading}
                 />
               </div>
             </div>
@@ -819,7 +858,7 @@ export function UploadModal({
                 size="sm"
                 className="gap-2 cursor-pointer text-xs"
                 onClick={() => bookInputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || metadataLoading}
               >
                 <FileUp className="w-3.5 h-3.5" />
                 Chọn file sách
@@ -827,7 +866,7 @@ export function UploadModal({
               <input
                 ref={bookInputRef}
                 type="file"
-                accept=".pdf,.docx,.txt,.md"
+                accept=".pdf,.docx,.txt,.md,.epub"
                 className="hidden"
                 onChange={handleBookFileChange}
               />
@@ -877,7 +916,7 @@ export function UploadModal({
                   <p className={`text-xs text-center ${isDragging ? "text-[#A435F0] font-medium" : "text-gray-400 dark:text-gray-500"}`}>
                     {isDragging ? "Thả file vào đây" : "Kéo thả file sách vào đây"}
                   </p>
-                  <p className="text-[10px] text-gray-300 dark:text-gray-600">.pdf, .docx, .txt, .md</p>
+                  <p className="text-[10px] text-gray-300 dark:text-gray-600">.pdf, .docx, .txt, .md, .epub</p>
                 </>
               )}
             </div>

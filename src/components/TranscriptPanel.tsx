@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getLabels } from "@/lib/content-type-labels";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ interface Lesson {
 
 interface TranscriptPanelProps {
   lesson: Lesson;
+  contentType?: string;
   onSaveTranscript: (lessonId: string, transcript: string) => Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
   onExplainSelection?: (selectedText: string) => void;
@@ -68,6 +70,7 @@ function formatNumber(n: number): string {
  */
 export function TranscriptPanel({
   lesson,
+  contentType,
   onSaveTranscript,
   onDirtyChange,
   onExplainSelection,
@@ -255,7 +258,7 @@ export function TranscriptPanel({
     if (!textToCopy) return;
     try {
       await navigator.clipboard.writeText(textToCopy);
-      toast.success("Đã sao chép transcript!");
+      toast.success(`Đã sao chép ${getLabels(contentType).content.toLowerCase()}!`);
       setJustCopied(true);
       setTimeout(() => setJustCopied(false), 2000);
     } catch {
@@ -269,7 +272,7 @@ export function TranscriptPanel({
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
-        toast.success("Đã sao chép transcript!");
+        toast.success(`Đã sao chép ${getLabels(contentType).content.toLowerCase()}!`);
         setJustCopied(true);
         setTimeout(() => setJustCopied(false), 2000);
       } catch {
@@ -427,7 +430,7 @@ export function TranscriptPanel({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Transcript
+              {getLabels(contentType).content}
             </h2>
             {/* Mode badge */}
             <Badge
@@ -544,7 +547,7 @@ export function TranscriptPanel({
             ref={searchInputRef}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm kiếm trong transcript..."
+            placeholder={`Tìm kiếm trong ${getLabels(contentType).content.toLowerCase()}...`}
             className={`flex-1 text-xs h-7 ${
               searchQuery && searchMatches.length === 0
                 ? "border-red-300 focus-visible:ring-red-300"
@@ -619,7 +622,7 @@ export function TranscriptPanel({
           // No transcript — always show editor
           <div className="flex flex-col gap-3">
             <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-800 rounded-xl px-3 py-2.5">
-              Chưa có transcript. Paste nội dung bên dưới để lưu thủ công.
+              Chưa có {getLabels(contentType).content.toLowerCase()}. Paste nội dung bên dưới để lưu thủ công.
             </p>
             <Textarea
               value={draft}

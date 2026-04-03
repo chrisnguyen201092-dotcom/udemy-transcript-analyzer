@@ -38,6 +38,13 @@ vi.mock("@/lib/parse-book", () => ({
   parseDocx: mockParseDocx,
   parseMarkdownChapters: vi.fn(),
 }));
+// Magic-byte validation is unit-tested separately. Bypass here for fake buffers.
+vi.mock("@/lib/file-security", () => ({
+  validateMagicBytes: vi.fn(),
+  sanitizeEpubHtml: (html: string) => html,
+  stripHtmlTags: (html: string) => html.replace(/<[^>]+>/g, ""),
+}));
+vi.mock("@/lib/parse-epub", () => ({ parseEpub: vi.fn() }));
 
 // ─── Import AFTER mocks ──────────────────────────────────────────────────────
 import { POST as splitPost } from "@/app/api/books/split/route";

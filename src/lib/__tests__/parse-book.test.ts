@@ -230,3 +230,86 @@ describe("parsePdf — edge cases", () => {
     expect(result.warning).toBe("scanned_pdf");
   });
 });
+
+// ─── file-security tests ─────────────────────────────────────────────────────
+import { validateMagicBytes, sanitizeEpubHtml, stripHtmlTags } from "@/lib/file-security";
+
+describe("validateMagicBytes", () => {
+  it("accepts a valid PDF buffer", () => {
+    const buf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
+    expect(() => validateMagicBytes(buf, ".pdf")).not.toThrow();
+  });
+
+  it("rejects a PDF imposter (wrong magic bytes)", () => {
+    const buf = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // PK header (ZIP)
+    expect(() => validateMagicBytes(buf, ".pdf")).toThrow(/magic bytes/);
+  });
+
+  it("accepts a valid DOCX buffer (ZIP magic)", () => {
+    const buf = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]);
+    expect(() => validateMagicBytes(buf, ".docx")).not.toThrow();
+  });
+
+  it("rejects a DOCX imposter (wrong magic)", () => {
+    const buf = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
+    expect(() => validateMagicBytes(buf, ".docx")).toThrow(/magic bytes/);
+  });
+
+  it("accepts .txt and .md without magic check", () => {
+    const buf = Buffer.from("Just plain text");
+    expect(() => validateMagicBytes(buf, ".txt")).not.toThrow();
+    expect(() => validateMagicBytes(buf, ".md")).not.toThrow();
+  });
+
+  it("rejects EPUB without ZIP magic", () => {
+    const buf = Buffer.from("not a zip file at all");
+    expect(() => validateMagicBytes(buf, ".epub")).toThrow(/magic bytes/);
+  });
+
+  it("rejects EPUB ZIP without epub+zip mimetype", () => {
+    // ZIP magic but no mimetype entry
+    const buf = Buffer.from([0x50, 0x4b, 0x03, 0x04, ...Buffer.alloc(100)]);
+    expect(() => validateMagicBytes(buf, ".epub")).toThrow(/mimetype/);
+  });
+});
+
+describe("sanitizeEpubHtml", () => {
+  it("strips <script> tags and their content", () => {
+    const html = '<p>Hello</p><script>alert("xss")</script><p>World</p>';
+    const result = sanitizeEpubHtml(html);
+    expect(result).not.toContain("<script>");
+    expect(result).not.toContain("alert");
+    expect(result).toContain("Hello");
+    expect(result).toContain("World");
+  });
+
+  it("removes inline event handlers", () => {
+    const html = '<p onclick="evil()">Click me</p><img onerror="bad()" src="x"/>';
+    const result = sanitizeEpubHtml(html);
+    expect(result).not.toContain("onclick");
+    expect(result).not.toContain("onerror");
+    expect(result).toContain("Click me");
+  });
+
+  it("passes clean HTML through unchanged", () => {
+    const html = "<h1>Title</h1><p>Paragraph content.</p>";
+    const result = sanitizeEpubHtml(html);
+    expect(result).toBe(html);
+  });
+});
+
+describe("stripHtmlTags", () => {
+  it("removes all HTML tags", () => {
+    const html = "<h1>Title</h1><p>Some <b>bold</b> text.</p>";
+    const result = stripHtmlTags(html);
+    expect(result).not.toContain("<");
+    expect(result).toContain("Title");
+    expect(result).toContain("Some bold text.");
+  });
+
+  it("decodes HTML entities", () => {
+    const html = "<p>Hello &amp; World &lt;3&gt;</p>";
+    const result = stripHtmlTags(html);
+    expect(result).toContain("Hello & World <3>");
+  });
+});

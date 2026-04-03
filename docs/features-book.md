@@ -4,22 +4,22 @@
 
 Mở rộng Udemy Learner từ "trợ lý học từ khóa Udemy" thành **"trợ lý học tập đa nguồn"** — hỗ trợ cả sách, giáo trình, tài liệu học tập bên cạnh khóa học video.
 
-| Module | Tổng số tính năng | Ưu tiên |
-|--------|-------------------|---------|
-| Schema & Content Type | 3 | Tier 1 — Nền tảng |
-| Upload Sách (PDF/EPUB/DOCX/TXT) | 5 | Tier 1 — Nền tảng |
-| Auto Chapter Splitting | 3 | Tier 2 — Trải nghiệm |
-| AI Prompt Adaptation cho Sách | 4 | Tier 1 — Nền tảng |
-| Key Concepts Extraction | 2 | Tier 2 — Trải nghiệm |
-| Reading Plan (Lộ trình đọc) | 2 | Tier 2 — Trải nghiệm |
-| Cross-reference giữa Chapters | 2 | Tier 3 — Nâng cao |
-| Knowledge Graph | 2 | Tier 3 — Nâng cao |
-| Adaptive Quizzing | 2 | Tier 3 — Nâng cao |
-| Multi-source Learning | 2 | Tier 3 — Nâng cao |
-| Study Plan Generator | 2 | Tier 3 — Nâng cao |
-| UI Adaptation | 4 | Tier 1 — Nền tảng |
-| Bug Fix: Upload URL Unique | 1 | Tier 0 — Prerequisite |
-| **Tổng cộng** | **32** | |
+| Module | Tổng số tính năng | Ưu tiên | Trạng thái |
+|--------|-------------------|---------|-----------|
+| Schema & Content Type | 3 | Tier 1 — Nền tảng | 📋 |
+| Upload Sách (PDF/EPUB/DOCX/TXT) | 5 | Tier 1 — Nền tảng | 📋 |
+| Auto Chapter Splitting | 3 | Tier 2 — Trải nghiệm | 📋 |
+| AI Prompt Adaptation cho Sách | 4 | Tier 1 — Nền tảng | 📋 |
+| Key Concepts Extraction | 2 | Tier 2 — Trải nghiệm | ✅ Phase 5a |
+| Reading Plan (Lộ trình đọc) | 2 | Tier 2 — Trải nghiệm | ✅ Phase 6 |
+| Cross-reference giữa Chapters | 2 | Tier 3 — Nâng cao | ✅ Phase 6 |
+| Knowledge Graph | 2 | Tier 3 — Nâng cao | 📋 |
+| Adaptive Quizzing | 2 | Tier 3 — Nâng cao | 📋 |
+| Multi-source Learning | 2 | Tier 3 — Nâng cao | 📋 |
+| Study Plan Generator | 2 | Tier 3 — Nâng cao | ✅ Phase 6 |
+| UI Adaptation | 4 | Tier 1 — Nền tảng | 📋 |
+| Bug Fix: Upload URL Unique | 1 | Tier 0 — Prerequisite | 📋 |
+| **Tổng cộng** | **32** | | **7/32 ✅** |
 
 ---
 
@@ -83,17 +83,17 @@ Mở rộng Udemy Learner từ "trợ lý học từ khóa Udemy" thành **"tr�
 
 ### Module: Key Concepts Extraction
 
-| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật |
-|----|---------------|-------|-------------------|
-| B-20 | Extract key concepts per chapter | AI extract thuật ngữ, định nghĩa, concepts quan trọng từ mỗi chương | Prompt mới; persist vào `Lesson.keyConcepts` (new field, nullable JSON string) |
-| B-21 | Glossary tổng hợp per book | Aggregate key concepts từ tất cả chapters → glossary toàn sách | Course-level; persist vào `Course.glossary` (new field) |
+| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật | Trạng thái |
+|----|---------------|-------|-------------------|-----------|
+| B-20 | Extract key concepts per chapter | AI extract thuật ngữ, định nghĩa, concepts quan trọng từ mỗi chương | Prompt mới; persist vào `Lesson.keyConcepts` (new field, nullable JSON string) | ✅ COMPLETE |
+| B-21 | Glossary tổng hợp per book | Aggregate key concepts từ tất cả chapters → glossary toàn sách | Course-level; persist vào `Course.glossary` (new field) | ✅ COMPLETE |
 
 ### Module: Reading Plan (Lộ trình đọc)
 
-| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật |
-|----|---------------|-------|-------------------|
-| B-22 | AI Reading Plan | Tương tự Roadmap nhưng cho sách: thứ tự đọc, chương quan trọng, chương có thể skip | Reuse `/api/ai/roadmap` route; adapt prompt cho book context |
-| B-23 | Difficulty estimation per chapter | AI đánh giá độ khó mỗi chương (beginner/intermediate/advanced) | Metadata thêm vào Reading Plan output |
+| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật | Trạng thái |
+|----|---------------|-------|-------------------|-----------|
+| B-22 | AI Reading Plan | Tương tự Roadmap nhưng cho sách: thứ tự đọc, chương quan trọng, chương có thể skip | Reuse `/api/ai/roadmap` route; adapt prompt cho book context | ✅ COMPLETE |
+| B-23 | Difficulty estimation per chapter | AI đánh giá độ khó mỗi chương (beginner/intermediate/advanced) | Metadata thêm vào Reading Plan output | ✅ COMPLETE |
 
 ---
 
@@ -101,10 +101,10 @@ Mở rộng Udemy Learner từ "trợ lý học từ khóa Udemy" thành **"tr�
 
 ### Module: Cross-reference giữa Chapters
 
-| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật |
-|----|---------------|-------|-------------------|
-| B-24 | Concept cross-reference | Khi concept X ở chương 3 liên quan đến concept Y ở chương 7 → AI detect và liên kết | Dựa trên key concepts extraction; AI match across chapters |
-| B-25 | "Xem thêm ở chương..." links | UI hiển thị links đến chương liên quan khi đọc nội dung hoặc giải thích | Inline links trong AI output hoặc sidebar panel |
+| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật | Trạng thái |
+|----|---------------|-------|-------------------|-----------|
+| B-24 | Concept cross-reference | Khi concept X ở chương 3 liên quan đến concept Y ở chương 7 → AI detect và liên kết | Dựa trên key concepts extraction; AI match across chapters | ✅ COMPLETE |
+| B-25 | "Xem thêm ở chương..." links | UI hiển thị links đến chương liên quan khi đọc nội dung hoặc giải thích | Inline links trong AI output hoặc sidebar panel | ✅ COMPLETE |
 
 ### Module: Knowledge Graph
 
@@ -129,10 +129,10 @@ Mở rộng Udemy Learner từ "trợ lý học từ khóa Udemy" thành **"tr�
 
 ### Module: Study Plan Generator
 
-| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật |
-|----|---------------|-------|-------------------|
-| B-32 | Time-based study plan | "Tôi có 2 tuần" → AI tạo kế hoạch đọc theo ngày | Prompt mới; input: deadline + book chapters + difficulty |
-| B-33 | Progress-aware replanning | Cập nhật plan dựa trên progress thực tế (chapters đã đọc, quiz scores) | Input: CourseProgress + FlashcardReview data |
+| ID | Tên tính năng | Mô tả | Ghi chú kỹ thuật | Trạng thái |
+|----|---------------|-------|-------------------|-----------|
+| B-32 | Time-based study plan | "Tôi có 2 tuần" → AI tạo kế hoạch đọc theo ngày | Prompt mới; input: deadline + book chapters + difficulty | ✅ COMPLETE |
+| B-33 | Progress-aware replanning | Cập nhật plan dựa trên progress thực tế (chapters đã đọc, quiz scores) | Input: CourseProgress + FlashcardReview data | ✅ COMPLETE |
 
 ---
 

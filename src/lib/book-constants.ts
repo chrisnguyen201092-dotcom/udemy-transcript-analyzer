@@ -7,4 +7,4 @@
 export const MAX_BOOK_CONTENT_LENGTH = 50 * 1024 * 1024;
 
 /** Supported book file extensions */
-export const SUPPORTED_BOOK_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md"]);
+export const SUPPORTED_BOOK_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md", ".epub"]);

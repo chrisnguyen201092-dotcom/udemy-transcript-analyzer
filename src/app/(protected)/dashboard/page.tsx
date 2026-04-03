@@ -13,8 +13,9 @@ import { StudyStatsWidget } from "@/components/dashboard/study-stats-widget";
 import { EmptyDashboard } from "@/components/dashboard/empty-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, BookOpen, Clock } from "lucide-react";
+import { Plus, RefreshCw, BookOpen, Clock, Play } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getLabels } from "@/lib/content-type-labels";
 
 interface DashboardData {
   continueLearning: Array<{
@@ -163,11 +164,18 @@ export default function DashboardPage() {
                     href={`/?courseId=${course.id}`}
                     className="block p-4 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
-                    <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                      {course.title}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      {course.contentType === "book" ? (
+                        <BookOpen className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 text-[#A435F0] shrink-0" />
+                      )}
+                      <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
+                        {course.title}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                      <span>{course.completedLessons}/{course.totalLessons} bài</span>
+                      <span>{course.completedLessons}/{course.totalLessons} {getLabels(course.contentType).lesson.toLowerCase()}</span>
                       <span>·</span>
                       <span>{course.progress}%</span>
                     </div>

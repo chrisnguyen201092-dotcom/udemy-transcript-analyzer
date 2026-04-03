@@ -8,20 +8,23 @@ export const GET = withAuth(async (_req, { userId, params }) => {
 
     const course = await prisma.course.findFirst({
       where: { id, userId },
-      select: { roadmap: true },
+      select: { roadmap: true, glossary: true },
     });
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const [profile, courseProgress] = await Promise.all([
+    const [profile, courseProgress, lessonsWithConcepts] = await Promise.all([
       prisma.learnerProfile.findFirst({ where: { courseId: id, userId } }),
       prisma.courseProgress.findFirst({ where: { courseId: id, userId } }),
+      prisma.lesson.count({ where: { courseId: id, keyConcepts: { not: null } } }),
     ]);
 
     return NextResponse.json({
       roadmap: course.roadmap ?? null,
+      glossary: course.glossary ?? null,
+      hasKeyConcepts: lessonsWithConcepts > 0,
       hasProfile: profile !== null,
       progressPercent: courseProgress?.completionPct ?? 0,
     });

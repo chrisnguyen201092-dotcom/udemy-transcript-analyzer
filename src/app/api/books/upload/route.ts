@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { parsePdf, parseDocx, parseMarkdownChapters } from "@/lib/parse-book";
+import { parseEpub } from "@/lib/parse-epub";
+import { validateMagicBytes } from "@/lib/file-security";
 import { MAX_BOOK_CONTENT_LENGTH, SUPPORTED_BOOK_EXTENSIONS } from "@/lib/book-constants";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -47,7 +49,7 @@ export const POST = withAuth(async (req, { userId }) => {
     const ext = getExtension(parsed.file.name);
     if (!SUPPORTED_EXTENSIONS.has(ext)) {
       return NextResponse.json(
-        { error: `Định dạng file '${ext}' không hỗ trợ. Chấp nhận: .pdf, .docx, .txt, .md` },
+        { error: `Định dạng file '${ext}' không hỗ trợ. Chấp nhận: .pdf, .docx, .txt, .md, .epub` },
         { status: 400 }
       );
     }
@@ -86,6 +88,7 @@ export const POST = withAuth(async (req, { userId }) => {
       switch (ext) {
         case ".pdf": {
           const buffer = Buffer.from(parsed.file.content, "base64");
+          validateMagicBytes(buffer, ext);
           const pdfResult = await parsePdf(buffer);
           if (pdfResult.warning === "scanned_pdf") {
             warnings.push({
@@ -98,6 +101,7 @@ export const POST = withAuth(async (req, { userId }) => {
         }
         case ".docx": {
           const buffer = Buffer.from(parsed.file.content, "base64");
+          validateMagicBytes(buffer, ext);
           const docxResult = await parseDocx(buffer);
           chapters.push({ title: removeExtension(parsed.file.name), transcript: docxResult.text });
           break;
@@ -114,6 +118,30 @@ export const POST = withAuth(async (req, { userId }) => {
             }
           } else {
             chapters.push({ title: removeExtension(parsed.file.name), transcript: parsed.file.content.trim() });
+          }
+          break;
+        }
+        case ".epub": {
+          const buffer = Buffer.from(parsed.file.content, "base64");
+          validateMagicBytes(buffer, ext);
+          const epubResult = await parseEpub(buffer);
+          if (epubResult.chapters.length > 0) {
+            for (const ch of epubResult.chapters) {
+              chapters.push({ title: ch.title, transcript: ch.content });
+            }
+          } else {
+            chapters.push({ title: removeExtension(parsed.file.name), transcript: epubResult.text.trim() });
+          }
+          // Apply EPUB metadata to course if user didn't provide explicit values
+          if (isNewCourse && epubResult.metadata) {
+            const { title: epubTitle, author: epubAuthor } = epubResult.metadata;
+            await prisma.course.update({
+              where: { id: resolvedCourseId },
+              data: {
+                ...(epubTitle && !parsed.title ? { title: epubTitle } : {}),
+                ...(epubAuthor && !parsed.author ? { author: epubAuthor } : {}),
+              },
+            });
           }
           break;
         }
