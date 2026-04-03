@@ -5,7 +5,7 @@
 
 "use client";
 
-import { LogOut, LayoutDashboard, Settings, User as UserIcon } from "lucide-react";
+import { LogOut, LayoutDashboard, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, type AuthUser } from "@/hooks/useAuth";
 import {
@@ -73,13 +73,6 @@ export function AvatarDropdown({ user }: AvatarDropdownProps) {
         >
           <Settings className="h-4 w-4" />
           Cài đặt
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="cursor-pointer gap-2"
-          onClick={() => router.push("/settings")}
-        >
-          <UserIcon className="h-4 w-4" />
-          Hồ sơ
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

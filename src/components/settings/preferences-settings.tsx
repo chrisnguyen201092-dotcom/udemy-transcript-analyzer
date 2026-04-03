@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ const DEFAULT_PREFS: Preferences = {
 
 export function PreferencesSettings() {
   const { user, refresh } = useAuth();
+  const { setTheme, theme: currentTheme } = useTheme();
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -58,6 +60,8 @@ export function PreferencesSettings() {
         body: JSON.stringify(prefs),
       });
       if (res.ok) {
+        // Sync theme with next-themes
+        setTheme(prefs.theme);
         toast.success("Đã cập nhật tuỳ chọn");
         await refresh();
       } else {
@@ -78,6 +82,24 @@ export function PreferencesSettings() {
         <CardTitle className="text-base">Tuỳ chọn</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Theme selector */}
+        <div className="space-y-2">
+          <Label>Giao diện</Label>
+          <Select
+            value={prefs.theme}
+            onValueChange={(v: string | null) => setPrefs((p) => ({ ...p, theme: v ?? p.theme }))}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">Sáng</SelectItem>
+              <SelectItem value="dark">Tối</SelectItem>
+              <SelectItem value="system">Hệ thống</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
           <Label>Ngôn ngữ</Label>
           <Select

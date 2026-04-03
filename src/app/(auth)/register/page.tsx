@@ -1,10 +1,10 @@
 /**
- * Register page — name (optional), email, password, confirm password.
+ * Register page — name (optional), email, password with strength meter, confirm password.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -22,6 +22,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/** Compute 0–4 password strength score */
+function getPasswordStrength(pw: string): { score: number; label: string } {
+  if (!pw) return { score: 0, label: "" };
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const clamped = Math.min(score, 4);
+  const labels = ["", "Yếu", "Trung bình", "Tốt", "Mạnh"];
+  return { score: clamped, label: labels[clamped] };
+}
+
+const strengthColors = ["", "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-green-500"];
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
@@ -35,6 +51,7 @@ export default function RegisterPage() {
 
   const passwordMismatch =
     confirmPassword.length > 0 && password !== confirmPassword;
+  const strength = useMemo(() => getPasswordStrength(password), [password]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +135,23 @@ export default function RegisterPage() {
               disabled={submitting}
               autoComplete="new-password"
             />
+            {password.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className={`h-1.5 flex-1 rounded-full transition-colors ${
+                        i <= strength.score
+                          ? strengthColors[strength.score]
+                          : "bg-gray-200 dark:bg-gray-700"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">{strength.label}</p>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>

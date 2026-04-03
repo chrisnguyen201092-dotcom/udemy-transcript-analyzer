@@ -1,10 +1,12 @@
 /**
  * Settings page — Tabbed layout: Account, Preferences, Data Management.
+ * Tab state persisted in URL via ?tab= for deep-linking support.
  */
 
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { User, Settings, Database } from "lucide-react";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { PreferencesSettings } from "@/components/settings/preferences-settings";
@@ -18,8 +20,17 @@ const tabs: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
   { id: "data", label: "Dữ liệu", icon: Database },
 ];
 
-export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("account");
+const validTabs = new Set<string>(["account", "preferences", "data"]);
+
+function SettingsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab");
+  const activeTab: Tab = validTabs.has(tabParam ?? "") ? (tabParam as Tab) : "account";
+
+  function setActiveTab(tab: Tab) {
+    router.replace(`/settings?tab=${tab}`, { scroll: false });
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
@@ -50,5 +61,13 @@ export default function SettingsPage() {
       {activeTab === "preferences" && <PreferencesSettings />}
       {activeTab === "data" && <DataManagementSettings />}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsContent />
+    </Suspense>
   );
 }

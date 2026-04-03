@@ -9,6 +9,7 @@ services:
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NODE_ENV=production
+      - JWT_SECRET=271965ecfb79a26238a684eb25c41c7f05cededac9d4a65fc77573ddb2e4e90f
     restart: always
 
 volumes:

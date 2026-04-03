@@ -1,11 +1,11 @@
 /**
- * AccountSettings — Display/edit account info: name, email (read-only), avatar placeholder.
+ * AccountSettings — Display/edit account info: name, email (read-only), avatar, change password.
  */
 
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,12 @@ export function AccountSettings() {
   const { user, refresh } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Change password state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -50,8 +56,37 @@ export function AccountSettings() {
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? "?";
 
+  async function handleChangePassword() {
+    if (newPassword !== confirmPassword) {
+      toast.error("Mật khẩu mới không khớp");
+      return;
+    }
+    setChangingPw(true);
+    try {
+      const res = await fetch("/api/user/change-password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+      });
+      if (res.ok) {
+        toast.success("Đã đổi mật khẩu");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        const data = await res.json();
+        toast.error(typeof data.error === "string" ? data.error : "Đổi mật khẩu thất bại");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setChangingPw(false);
+    }
+  }
+
   return (
-    <Card>
+    <div className="space-y-6">
+      <Card>
       <CardHeader>
         <CardTitle className="text-base">Thông tin tài khoản</CardTitle>
       </CardHeader>
@@ -110,5 +145,67 @@ export function AccountSettings() {
         </Button>
       </CardContent>
     </Card>
+
+    {/* Change Password */}
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <KeyRound className="h-4 w-4" />
+          Đổi mật khẩu
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="currentPassword">Mật khẩu hiện tại</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Nhập mật khẩu hiện tại"
+            autoComplete="current-password"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="newPassword">Mật khẩu mới</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Ít nhất 8 ký tự"
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirmNewPassword">Xác nhận mật khẩu mới</Label>
+          <Input
+            id="confirmNewPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Nhập lại mật khẩu mới"
+            autoComplete="new-password"
+          />
+        </div>
+        <Button
+          onClick={handleChangePassword}
+          disabled={changingPw || !currentPassword || !newPassword || !confirmPassword}
+          variant="outline"
+          className="cursor-pointer"
+        >
+          {changingPw ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Đang đổi...
+            </>
+          ) : (
+            "Đổi mật khẩu"
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+    </div>
   );
 }
