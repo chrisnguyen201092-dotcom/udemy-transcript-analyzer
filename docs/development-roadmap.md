@@ -13,7 +13,7 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 | Phiên bản | Giai đoạn | Tên gọi | Trạng thái | Ngày dự kiến |
 |-----------|-----------|--------|-----------|--------------|
 | **v1.0–v1.2** | Phase 1–5 | Udemy Learning Assistant | ✅ Hoàn thành | 2026-03-31 |
-| **v1.3** | Phase 6–8 | Multi-User Foundation | 🔄 Đang triển khai (Phase 6 ✅) | 2026-05-15 |
+| **v1.3** | Phase 6–8 | Multi-User Foundation | ✅ Hoàn thành | 2026-04-03 |
 | **v2.0** | Phase 9–10 | Udemy + Books (Multi-Format) | 📋 Chờ v1.3 Phase 7–8 | 2026-06-30 |
 | **v3.0** | Phase 11–14 | Inkgest (Multi-Source Hub) | 📋 Kế hoạch | 2026-09-30 |
 
@@ -43,42 +43,41 @@ Inkgest phát triển qua 3 giai đoạn lớn, từ "AI-powered Udemy learner" 
 
 ## v1.3: Multi-User Foundation (Authentication & Dashboard)
 
-### Trạng thái: 🔄 ĐANG TRIỂN KHAI (Phase 6 Complete)
+### Trạng thái: ✅ HOÀN THÀNH
 
 **Phạm vi:** Chuyển Inkgest từ single-user personal tool thành multi-user platform với authentication, user data isolation, per-user AI artifacts, và dashboard.
 
 **Tính năng chính:**
 - ✅ **Phase 6 COMPLETE:** Schema refactoring + User model + userId FK + LessonArtifact model
-- ✅ User model (email, passwordHash, name, avatarUrl, tokenVersion, preferences, resetToken, resetTokenExp)
-- ✅ LessonArtifact model (per-user AI content: summary, explanation, quiz, flashcards, exercises, notes)
-- ✅ Multi-user data scoping (userId FK on Course, LessonProgress, CourseProgress, FlashcardReview, LearnerProfile, ChatMessage)
-- ✅ Compound unique constraints with userId (@@unique([userId, courseId]), @@unique([userId, lessonId, type]), etc.)
-- ✅ withAuth pattern (API route wrapper extracting userId from session)
-- ✅ All 39 API routes scoped by userId
-- ✅ Migration scripts (bootstrap user, legacy data migration, lesson artifact extraction)
-- ✅ 829/829 tests passing, build clean
-- 📋 Custom JWT authentication (HS256, HttpOnly cookies, bcrypt hashing) — Phases 7–8
-- 📋 Dashboard with Continue Learning, SRS Due, Stats, Activity widgets — Phase 7
-- 📋 Settings page upgrade (full route `/settings` instead of modal) — Phase 8
+- ✅ **Phase 7 COMPLETE:** Custom JWT auth (HS256, HttpOnly cookies, bcrypt hashing), 6 API routes (register, login, logout, forgot/reset, me), 4 auth pages, avatar dropdown header, rate limiting, middleware protection
+- ✅ **Phase 8 COMPLETE:** Dashboard with 5 personalized widgets (Continue Learning, SRS Due, My Courses, Study Stats, Recent Activity), Settings page (3 tabs: Account, Preferences, Data), preference migration (localStorage → DB), delete account cascade
 
 **Modules v1.3:**
-- ✅ Module 1: Schema Refactoring & Data Scoping (Phase 6 — COMPLETE)
-- 📋 Module 2: Authentication & User Management (7 features) — Phase 7
-- 📋 Module 3: Dashboard (6 features) — Phase 7
-- 📋 Module 4: Settings Page Route (6 features) — Phase 8
+- ✅ Module 1: Schema Refactoring & Data Scoping (Phase 6)
+- ✅ Module 2: Authentication & User Management (Phase 7)
+- ✅ Module 3: Dashboard (Phase 7)
+- ✅ Module 4: Settings Page Route (Phase 8)
 
-**Dự kiến hoàn thành:** 2026-05-15
+**Hoàn thành:** 2026-04-03
 
-**Milestones:**
-- ✅ 2026-04-03: Phase 6 complete — Schema refactoring + data scoping + migration ready
-- 📋 2026-04-15: Phase 7 — Auth routes + dashboard complete
-- 📋 2026-04-30: Phase 8 — Settings page + route protection complete
-- 📋 2026-05-15: v1.3 release (multi-user beta)
+**Build Status:** 0 errors, 0 warnings | Tests: 829/829 passing | Quality gate: ✅ PASS
+
+**Code Review:** Codex adversarial review (xhigh effort, 5 rounds) — 8 critical findings identified and fixed:
+1. JWT_SECRET fallback → fail-closed
+2. Preferences String↔Object mismatch → JSON helpers
+3. Dashboard stats (unweighted avg) → weighted per-course
+4. Open redirect → URL validation
+5. Revoked session → useEffect redirect
+6. Continue learning widget → full courseId deep-link
+7. Raw token logging → removed
+8. Rate limit IP spoofing → getClientIp() helper
 
 **Dependencies:**
 - ✅ Requires v1.2 backend completion (Progress, SRS, Analytics)
-- ✅ Phase 6 foundation complete; Phases 7–8 can proceed in parallel
-- Blocks v2.0 (books) until user data scoping is in place (READY NOW)
+- ✅ Phase 6–8 all complete; v1.3 release ready
+- Unblocks v2.0 (books) — multi-user data scoping now in place
+
+---
 
 ---
 
