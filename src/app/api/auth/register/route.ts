@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     });
     if (existing) {
       return NextResponse.json(
-        { error: "Email already registered" },
-        { status: 409 }
+        { message: "If this email is not already registered, an account has been created." },
+        { status: 200 }
       );
     }
 

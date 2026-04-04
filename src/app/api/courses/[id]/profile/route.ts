@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
@@ -32,7 +32,7 @@ function formatProfile(profile: {
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
@@ -63,8 +63,8 @@ export const POST = withAuth(async (req, { userId, params }) => {
           learningStyle,
         },
       });
-    } catch (err: any) {
-      if (err?.code === 'P2002') {
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as { code?: string }).code === 'P2002') {
         return NextResponse.json(
           { error: "Profile already exists for this course. Use PUT to update." },
           { status: 409 }
@@ -74,7 +74,7 @@ export const POST = withAuth(async (req, { userId, params }) => {
     }
 
     return NextResponse.json(formatProfile(profile), { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to create profile" },
       { status: 500 }
@@ -84,7 +84,7 @@ export const POST = withAuth(async (req, { userId, params }) => {
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
@@ -99,7 +99,7 @@ export const GET = withAuth(async (_req, { userId, params }) => {
     }
 
     return NextResponse.json(formatProfile(profile));
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to get profile" },
       { status: 500 }
@@ -109,7 +109,7 @@ export const GET = withAuth(async (_req, { userId, params }) => {
 
 export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const course = await prisma.course.findFirst({ where: { id, userId } });
     if (!course) {
@@ -146,7 +146,7 @@ export const PUT = withAuth(async (req, { userId, params }) => {
     });
 
     return NextResponse.json(formatProfile(profile));
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to update profile" },
       { status: 500 }

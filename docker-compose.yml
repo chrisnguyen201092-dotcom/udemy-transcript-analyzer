@@ -9,8 +9,14 @@ services:
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NODE_ENV=production
-      - JWT_SECRET=271965ecfb79a26238a684eb25c41c7f05cededac9d4a65fc77573ddb2e4e90f
+      - JWT_SECRET=${JWT_SECRET}
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   udemy-data:

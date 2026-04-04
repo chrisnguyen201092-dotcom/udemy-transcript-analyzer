@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { withAuth } from "@/lib/auth";
+import { withAuth, invalidateUserCache } from "@/lib/auth";
 
 const ChangePasswordSchema = z
   .object({
@@ -20,7 +20,7 @@ const ChangePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_COST ?? "12", 10);
+const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS ?? "12", 10);
 
 export const PUT = withAuth(async (req: NextRequest, { userId }) => {
   try {
@@ -44,12 +44,13 @@ export const PUT = withAuth(async (req: NextRequest, { userId }) => {
       );
     }
 
-    // Hash and update new password
+    // Hash and update new password, increment tokenVersion to invalidate old sessions
     const newHash = await bcrypt.hash(body.newPassword, BCRYPT_ROUNDS);
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: newHash },
+      data: { passwordHash: newHash, tokenVersion: { increment: 1 } },
     });
+    invalidateUserCache(userId);
 
     return NextResponse.json({ success: true });
   } catch (err) {

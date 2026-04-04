@@ -52,6 +52,7 @@ model Course {
   learnerProfile LearnerProfile[]
 
   @@unique([userId, url]) /// Same URL can be imported by different users
+  @@index([userId, lastAccessedAt])
 }
 
 model Lesson {
@@ -76,6 +77,8 @@ model Lesson {
   flashcardReviews FlashcardReview[]
   chatMessages     ChatMessage[]
   lessonArtifacts  LessonArtifact[]
+
+  @@index([courseId, order])
 }
 
 /// Per-user AI-generated content extracted from Lesson (v1.3)
@@ -145,9 +148,9 @@ model FlashcardReview {
   updatedAt      DateTime @updatedAt
 
   @@unique([userId, lessonId, cardIndex])
+  @@index([userId, lessonId])
+  @@index([userId, nextReviewAt])
 }
-
-model LearnerProfile {
   id            String   @id @default(cuid())
   userId        String?  /// Nullable during migration
   user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -173,4 +176,6 @@ model ChatMessage {
   role      String
   content   String
   createdAt DateTime @default(now())
+
+  @@index([lessonId, userId])
 }
