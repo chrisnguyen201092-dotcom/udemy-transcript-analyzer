@@ -35,8 +35,7 @@ async function extractFromPdf(buffer: Buffer): Promise<BookMetadataResult> {
   try {
     const result = await parser.getText();
     // pdf-parse v2 exposes metadata via the underlying PDF.js info
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const info: Record<string, unknown> = (result as any).info ?? {};
+    const info: Record<string, unknown> = (result as { info?: Record<string, unknown> }).info ?? {};
 
     const title =
       typeof info.Title === "string" && info.Title.trim() ? info.Title.trim() : undefined;

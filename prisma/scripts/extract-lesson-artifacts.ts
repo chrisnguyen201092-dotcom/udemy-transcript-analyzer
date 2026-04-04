@@ -21,8 +21,6 @@ const AI_FIELDS = [
   "notes",
 ] as const;
 
-type AiField = (typeof AI_FIELDS)[number];
-
 async function extractLessonArtifacts(): Promise<void> {
   console.log("\n🔄 Starting LessonArtifact extraction...");
 

@@ -67,7 +67,7 @@ export function parseMarkdownChapters(
   const chapters: { title: string; content: string }[] = [];
   let currentTitle: string | null = null;
   let currentLines: string[] = [];
-  let preambleLines: string[] = [];
+  const preambleLines: string[] = [];
 
   for (const line of lines) {
     // Match only H1: starts with exactly one # followed by space

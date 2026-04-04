@@ -31,7 +31,7 @@ function isPrivateHostname(hostname: string): boolean {
   // IPv4 private ranges
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
-    const [, a, b, c] = ipv4.map(Number);
+    const [, a, b] = ipv4.map(Number);
     if (a === 127) return true;                          // 127.x.x.x loopback
     if (a === 10) return true;                           // 10.x.x.x
     if (a === 192 && b === 168) return true;             // 192.168.x.x
