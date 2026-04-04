@@ -151,6 +151,8 @@ model FlashcardReview {
   @@index([userId, lessonId])
   @@index([userId, nextReviewAt])
 }
+
+model LearnerProfile {
   id            String   @id @default(cuid())
   userId        String?  /// Nullable during migration
   user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
