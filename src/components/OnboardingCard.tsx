@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { X, BookOpen, Upload, Globe, PlusCircle } from "lucide-react";
+import { X, BookOpen, PlusCircle, Upload } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "inkgest_onboarding_dismissed";
@@ -20,12 +21,10 @@ function subscribe(callback: () => void): () => void {
 }
 
 interface OnboardingCardProps {
-  onImport: () => void;
-  onUpload: () => void;
   onAddManual: () => void;
 }
 
-export function OnboardingCard({ onImport, onUpload, onAddManual }: OnboardingCardProps) {
+export function OnboardingCard({ onAddManual }: OnboardingCardProps) {
   const storedDismissed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [localDismissed, setLocalDismissed] = useState(false);
   const dismissed = storedDismissed || localDismissed;
@@ -63,24 +62,14 @@ export function OnboardingCard({ onImport, onUpload, onAddManual }: OnboardingCa
       </div>
 
       <div className="flex flex-col gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2 text-xs h-8 cursor-pointer"
-          onClick={() => { handleDismiss(); onImport(); }}
-        >
-          <Globe className="w-3.5 h-3.5 text-[#A435F0]" />
-          Import từ Udemy
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2 text-xs h-8 cursor-pointer"
-          onClick={() => { handleDismiss(); onUpload(); }}
+        <Link
+          href="/import"
+          onClick={handleDismiss}
+          className="w-full flex items-center gap-2 text-xs h-8 px-3 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
         >
           <Upload className="w-3.5 h-3.5 text-[#A435F0]" />
-          Upload file transcript
-        </Button>
+          Import / Upload khóa học
+        </Link>
         <Button
           variant="outline"
           size="sm"

@@ -1,27 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Upload, FileUp, Settings2, BookOpen } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface AddCoursePanelProps {
-  hasUdemyCookie: boolean;
   onAddManual: (title: string) => void;
-  onOpenImport: () => void;
-  onOpenUpload: () => void;
-  onOpenUploadBook: () => void;
-  onOpenSettings: () => void;
 }
 
-export function AddCoursePanel({
-  hasUdemyCookie,
-  onAddManual,
-  onOpenImport,
-  onOpenUpload,
-  onOpenUploadBook,
-  onOpenSettings,
-}: AddCoursePanelProps) {
+export function AddCoursePanel({ onAddManual }: AddCoursePanelProps) {
   const [title, setTitle] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -37,50 +25,6 @@ export function AddCoursePanel({
       <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-1">
         Thêm course
       </p>
-
-      {hasUdemyCookie ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
-          onClick={onOpenImport}
-        >
-          <Upload className="w-3.5 h-3.5" />
-          Import từ Udemy
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs h-8"
-          onClick={onOpenSettings}
-        >
-          <Settings2 className="w-3.5 h-3.5" />
-          Cấu hình Udemy Cookie
-        </Button>
-      )}
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full gap-2 cursor-pointer justify-start border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-[#A435F0] hover:border-[#A435F0]/30 text-xs h-8"
-        onClick={onOpenUpload}
-        title="Upload transcripts, documents. Mỗi file = 1 bài học"
-      >
-        <FileUp className="w-3.5 h-3.5" />
-        Upload files
-      </Button>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full gap-2 cursor-pointer justify-start border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-400 dark:hover:border-amber-600 text-xs h-8"
-        onClick={onOpenUploadBook}
-        title="Upload sách, giáo trình. Hệ thống tự tách chương"
-      >
-        <BookOpen className="w-3.5 h-3.5" />
-        Upload sách
-      </Button>
 
       <form onSubmit={handleSubmit} className="flex gap-1.5">
         <Input

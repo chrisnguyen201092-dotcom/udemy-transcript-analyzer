@@ -151,7 +151,6 @@ function HomeContent() {
           courseProgress={nav.courseProgress}
           lessonProgressMap={nav.lessonProgressMap}
           showCollection={showCollection}
-          hasUdemyCookie={!!settings.udemyCookie}
           onSelectCourse={handleSelectCourse}
           onDeleteCourse={nav.handleDeleteCourse}
           onRenameCourse={nav.handleRenameCourse}
@@ -164,9 +163,6 @@ function HomeContent() {
           onMergeLessons={nav.handleMergeLessons}
           onSplitLesson={nav.handleSplitLesson}
           onReSplit={nav.handleReSplit}
-          onOpenImport={handleOpenImport}
-          onOpenUploadTranscript={() => { setUploadMode("transcript"); setShowUpload(true); }}
-          onOpenUploadBook={() => { setUploadMode("book"); setShowUpload(true); }}
           onOpenSettings={() => setShowSettings(true)}
           onToggleCollection={handleToggleCollection}
         />
