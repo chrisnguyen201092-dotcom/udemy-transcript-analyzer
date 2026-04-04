@@ -29,6 +29,7 @@ model User {
   learnerProfiles  LearnerProfile[]
   chatMessages     ChatMessage[]
   lessonArtifacts  LessonArtifact[]
+  certificates     Certificate[]
 }
 
 model Course {
@@ -50,6 +51,7 @@ model Course {
   lessons        Lesson[]
   progress       CourseProgress[]
   learnerProfile LearnerProfile[]
+  certificates   Certificate[]
 
   @@unique([userId, url]) /// Same URL can be imported by different users
   @@index([userId, lastAccessedAt])
@@ -108,6 +110,10 @@ model LessonProgress {
   quizScore          Float?
   flashcardsMastered Int       @default(0)
   flashcardsTotal    Int       @default(0)
+  /// True when lesson passes mastery gate (quizScore >= 70 if quiz exists)
+  masteryGatePassed  Boolean   @default(false)
+  /// Composite score: quizScore * 0.4 + srsRetention * 0.6 (null until enough data)
+  masteryScore       Float?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -165,6 +171,25 @@ model LearnerProfile {
   learningStyle  String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@unique([userId, courseId])
+}
+
+/// Completion certificate issued when learner meets mastery thresholds
+model Certificate {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId         String
+  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  issuedAt         DateTime @default(now())
+  completionPct    Float    /// % lessons completed at time of issue
+  masteryPct       Float    /// % lessons with masteryGatePassed at time of issue
+  avgQuizScore     Float?   /// Average quiz score across completed lessons
+  totalDaysStudied Int      /// Distinct calendar days with study activity
+  /// Public token for employer/third-party verification — no auth required
+  verifyToken      String   @unique @default(cuid())
+  createdAt        DateTime @default(now())
 
   @@unique([userId, courseId])
 }
