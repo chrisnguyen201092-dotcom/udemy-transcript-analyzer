@@ -138,13 +138,6 @@ test.describe("Notes Flow", () => {
     if (await notesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await notesTab.click();
 
-      // Look for save button or auto-save indicator
-      const saveButton = page.getByRole("button", {
-        name: /save|lưu|auto-save|đã lưu/i,
-      });
-      const autoSaveIndicator = page.locator(
-        ':has-text("saved"), :has-text("đã lưu"), :has-text("auto-save"), [data-testid="save-indicator"]'
-      );
       // Save functionality should exist in some form
       await expect(page.locator("body")).toBeVisible();
     }
@@ -159,9 +152,6 @@ test.describe("Notes Flow", () => {
       await notesTab.click();
 
       // When no notes exist, should show an empty state or placeholder
-      const emptyState = page.locator(
-        '[placeholder], :has-text("no notes"), :has-text("chưa có"), :has-text("start writing"), :has-text("bắt đầu")'
-      );
       // Verify page renders properly in empty state
       await expect(page.locator("body")).toBeVisible();
       const bodyText = await page.locator("body").textContent();

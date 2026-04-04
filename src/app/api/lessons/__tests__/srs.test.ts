@@ -481,7 +481,7 @@ describe("SM-2 quality boundary edge cases", () => {
       { cardIndex: 0, quality: 2 }
     );
     const res = await submitReview(req, makeParams(LESSON_ID));
-    const data = await res.json();
+    await res.json();
 
     expect(res.status).toBe(200);
     // Verify the update was called — the route should reset interval and repetitions for q<3
@@ -519,7 +519,7 @@ describe("SM-2 quality boundary edge cases", () => {
       { cardIndex: 0, quality: 5 }
     );
     const res = await submitReview(req, makeParams(LESSON_ID));
-    const data = await res.json();
+    await res.json();
 
     expect(res.status).toBe(200);
     // Verify EF increased
@@ -556,7 +556,7 @@ describe("SM-2 quality boundary edge cases", () => {
       { cardIndex: 0, quality: 0 }
     );
     const res = await submitReview(req, makeParams(LESSON_ID));
-    const data = await res.json();
+    await res.json();
 
     expect(res.status).toBe(200);
     const updateCall = mockPrisma.flashcardReview.update.mock.calls[0][0];

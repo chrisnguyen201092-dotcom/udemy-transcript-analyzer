@@ -56,7 +56,7 @@ describe("GET /api/courses", () => {
     ];
     mockPrisma.course.findMany.mockResolvedValue(fakeCourses);
 
-    const res = await getCourses();
+    const res = await getCourses(makeRequest("GET"));
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -66,19 +66,19 @@ describe("GET /api/courses", () => {
   it("returns empty array when no courses exist", async () => {
     mockPrisma.course.findMany.mockResolvedValue([]);
 
-    const res = await getCourses();
+    const res = await getCourses(makeRequest("GET"));
     const json = await res.json();
 
     expect(res.status).toBe(200);
     expect(json).toEqual([]);
   });
 
-  it("queries with lessons included, ordered by createdAt desc", async () => {
+  it("queries with select fields by default, ordered by createdAt desc", async () => {
     mockPrisma.course.findMany.mockResolvedValue([]);
-    await getCourses();
+    await getCourses(makeRequest("GET"));
     expect(mockPrisma.course.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: expect.objectContaining({ lessons: expect.anything() }),
+        select: expect.objectContaining({ id: true, title: true }),
         orderBy: { createdAt: "desc" },
       })
     );
@@ -288,7 +288,7 @@ describe("POST /api/courses — book fields (B-01/B-02/B-03)", () => {
     ];
     mockPrisma.course.findMany.mockResolvedValue(fakeCourses);
 
-    const res = await getCourses();
+    const res = await getCourses(makeRequest("GET"));
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -364,7 +364,7 @@ describe("GET /api/courses — sort order", () => {
   it("GET returns courses sorted by createdAt desc", async () => {
     mockPrisma.course.findMany.mockResolvedValue([]);
 
-    await getCourses();
+    await getCourses(makeRequest("GET"));
 
     expect(mockPrisma.course.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -222,7 +222,7 @@ describe("createThinkFilteredStream", () => {
     const input = makeChunks(["hello <thi"]);
     const { stream, fullText } = createThinkFilteredStream(input);
 
-    const output = await readStream(stream);
+    await readStream(stream);
     const text = await fullText;
 
     // Partial tag never completed — content should contain "hello" at minimum

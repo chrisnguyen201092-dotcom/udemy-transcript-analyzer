@@ -136,7 +136,7 @@ describe("DELETE /api/books/split/lessons", () => {
         },
       });
       expect(mockPrisma.lesson.deleteMany).toHaveBeenCalledWith({
-        where: { courseId: "book-1" },
+        where: { courseId: "book-1", course: { userId: "test-user-id" } },
       });
     });
 

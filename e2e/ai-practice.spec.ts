@@ -101,9 +101,6 @@ test.describe("AI Practice (Quiz & Flashcards) Flow", () => {
     await expect(page.locator("body")).toBeVisible();
 
     // Look for quiz-related structure (questions, options, etc.)
-    const quizContainer = page.locator(
-      '[data-testid="quiz-player"], [data-testid="quiz"], .quiz-container, [role="radiogroup"]'
-    );
     // Quiz container may not be visible if no quiz has been generated yet
     const bodyText = await page.locator("body").textContent();
     expect(bodyText).not.toMatch(/Something went wrong|Unhandled error/i);
@@ -116,9 +113,6 @@ test.describe("AI Practice (Quiz & Flashcards) Flow", () => {
     await practiceTab.click();
 
     // Look for flashcard-related UI
-    const flashcardContainer = page.locator(
-      '[data-testid="flashcard-deck"], [data-testid="flashcard"], .flashcard, .card'
-    );
     // Flashcards may not be visible until generated
     await expect(page.locator("body")).toBeVisible();
 
@@ -134,10 +128,9 @@ test.describe("AI Practice (Quiz & Flashcards) Flow", () => {
     await practiceTab.click();
 
     // Look for exercise-related elements
-    const exerciseElements = page.locator(
+    await page.locator(
       'button:has-text("Exercise"), button:has-text("Bài tập"), :has-text("Exercise"), :has-text("Bài tập")'
-    );
-    const count = await exerciseElements.count();
+    ).count();
     // Exercises may or may not be separate from quiz/flashcard
     await expect(page.locator("body")).toBeVisible();
   });

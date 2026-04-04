@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Progress Tracking Flow", () => {
   let courseId: string;
-  let lessonIds: string[] = [];
+  const lessonIds: string[] = [];
 
   test.beforeEach(async ({ page }) => {
     // Create a course with multiple lessons
@@ -68,9 +68,6 @@ test.describe("Progress Tracking Flow", () => {
       await completeButton.click();
 
       // Verify visual feedback — checkmark, color change, or status text
-      const completedIndicator = page.locator(
-        ':has-text("Completed"), :has-text("Đã hoàn thành"), [data-testid="completed-icon"], .completed, [aria-checked="true"]'
-      ).first();
       // Should show some completion indication
       await expect(page.locator("body")).toBeVisible();
     }
@@ -81,10 +78,6 @@ test.describe("Progress Tracking Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Look for progress bar, percentage, or completion count
-    const progressIndicator = page.locator(
-      '[role="progressbar"], [data-testid="progress"], .progress-bar, :has-text("0%"), :has-text("progress"), :has-text("tiến độ")'
-    );
-    const count = await progressIndicator.count();
     // Progress tracking UI should exist
     await expect(page.locator("body")).toBeVisible();
   });
@@ -106,9 +99,6 @@ test.describe("Progress Tracking Flow", () => {
       await page.waitForLoadState("networkidle");
 
       // Progress should show at least 1/3 completed
-      const progressText = page.locator(
-        ':has-text("33"), :has-text("1/3"), :has-text("1 of 3"), [role="progressbar"]'
-      );
       // Progress indicator should have updated
       await expect(page.locator("body")).toBeVisible();
     }
@@ -119,11 +109,6 @@ test.describe("Progress Tracking Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // All lessons should be visible
-    const lessonItems = page.locator(
-      '[data-testid="lesson-item"], .lesson-item, li:has-text("Progress Lesson")'
-    );
-    const count = await lessonItems.count();
-
     // Each lesson should have some indicator for its completion status
     // (checkmark, different color, opacity, etc.)
     await expect(page.locator("body")).toBeVisible();
@@ -145,9 +130,6 @@ test.describe("Progress Tracking Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Look for stats, charts, or overview cards
-    const analyticsContent = page.locator(
-      '[data-testid="analytics"], :has-text("Statistics"), :has-text("Thống kê"), :has-text("Overview"), :has-text("Tổng quan"), .chart, canvas, svg'
-    );
     // Analytics page should have some content
     await expect(page.locator("body")).toBeVisible();
   });
@@ -157,9 +139,6 @@ test.describe("Progress Tracking Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Progress should show 0% or empty state
-    const zeroProgress = page.locator(
-      ':has-text("0%"), :has-text("0/3"), [role="progressbar"][aria-valuenow="0"]'
-    );
     // Verify the page renders properly with no completions
     await expect(page.locator("body")).toBeVisible();
     const bodyText = await page.locator("body").textContent();
@@ -183,9 +162,6 @@ test.describe("Progress Tracking Flow", () => {
       await page.waitForLoadState("networkidle");
 
       // Completion status should persist
-      const completedState = page.locator(
-        ':has-text("Completed"), :has-text("Đã hoàn thành"), [aria-checked="true"], .completed'
-      );
       // State should persist through reload
       await expect(page.locator("body")).toBeVisible();
     }

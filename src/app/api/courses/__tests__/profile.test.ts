@@ -15,7 +15,6 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
-      findFirst: vi.fn(),
     },
   },
 }));
@@ -95,8 +94,7 @@ describe("POST /api/courses/[id]/profile", () => {
   it("returns 409 when profile already exists", async () => {
     mockPrisma.course.findFirst.mockResolvedValue({ id: COURSE_ID });
     // M-9: Route now uses create + P2002 catch instead of findUnique check
-    const p2002Error = new Error("Unique constraint failed");
-    (p2002Error as any).code = "P2002";
+    const p2002Error = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
     mockPrisma.learnerProfile.create.mockRejectedValue(p2002Error);
 
     const req = makeRequest(COURSE_ID, "POST", validBody);

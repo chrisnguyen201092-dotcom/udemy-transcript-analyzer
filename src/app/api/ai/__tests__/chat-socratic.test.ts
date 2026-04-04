@@ -292,12 +292,11 @@ describe("POST /api/ai/chat — Socratic mode edge cases", () => {
     // Reading should get at least partial content or handle error
     const decoder = new TextDecoder();
     const reader = res.body!.getReader();
-    let output = "";
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        output += decoder.decode(value);
+        decoder.decode(value);
       }
     } catch {
       // Stream error is acceptable — partial content may or may not be captured

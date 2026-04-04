@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import path from "path";
 
 /**
  * E2E tests for Transcript Upload flow.

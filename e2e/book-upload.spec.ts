@@ -462,9 +462,6 @@ test.describe("Scenario 4: Book chapter AI panel shows book-specific labels", ()
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Look for book-specific labels in the UI
-    const bodyText = await page.locator("body").textContent() ?? "";
-
     // If the book is selected/visible, check for book-specific labels
     const bookCourse = page.getByText(title);
     if (await bookCourse.isVisible({ timeout: 5000 }).catch(() => false)) {

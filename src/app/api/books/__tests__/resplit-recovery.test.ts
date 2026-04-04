@@ -198,7 +198,7 @@ describe("Re-Split Recovery Flow", () => {
       expect(deleteRes.status).toBe(200);
       expect(deleteData.deleted.lessonCount).toBe(12);
       expect(mockPrisma.lesson.deleteMany).toHaveBeenCalledWith({
-        where: { courseId: "book-1" },
+        where: { courseId: "book-1", course: { userId: "test-user-id" } },
       });
     });
 
@@ -209,7 +209,7 @@ describe("Re-Split Recovery Flow", () => {
 
       // deleteMany only targets lessons, not the course itself
       expect(mockPrisma.lesson.deleteMany).toHaveBeenCalledWith({
-        where: { courseId: "book-1" },
+        where: { courseId: "book-1", course: { userId: "test-user-id" } },
       });
       // course.findUnique was called for validation, NOT for deletion
       expect(mockPrisma.course.findFirst).toHaveBeenCalledWith(

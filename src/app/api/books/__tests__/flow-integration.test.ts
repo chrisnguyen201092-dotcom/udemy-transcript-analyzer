@@ -7,7 +7,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { randomUUID } from "crypto";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 const { mockPrisma, mockDetectChapters, mockParsePdf, mockParseDocx } = vi.hoisted(() => {

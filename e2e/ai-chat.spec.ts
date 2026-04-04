@@ -122,9 +122,6 @@ test.describe("AI Chat Flow", () => {
     await chatInput.press("Enter");
 
     // Look for loading indicator (spinner, dots, "Thinking..." etc.)
-    const loadingIndicator = page.locator(
-      '[data-testid="loading"], .animate-spin, .animate-pulse, :has-text("loading"), :has-text("thinking"), :has-text("đang")'
-    ).first();
     // Loading may appear very briefly or not at all if error returns quickly
     // This is a best-effort check
     await expect(page.locator("body")).toBeVisible();
@@ -149,15 +146,10 @@ test.describe("AI Chat Flow", () => {
     await chatTab.click();
 
     // Chat message list/area should be present
-    const chatArea = page.locator(
-      '[data-testid="chat-messages"], [role="log"], .chat-messages, .messages-container'
-    ).first();
     // Or verify the chat panel has some structure
     await expect(page.locator("body")).toBeVisible();
 
     // The chat area should not show an error state
-    const errorText = page.locator(':has-text("error"):has-text("crash")').first();
-    const errorCount = await errorText.count();
     // Graceful check
     await expect(page.locator("body")).toBeVisible();
   });

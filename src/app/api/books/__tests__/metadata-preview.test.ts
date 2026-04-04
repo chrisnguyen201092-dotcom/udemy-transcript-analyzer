@@ -75,7 +75,7 @@ function makeEmptyFormRequest(): NextRequest {
   });
   req.formData = () =>
     Promise.resolve({
-      get: (_key: string) => null,
+      get: () => null,
     } as unknown as FormData);
   return req;
 }

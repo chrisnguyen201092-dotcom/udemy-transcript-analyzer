@@ -309,7 +309,6 @@ describe("heatmap and time tracking edge cases", () => {
   });
 
   it("time tracking caps individual session at 24 hours — large value stored", async () => {
-    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
     const largeTimeMs = 48 * 60 * 60 * 1000; // 48 hours
 
     mockPrisma.lessonProgress.aggregate

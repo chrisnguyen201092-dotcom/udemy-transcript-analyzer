@@ -66,9 +66,6 @@ test.describe("SRS Spaced Repetition Flow", () => {
     await practiceTab.click();
 
     // Look for flashcard deck structure
-    const flashcardDeck = page.locator(
-      '[data-testid="flashcard-deck"], [data-testid="flashcard"], .flashcard-deck, .flashcard'
-    );
     // Deck might not be visible until flashcards are generated
     await expect(page.locator("body")).toBeVisible();
   });
@@ -97,10 +94,6 @@ test.describe("SRS Spaced Repetition Flow", () => {
     await practiceTab.click();
 
     // Look for prev/next navigation
-    const navButtons = page.locator(
-      'button:has-text("Next"), button:has-text("Prev"), button:has-text("Tiếp"), button:has-text("Trước"), [data-testid="next-card"], [data-testid="prev-card"], button[aria-label*="next" i], button[aria-label*="prev" i]'
-    );
-    const count = await navButtons.count();
     // Navigation should exist when flashcards are present
     await expect(page.locator("body")).toBeVisible();
   });
@@ -112,9 +105,6 @@ test.describe("SRS Spaced Repetition Flow", () => {
     await practiceTab.click();
 
     // SRS typically has rating buttons (0-5 or Easy/Medium/Hard)
-    const ratingButtons = page.locator(
-      'button:has-text("Easy"), button:has-text("Hard"), button:has-text("Again"), button:has-text("Good"), button:has-text("Dễ"), button:has-text("Khó"), button:has-text("Lại"), [data-testid*="rating"], [data-testid*="quality"]'
-    );
     // Rating buttons may only appear during active review
     await expect(page.locator("body")).toBeVisible();
   });
@@ -147,9 +137,6 @@ test.describe("SRS Spaced Repetition Flow", () => {
     await practiceTab.click();
 
     // Look for mastery indicators
-    const masteryIndicator = page.locator(
-      '[data-testid="mastery"], :has-text("mastery"), :has-text("progress"), :has-text("tiến độ"), [role="progressbar"], .mastery'
-    );
     // Mastery tracking may show after cards have been reviewed
     await expect(page.locator("body")).toBeVisible();
   });
@@ -161,9 +148,6 @@ test.describe("SRS Spaced Repetition Flow", () => {
     await practiceTab.click();
 
     // Look for "Card X of Y" or similar counter
-    const cardCounter = page.locator(
-      ':has-text("of"), :has-text("/"), :has-text("card"), :has-text("thẻ"), [data-testid="card-counter"]'
-    );
     // Counter may only appear when flashcards exist
     await expect(page.locator("body")).toBeVisible();
   });

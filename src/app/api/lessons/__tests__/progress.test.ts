@@ -914,7 +914,7 @@ describe("100% completion state", () => {
 
     const req = makePostRequest("l2", { completed: true });
     const res = await POST(req, { params: Promise.resolve({ id: "l2" }) });
-    const json = await res.json();
+    await res.json();
 
     expect(res.status).toBe(200);
     // Verify course progress upsert was called with 100% completion

@@ -44,9 +44,6 @@ test.describe("AI Summary & Explain Flow", () => {
 
   test("should show AI assistant panel with tabs", async ({ page }) => {
     // Look for AI tabs (Summary, Explain, Chat, etc.)
-    const summaryTab = page.getByRole("tab", { name: /summary|tóm tắt/i });
-    const explainTab = page.getByRole("tab", { name: /explain|giải thích/i });
-
     // At least some AI-related tabs should be present
     const tabBar = page.locator('[role="tablist"]').first();
     if (await tabBar.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -168,11 +165,7 @@ test.describe("AI Summary & Explain Flow", () => {
       await summaryTab.click();
 
       // Look for mode toggle (quick vs detailed, or similar)
-      const modeOptions = page.locator(
-        'button:has-text("Quick"), button:has-text("Detailed"), button:has-text("Nhanh"), button:has-text("Chi tiết"), [role="radio"], select'
-      );
       // This may or may not be present depending on implementation
-      const count = await modeOptions.count();
       // Graceful: just verify the page didn't crash
       await expect(page.locator("body")).toBeVisible();
     }
