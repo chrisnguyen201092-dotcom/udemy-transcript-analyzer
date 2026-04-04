@@ -2,12 +2,19 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
+import {
+  calculateStreak,
+  computeMasteryScore,
+  computeCourseProgressMetrics,
+  evaluateMasteryGate,
+  getTimezoneFromRequest,
+} from "@/lib/progress-helpers";
 
 // ─── Schemas ───────────────────────────────────────────────────────────────────
 
 const PostProgressSchema = z.object({
   completed: z.boolean(),
-  quizScore: z.number().optional(),
+  quizScore: z.number().min(0).max(100).optional(),
 });
 
 const PatchProgressSchema = z.object({
@@ -15,49 +22,6 @@ const PatchProgressSchema = z.object({
   flashcardsMastered: z.number().optional(),
   flashcardsTotal: z.number().optional(),
 });
-
-// ─── Streak helpers ────────────────────────────────────────────────────────────
-
-function getUTCDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function calculateStreak(
-  existing: { currentStreak: number; longestStreak: number; lastStudiedAt: Date | null } | null
-): { currentStreak: number; longestStreak: number } {
-  const now = new Date();
-  const todayStr = getUTCDateString(now);
-
-  if (!existing || !existing.lastStudiedAt) {
-    return { currentStreak: 1, longestStreak: Math.max(1, existing?.longestStreak ?? 0) };
-  }
-
-  const lastStr = getUTCDateString(new Date(existing.lastStudiedAt));
-
-  if (lastStr === todayStr) {
-    return {
-      currentStreak: existing.currentStreak,
-      longestStreak: existing.longestStreak,
-    };
-  }
-
-  const yesterday = new Date(now);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const yesterdayStr = getUTCDateString(yesterday);
-
-  if (lastStr === yesterdayStr) {
-    const newStreak = existing.currentStreak + 1;
-    return {
-      currentStreak: newStreak,
-      longestStreak: Math.max(existing.longestStreak, newStreak),
-    };
-  }
-
-  return {
-    currentStreak: 1,
-    longestStreak: Math.max(existing.longestStreak, 1),
-  };
-}
 
 // ─── POST /api/lessons/[id]/progress ───────────────────────────────────────────
 
@@ -71,6 +35,7 @@ export const POST = withAuth(async (req, { userId, params }) => {
 
   try {
     const id = params?.id ?? "";
+    const timezone = getTimezoneFromRequest(req);
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -84,7 +49,16 @@ export const POST = withAuth(async (req, { userId, params }) => {
     const { completed, quizScore } = body;
     const courseId = lesson.courseId;
 
-    // Upsert LessonProgress scoped to userId
+    // ── Mastery gate ──────────────────────────────────────────────────────────
+    // Gate passes if: no quiz (quizScore null) OR quizScore >= threshold
+    const masteryGatePassed = completed && evaluateMasteryGate(quizScore);
+
+    // Composite mastery score (async — reads SRS data)
+    const masteryScore = completed
+      ? await computeMasteryScore(userId, id, quizScore ?? null)
+      : null;
+
+    // ── Upsert LessonProgress ────────────────────────────────────────────────
     const lessonProgress = await prisma.lessonProgress.upsert({
       where: { userId_lessonId: { userId, lessonId: id } },
       create: {
@@ -93,60 +67,39 @@ export const POST = withAuth(async (req, { userId, params }) => {
         completed,
         completedAt: completed ? new Date() : null,
         quizScore: quizScore ?? null,
+        masteryGatePassed,
+        masteryScore,
       },
       update: {
         completed,
         completedAt: completed ? new Date() : null,
         ...(quizScore !== undefined ? { quizScore } : {}),
+        masteryGatePassed,
+        ...(masteryScore !== null ? { masteryScore } : {}),
       },
     });
 
-    // Recalculate course progress
-    const totalLessons = lesson.course.lessons.length;
-
+    // ── Recalculate CourseProgress ───────────────────────────────────────────
     const allLessonProgress = await prisma.lessonProgress.findMany({
-      where: {
-        userId,
-        lessonId: { in: lesson.course.lessons.map((l) => l.id) },
-      },
+      where: { userId, lessonId: { in: lesson.course.lessons.map((l) => l.id) } },
+      select: { completed: true, masteryGatePassed: true, timeSpentMs: true },
     });
 
-    const completedCount = allLessonProgress.filter(
-      (lp: { completed: boolean }) => lp.completed
-    ).length;
-    const completionPct = totalLessons > 0
-      ? Math.round((completedCount / totalLessons) * 1000) / 10
-      : 0;
-
-    const totalTimeSpentMs = allLessonProgress.reduce(
-      (sum: number, lp: { timeSpentMs?: number }) => sum + (lp.timeSpentMs ?? 0),
-      0
+    const { completionPct, totalTimeSpentMs } = computeCourseProgressMetrics(
+      lesson.course.lessons.length,
+      allLessonProgress
     );
 
     const existingCourseProgress = await prisma.courseProgress.findFirst({
       where: { courseId, userId },
     });
 
-    const { currentStreak, longestStreak } = calculateStreak(existingCourseProgress);
+    const { currentStreak, longestStreak } = calculateStreak(existingCourseProgress, timezone);
 
     await prisma.courseProgress.upsert({
       where: { userId_courseId: { userId, courseId } },
-      create: {
-        userId,
-        courseId,
-        completionPct,
-        currentStreak,
-        longestStreak,
-        lastStudiedAt: new Date(),
-        totalTimeSpentMs,
-      },
-      update: {
-        completionPct,
-        currentStreak,
-        longestStreak,
-        lastStudiedAt: new Date(),
-        totalTimeSpentMs,
-      },
+      create: { userId, courseId, completionPct, currentStreak, longestStreak, lastStudiedAt: new Date(), totalTimeSpentMs },
+      update: { completionPct, currentStreak, longestStreak, lastStudiedAt: new Date(), totalTimeSpentMs },
     });
 
     return NextResponse.json({
@@ -159,14 +112,13 @@ export const POST = withAuth(async (req, { userId, params }) => {
         timeSpentMs: lessonProgress.timeSpentMs,
         flashcardsMastered: lessonProgress.flashcardsMastered,
         flashcardsTotal: lessonProgress.flashcardsTotal,
+        masteryGatePassed: lessonProgress.masteryGatePassed,
+        masteryScore: lessonProgress.masteryScore,
       },
     });
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
-      { error: "Failed to update lesson progress" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update lesson progress" }, { status: 500 });
   }
 });
 
@@ -182,6 +134,7 @@ export const PATCH = withAuth(async (req, { userId, params }) => {
 
   try {
     const id = params?.id ?? "";
+    const timezone = getTimezoneFromRequest(req);
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -199,58 +152,39 @@ export const PATCH = withAuth(async (req, { userId, params }) => {
       timeSpentMs: { increment: number };
       flashcardsMastered?: number;
       flashcardsTotal?: number;
-    } = {
-      timeSpentMs: { increment: delta },
-    };
+    } = { timeSpentMs: { increment: delta } };
+
     if (flashcardsMastered !== undefined) updateData.flashcardsMastered = flashcardsMastered;
     if (flashcardsTotal !== undefined) updateData.flashcardsTotal = flashcardsTotal;
 
     const lessonProgress = await prisma.lessonProgress.upsert({
       where: { userId_lessonId: { userId, lessonId: id } },
-      create: {
-        userId,
-        lessonId: id,
-        timeSpentMs: delta,
-        flashcardsMastered: flashcardsMastered ?? 0,
-        flashcardsTotal: flashcardsTotal ?? 0,
-      },
+      create: { userId, lessonId: id, timeSpentMs: delta, flashcardsMastered: flashcardsMastered ?? 0, flashcardsTotal: flashcardsTotal ?? 0 },
       update: updateData,
     });
 
-    // Update CourseProgress: totalTimeSpentMs + streak
+    // Update streak + totalTimeSpentMs in CourseProgress
     const courseId = lesson.courseId;
 
     const allLessonProgress = await prisma.lessonProgress.findMany({
       where: { userId, lesson: { courseId } },
+      select: { completed: true, masteryGatePassed: true, timeSpentMs: true },
     });
 
-    const totalTimeSpentMs = allLessonProgress.reduce(
-      (sum: number, lp: { timeSpentMs?: number }) => sum + (lp.timeSpentMs ?? 0),
-      0
+    // PATCH doesn't change completionPct — read existing or recompute
+    const course = await prisma.course.findFirst({ where: { id: courseId }, include: { lessons: { select: { id: true } } } });
+    const { completionPct, totalTimeSpentMs } = computeCourseProgressMetrics(
+      course?.lessons.length ?? 0,
+      allLessonProgress
     );
 
-    const existingCourseProgress = await prisma.courseProgress.findFirst({
-      where: { courseId, userId },
-    });
-
-    const { currentStreak, longestStreak } = calculateStreak(existingCourseProgress);
+    const existingCourseProgress = await prisma.courseProgress.findFirst({ where: { courseId, userId } });
+    const { currentStreak, longestStreak } = calculateStreak(existingCourseProgress, timezone);
 
     await prisma.courseProgress.upsert({
       where: { userId_courseId: { userId, courseId } },
-      create: {
-        userId,
-        courseId,
-        currentStreak,
-        longestStreak,
-        lastStudiedAt: new Date(),
-        totalTimeSpentMs,
-      },
-      update: {
-        currentStreak,
-        longestStreak,
-        lastStudiedAt: new Date(),
-        totalTimeSpentMs,
-      },
+      create: { userId, courseId, completionPct, currentStreak, longestStreak, lastStudiedAt: new Date(), totalTimeSpentMs },
+      update: { completionPct, currentStreak, longestStreak, lastStudiedAt: new Date(), totalTimeSpentMs },
     });
 
     return NextResponse.json({
@@ -263,13 +197,12 @@ export const PATCH = withAuth(async (req, { userId, params }) => {
         timeSpentMs: lessonProgress.timeSpentMs,
         flashcardsMastered: lessonProgress.flashcardsMastered,
         flashcardsTotal: lessonProgress.flashcardsTotal,
+        masteryGatePassed: lessonProgress.masteryGatePassed,
+        masteryScore: lessonProgress.masteryScore,
       },
     });
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
-      { error: "Failed to update lesson progress" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update lesson progress" }, { status: 500 });
   }
 });
