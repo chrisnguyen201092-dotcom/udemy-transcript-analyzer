@@ -23,8 +23,8 @@ export default function ImportPage() {
   );
   const profile = activeProfile(store);
 
-  // Cookie input state (inline, shown when no cookie configured)
-  const [showCookieSection, setShowCookieSection] = useState(false);
+  // Cookie input state — auto-expand if no cookie configured
+  const [showCookieSection, setShowCookieSection] = useState(!profile.udemyCookie);
   const [cookieInput, setCookieInput] = useState("");
   const [showCookieValue, setShowCookieValue] = useState(false);
 
