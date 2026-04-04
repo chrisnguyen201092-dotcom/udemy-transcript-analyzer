@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { Globe, FileText, BookOpen, ChevronDown, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Globe, FileText, BookOpen, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ImportModal } from "@/components/ImportModal";
 import { UploadModal } from "@/components/UploadModal";
@@ -23,8 +23,7 @@ export default function ImportPage() {
   );
   const profile = activeProfile(store);
 
-  // Cookie input state — auto-expand if no cookie configured
-  const [showCookieSection, setShowCookieSection] = useState(!profile.udemyCookie);
+  // Cookie input state — always visible on import page
   const [cookieInput, setCookieInput] = useState("");
   const [showCookieValue, setShowCookieValue] = useState(false);
 
@@ -40,7 +39,6 @@ export default function ImportPage() {
       i === idx ? { ...p, udemyCookie: cookie } : p
     );
     saveStore({ ...store, profiles: updated });
-    setShowCookieSection(false);
     setCookieInput("");
     setShowImportModal(true);
     udemy.handleFetchUdemyCourses(cookie);
@@ -50,8 +48,6 @@ export default function ImportPage() {
     if (profile.udemyCookie) {
       setShowImportModal(true);
       udemy.handleFetchUdemyCourses(profile.udemyCookie);
-    } else {
-      setShowCookieSection((v) => !v);
     }
   };
 
@@ -69,11 +65,8 @@ export default function ImportPage() {
         <div className="flex flex-col gap-3">
           {/* ── Udemy card ── */}
           <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
-            <button
-              type="button"
-              onClick={handleOpenUdemy}
-              className="w-full text-left flex items-start gap-4 p-5 hover:border-[#A435F0] hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all cursor-pointer group"
-            >
+            {/* Header row */}
+            <div className="flex items-start gap-4 p-5">
               <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center shrink-0">
                 <Globe className="w-5 h-5 text-orange-500" />
               </div>
@@ -90,72 +83,67 @@ export default function ImportPage() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                  {profile.udemyCookie
-                    ? "Lấy danh sách courses từ tài khoản Udemy và import transcript tự động."
-                    : "Cần nhập Udemy Cookie để lấy danh sách courses của bạn."}
+                  Nhập Udemy Cookie để lấy danh sách courses và import transcript tự động.
                 </p>
               </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-400 mt-1 shrink-0 transition-transform ${showCookieSection ? "rotate-180" : ""}`}
-              />
-            </button>
+              {profile.udemyCookie && (
+                <button
+                  type="button"
+                  onClick={handleOpenUdemy}
+                  className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] transition-colors"
+                >
+                  Mở danh sách
+                </button>
+              )}
+            </div>
 
-            {/* Inline cookie input — shown when no cookie configured */}
-            {showCookieSection && (
-              <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-4 bg-gray-50 dark:bg-gray-800/40">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Vào{" "}
-                  <a
-                    href="https://www.udemy.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#A435F0] hover:underline"
-                  >
-                    udemy.com
-                  </a>
-                  , mở DevTools → Application → Cookies, sao chép giá trị cookie{" "}
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded text-[10px]">access_token</code>{" "}
-                  hoặc toàn bộ cookie header.
-                </p>
-                <div className="relative">
-                  <textarea
-                    value={cookieInput}
-                    onChange={(e) => setCookieInput(e.target.value)}
-                    placeholder="Dán cookie vào đây..."
-                    rows={3}
-                    style={{
-                      fontFamily: "monospace",
-                      ...(showCookieValue ? {} : { WebkitTextSecurity: "disc" } as React.CSSProperties),
-                    }}
-                    className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 pr-10 text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#A435F0]/30 focus:border-[#A435F0]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCookieValue((v) => !v)}
-                    className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    {showCookieValue ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={handleSaveAndFetch}
-                    disabled={!cookieInput.trim()}
-                    className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Lưu & Lấy danh sách courses
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowCookieSection(false); setCookieInput(""); }}
-                    className="px-4 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    Hủy
-                  </button>
-                </div>
+            {/* Cookie input — always visible */}
+            <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-4 bg-gray-50 dark:bg-gray-800/40">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Vào{" "}
+                <a
+                  href="https://www.udemy.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#A435F0] hover:underline"
+                >
+                  udemy.com
+                </a>
+                , mở DevTools → Application → Cookies, sao chép giá trị cookie{" "}
+                <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded text-[10px]">access_token</code>{" "}
+                hoặc toàn bộ cookie header.
+              </p>
+              <div className="relative">
+                <textarea
+                  value={cookieInput}
+                  onChange={(e) => setCookieInput(e.target.value)}
+                  placeholder={profile.udemyCookie ? "Dán cookie mới để cập nhật..." : "Dán cookie vào đây..."}
+                  rows={3}
+                  style={{
+                    fontFamily: "monospace",
+                    ...(showCookieValue ? {} : { WebkitTextSecurity: "disc" } as React.CSSProperties),
+                  }}
+                  className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 pr-10 text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#A435F0]/30 focus:border-[#A435F0]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCookieValue((v) => !v)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {showCookieValue ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={handleSaveAndFetch}
+                  disabled={!cookieInput.trim()}
+                  className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-[#A435F0] text-white hover:bg-[#8710D8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {profile.udemyCookie ? "Cập nhật & Lấy danh sách" : "Lưu & Lấy danh sách courses"}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* ── Transcript upload card ── */}
