@@ -16,25 +16,7 @@ import { AlertDialog,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { normalizeText } from "@/lib/string-utils";
-
-interface Lesson {
-  id: string;
-  title: string;
-  order: number;
-  transcript: string | null;
-}
-
-interface Course {
-  id: string;
-  url: string;
-  title: string;
-  contentType: string;
-  author?: string | null;
-  isbn?: string | null;
-  publisher?: string | null;
-  lessons: Lesson[];
-  createdAt: string;
-}
+import type { Course } from "@/types/course";
 
 interface CourseListProps {
   courses: Course[];

@@ -15,15 +15,9 @@ import {
   TranscriptUnsavedDialog,
   TranscriptPanelHeader,
 } from "@/components/transcript-body-parts";
+import type { Lesson } from "@/types/course";
 
 // ── Types ──────────────────────────────────────────────────────
-
-interface Lesson {
-  id: string;
-  title: string;
-  order: number;
-  transcript: string | null;
-}
 
 interface TranscriptPanelProps {
   lesson: Lesson;

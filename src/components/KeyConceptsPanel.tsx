@@ -100,7 +100,7 @@ export function KeyConceptsPanel({
         <div className="flex flex-col gap-2">
           {concepts.map((c, i) => (
             <button
-              key={i}
+              key={c.term}
               type="button"
               onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
               className="w-full text-left bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-800 p-3 hover:border-amber-200 dark:hover:border-amber-800 transition-colors cursor-pointer"

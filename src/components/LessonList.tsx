@@ -34,13 +34,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableLessonItem } from "@/components/SortableLessonItem";
-
-interface Lesson {
-  id: string;
-  title: string;
-  order: number;
-  transcript: string | null;
-}
+import type { Lesson } from "@/types/course";
 
 interface LessonListProps {
   lessons: Lesson[];

@@ -43,8 +43,8 @@ export function EmptyDashboard() {
       </div>
 
       <div className="grid gap-4 mb-8">
-        {steps.map((step, i) => (
-          <Card key={i}>
+        {steps.map((step) => (
+          <Card key={step.title}>
             <CardContent className="flex items-start gap-4 py-4">
               <div className="w-10 h-10 rounded-lg bg-[#A435F0]/10 flex items-center justify-center shrink-0">
                 <step.icon className="w-5 h-5 text-[#A435F0]" />
