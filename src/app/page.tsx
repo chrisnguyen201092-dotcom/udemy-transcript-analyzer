@@ -196,8 +196,6 @@ function HomeContent() {
             }}
             onCloseCollection={() => setShowCollection(false)}
             onOpenSettings={() => setShowSettings(true)}
-            onOpenImport={handleOpenImport}
-            onOpenUpload={() => { setUploadMode("transcript"); setShowUpload(true); }}
           />
         </main>
       </div>
