@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -15,7 +15,7 @@ const MergeSchema = z.object({
  */
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const courseId = params?.id!;
+    const courseId = params?.id ?? "";
     const { lessonId1, lessonId2 } = MergeSchema.parse(await req.json());
 
     // Verify course ownership

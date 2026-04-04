@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
@@ -15,7 +15,7 @@ interface FlashcardsJSON {
 
 export const POST = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     // Verify lesson belongs to user's course
     const lesson = await prisma.lesson.findFirst({
@@ -44,7 +44,15 @@ export const POST = withAuth(async (_req, { userId, params }) => {
       );
     }
 
-    const parsed: FlashcardsJSON = JSON.parse(artifact.content);
+    let parsed: FlashcardsJSON;
+    try {
+      parsed = JSON.parse(artifact.content);
+    } catch {
+      return NextResponse.json(
+        { error: "Dữ liệu flashcard bị lỗi. Hãy tạo lại flashcard." },
+        { status: 422 }
+      );
+    }
 
     if (!parsed.cards || parsed.cards.length === 0) {
       return NextResponse.json(

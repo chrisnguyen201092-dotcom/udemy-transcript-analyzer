@@ -4,7 +4,7 @@ import { withAuth } from "@/lib/auth";
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const course = await prisma.course.findFirst({
       where: { id, userId },

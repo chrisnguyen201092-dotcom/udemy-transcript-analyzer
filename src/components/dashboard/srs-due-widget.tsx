@@ -4,6 +4,7 @@
 
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Brain } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ interface SrsDueWidgetProps {
 }
 
 export function SrsDueWidget({ count }: SrsDueWidgetProps) {
+  const router = useRouter();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -29,6 +31,7 @@ export function SrsDueWidget({ count }: SrsDueWidgetProps) {
               flashcard cần ôn tập
             </p>
             <Button
+              onClick={() => router.push("/?tab=flashcards")}
               className="mt-4 bg-[#A435F0] hover:bg-[#8710D8] text-white cursor-pointer"
               size="sm"
             >

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
@@ -17,7 +17,7 @@ const AiUpdateSchema = z.object({
 
 export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
     const body = await req.json();
 
     const parsed = AiUpdateSchema.safeParse(body);
@@ -75,7 +75,7 @@ export const PUT = withAuth(async (req, { userId, params }) => {
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     // Verify lesson ownership
     const lesson = await prisma.lesson.findFirst({

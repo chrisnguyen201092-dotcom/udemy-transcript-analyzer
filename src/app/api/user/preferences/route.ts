@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
@@ -21,6 +22,19 @@ function parsePrefs(raw: string | null | undefined): Record<string, unknown> {
   }
 }
 
+/** Strict schema — only known preference fields are accepted */
+const PreferencesSchema = z
+  .object({
+    language: z.string().optional(),
+    theme: z.enum(["light", "dark", "system"]).optional(),
+    autoplay: z.boolean().optional(),
+    playbackSpeed: z.number().min(0.25).max(4).optional(),
+    subtitles: z.boolean().optional(),
+    emailNotifications: z.boolean().optional(),
+    aiModel: z.string().optional(),
+  })
+  .strict();
+
 export const GET = withAuth(async (_req: NextRequest, { userId }) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -32,7 +46,17 @@ export const GET = withAuth(async (_req: NextRequest, { userId }) => {
 
 export const PUT = withAuth(async (req: NextRequest, { userId }) => {
   try {
-    const body = await req.json();
+    const raw = await req.json();
+
+    // Validate against known preference fields only
+    const parsed = PreferencesSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
 
     // Merge with existing preferences
     const current = await prisma.user.findUnique({

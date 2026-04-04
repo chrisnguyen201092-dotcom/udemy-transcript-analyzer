@@ -3,7 +3,7 @@
  * Bulk-delete all lessons for a book course (verify-before-delete pattern).
  * Covers: B-20 (re-split recovery — bulk delete)
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -67,7 +67,7 @@ export const DELETE = withAuth(async (req, { userId }) => {
     }
 
     const { count } = await prisma.lesson.deleteMany({
-      where: { courseId: bookId },
+      where: { courseId: bookId, course: { userId } },
     });
 
     return NextResponse.json({

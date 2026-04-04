@@ -3,7 +3,7 @@
  * Confirm chapter split: create Lesson records for each approved chapter.
  * Covers: B-19 (confirm flow)
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -74,11 +74,14 @@ export const POST = withAuth(async (req, { userId }) => {
     }));
 
     return NextResponse.json({ created, courseId: parsed.bookId });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    if (error?.status === 409) {
+    if (
+      error instanceof Error &&
+      (error as Error & { status?: number }).status === 409
+    ) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("Split confirm error:", error);

@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
 export const GET = withAuth(async (_req, { userId, params }) => {
-  const id = params?.id!;
+  const id = params?.id ?? "";
   const course = await prisma.course.findFirst({
     where: { id, userId },
     include: { lessons: { orderBy: { order: "asc" } } },
@@ -15,7 +15,7 @@ export const GET = withAuth(async (_req, { userId, params }) => {
 });
 
 export const PATCH = withAuth(async (req, { userId, params }) => {
-  const id = params?.id!;
+  const id = params?.id ?? "";
   const body = await req.json();
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (!title) {
@@ -34,7 +34,7 @@ export const PATCH = withAuth(async (req, { userId, params }) => {
 });
 
 export const DELETE = withAuth(async (_req, { userId, params }) => {
-  const id = params?.id!;
+  const id = params?.id ?? "";
   const existing = await prisma.course.findFirst({ where: { id, userId } });
   if (!existing) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });

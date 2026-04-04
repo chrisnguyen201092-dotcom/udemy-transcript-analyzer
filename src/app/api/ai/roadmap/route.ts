@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
@@ -52,7 +52,7 @@ export const POST = withAuth(async (req, { userId }) => {
     }
 
     // M-11: If another request is already generating this roadmap, wait then re-check cache
-    const cacheKey = `roadmap-${courseId}`;
+    const cacheKey = `roadmap-${userId}-${courseId}`;
     if (inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
       const refreshed = await prisma.course.findFirst({ where: { id: courseId, userId }, select: { roadmap: true } });

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
@@ -22,7 +22,7 @@ interface LessonReviewStats {
  */
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const course = await prisma.course.findFirst({
       where: { id, userId },

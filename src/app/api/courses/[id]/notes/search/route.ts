@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
 export const GET = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const q = req.nextUrl.searchParams.get("q")?.trim();
     if (!q) {

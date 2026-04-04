@@ -6,6 +6,9 @@ import { createAIClient } from "@/lib/ai/client";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 import { withAuth } from "@/lib/auth";
 
+// C-4: Prevent oversized transcripts from exceeding LLM context limits
+const MAX_TRANSCRIPT_CHARS = 50_000;
+
 const ConceptsSchema = z.object({
   lessonId: z.string(),
   apiKey: z.string().min(1),
@@ -68,7 +71,7 @@ export const POST = withAuth(async (req, { userId }) => {
         { role: "system", content: getSystemPrompt("concepts", contentType) },
         {
           role: "user",
-          content: `Trích xuất khái niệm chính từ chương sách:\n\nSách: ${lesson.course.title}\nChương: ${lesson.title}\nNội dung:\n${lesson.transcript}`,
+          content: `Trích xuất khái niệm chính từ chương sách:\n\nSách: ${lesson.course.title}\nChương: ${lesson.title}\nNội dung:\n${lesson.transcript.slice(0, MAX_TRANSCRIPT_CHARS)}`,
         },
       ],
     });

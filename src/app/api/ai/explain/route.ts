@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getExplainPrompt, getSystemPrompt, type ExplainDepth, type CodeRatio, type ContentType } from "@/lib/ai/prompts";
@@ -9,6 +9,9 @@ import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
 const inFlightGenerations = new Map<string, Promise<void>>();
+
+// C-4: Prevent oversized transcripts from exceeding LLM context limits
+const MAX_TRANSCRIPT_CHARS = 50_000;
 
 const ExplainSchema = z
   .object({
@@ -88,7 +91,7 @@ export const POST = withAuth(async (req, { userId }) => {
     }
 
     // M-11: If another request is already generating explanation for this lesson, wait then re-check cache
-    const cacheKey = `explain-${lessonId}`;
+    const cacheKey = `explain-${userId}-${lessonId}`;
     if (!selectedText && inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
       const refreshed = await prisma.lessonArtifact.findUnique({
@@ -100,14 +103,16 @@ export const POST = withAuth(async (req, { userId }) => {
       }
     }
 
+    const transcript = lesson.transcript.slice(0, MAX_TRANSCRIPT_CHARS);
+
     // Auto-downgrade: deep → standard if transcript < 200 words
-    const wordCount = lesson.transcript.split(/\s+/).length;
+    const wordCount = transcript.split(/\s+/).length;
     if (depth === "deep" && wordCount < 200) {
       depth = "standard";
     }
 
     // Classify code ratio
-    const codeRatio = classifyCodeRatio(lesson.transcript);
+    const codeRatio = classifyCodeRatio(transcript);
 
     // Fetch LearnerProfile (optional, no error if missing or model not available)
     let learnerProfile: { level: string } | null = null;
@@ -139,9 +144,9 @@ export const POST = withAuth(async (req, { userId }) => {
     // Build user message
     let userContent: string;
     if (selectedText) {
-      userContent = `Giải thích đoạn được chọn sau:\n\nĐoạn được chọn: ${selectedText}\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nTranscript đầy đủ (context nền):\n${lesson.transcript}${learnerContext}`;
+      userContent = `Giải thích đoạn được chọn sau:\n\nĐoạn được chọn: ${selectedText}\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nTranscript đầy đủ (context nền):\n${transcript}${learnerContext}`;
     } else {
-      userContent = `Giải thích chi tiết bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung bài học:\n${lesson.transcript}${learnerContext}`;
+      userContent = `Giải thích chi tiết bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung bài học:\n${transcript}${learnerContext}`;
     }
 
     const openaiStream = await client.chat.completions.create({

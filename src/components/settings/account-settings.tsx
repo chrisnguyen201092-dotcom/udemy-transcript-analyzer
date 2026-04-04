@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/user-utils";
 
 export function AccountSettings() {
   const { user, refresh } = useAuth();
@@ -47,14 +48,7 @@ export function AccountSettings() {
     }
   }
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : user?.email?.[0]?.toUpperCase() ?? "?";
+  const initials = getInitials(user?.name, user?.email ?? "");
 
   async function handleChangePassword() {
     if (newPassword !== confirmPassword) {

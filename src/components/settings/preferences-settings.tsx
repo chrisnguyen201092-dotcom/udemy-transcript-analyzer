@@ -34,7 +34,7 @@ const DEFAULT_PREFS: Preferences = {
 
 export function PreferencesSettings() {
   const { user, refresh } = useAuth();
-  const { setTheme, theme: currentTheme } = useTheme();
+  const { setTheme } = useTheme();
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);

@@ -15,7 +15,7 @@ interface FlashcardsJSON {
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     // Verify lesson belongs to user's course
     const lesson = await prisma.lesson.findFirst({
@@ -47,8 +47,13 @@ export const GET = withAuth(async (_req, { userId, params }) => {
       },
     });
     if (artifact) {
-      const parsed: FlashcardsJSON = JSON.parse(artifact.content);
-      cards = parsed.cards ?? [];
+      try {
+        const parsed: FlashcardsJSON = JSON.parse(artifact.content);
+        cards = parsed.cards ?? [];
+      } catch {
+        // Corrupted flashcard data — return empty cards instead of crashing
+        cards = [];
+      }
     }
 
     // Merge review data with card content

@@ -1,29 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 import { withAuth } from "@/lib/auth";
+import { sanitizeFilename, escapeCSVField } from "@/lib/export-utils";
 
-const VALID_TYPES = ["summary", "explanation", "quiz", "flashcards", "exercises"] as const;
-type ExportType = (typeof VALID_TYPES)[number];
-const VALID_FORMATS = ["markdown", "csv"] as const;
-type ExportFormat = (typeof VALID_FORMATS)[number];
-
-function sanitizeFilename(name: string): string {
-  return (
-    name
-      .replace(/[^\x20-\x7E]/g, "")
-      .replace(/[/\\:*?"<>|]/g, "")
-      .replace(/\s+/g, "-")
-      .slice(0, 100) || "export"
-  );
-}
-
-function escapeCSVField(value: string): string {
-  if (/^[=+\-@\t\r]/.test(value)) {
-    value = "'" + value;
-  }
-  const escaped = value.replace(/"/g, '""');
-  return `"${escaped}"`;
-}
+const ExportRequestSchema = z.object({
+  type: z.enum(["summary", "explanation", "quiz", "flashcards", "exercises"]),
+  format: z.enum(["markdown", "csv"]),
+});
 
 function escapeMdTable(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
@@ -112,18 +96,15 @@ function formatExercises(title: string, exercisesJson: string): string {
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
-    const body = await req.json();
-    const { type, format } = body as { type: string; format: string };
-
-    if (
-      !type ||
-      !format ||
-      !VALID_TYPES.includes(type as ExportType) ||
-      !VALID_FORMATS.includes(format as ExportFormat)
-    ) {
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Missing lesson id" }, { status: 400 });
+    }
+    const parseResult = ExportRequestSchema.safeParse(await req.json());
+    if (!parseResult.success) {
       return NextResponse.json({ error: "type hoặc format không hợp lệ" }, { status: 400 });
     }
+    const { type, format } = parseResult.data;
 
     if (format === "csv" && type !== "flashcards") {
       return NextResponse.json({ error: "Chỉ flashcards hỗ trợ format CSV" }, { status: 400 });
@@ -139,21 +120,14 @@ export const POST = withAuth(async (req, { userId, params }) => {
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
+    const ARTIFACT_TYPES = ["summary", "explanation", "quiz", "flashcards", "exercises"];
     const artifacts = await prisma.lessonArtifact.findMany({
-      where: { lessonId: id, userId, type: { in: VALID_TYPES as unknown as string[] } },
+      where: { lessonId: id, userId, type: { in: ARTIFACT_TYPES } },
       select: { type: true, content: true },
     });
     const artifactMap = Object.fromEntries(artifacts.map((a) => [a.type, a.content]));
 
-    const fieldMap: Record<ExportType, string | null | undefined> = {
-      summary: artifactMap["summary"] ?? null,
-      explanation: artifactMap["explanation"] ?? null,
-      quiz: artifactMap["quiz"] ?? null,
-      flashcards: artifactMap["flashcards"] ?? null,
-      exercises: artifactMap["exercises"] ?? null,
-    };
-
-    const fieldValue = fieldMap[type as ExportType];
+    const fieldValue = artifactMap[type] ?? null;
     if (fieldValue === null || fieldValue === undefined) {
       return NextResponse.json(
         { error: `Dữ liệu chưa được tạo. Vui lòng tạo ${type} trước khi xuất.` },
@@ -161,26 +135,24 @@ export const POST = withAuth(async (req, { userId, params }) => {
       );
     }
 
-    const exportType = type as ExportType;
-    const exportFormat = format as ExportFormat;
     let content: string;
     let contentType: string;
     let ext: string;
 
-    if (exportType === "summary") {
+    if (type === "summary") {
       content = formatSummary(lesson.title, fieldValue);
       contentType = "text/markdown; charset=utf-8";
       ext = "md";
-    } else if (exportType === "explanation") {
+    } else if (type === "explanation") {
       content = formatExplanation(lesson.title, fieldValue);
       contentType = "text/markdown; charset=utf-8";
       ext = "md";
-    } else if (exportType === "quiz") {
+    } else if (type === "quiz") {
       content = formatQuiz(lesson.title, fieldValue);
       contentType = "text/markdown; charset=utf-8";
       ext = "md";
-    } else if (exportType === "flashcards") {
-      if (exportFormat === "csv") {
+    } else if (type === "flashcards") {
+      if (format === "csv") {
         content = formatFlashcardsCSV(fieldValue);
         contentType = "text/csv; charset=utf-8";
         ext = "csv";

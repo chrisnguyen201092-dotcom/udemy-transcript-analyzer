@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
@@ -45,8 +45,15 @@ export const GET = withAuth(async (req, { userId }) => {
         Math.round((masteredReviews / totalReviews) * 10000) / 100;
     }
 
+    const since365 = new Date();
+    since365.setDate(since365.getDate() - 364);
+
     const completedDates = await prisma.lessonProgress.findMany({
-      where: { userId, completed: true, completedAt: { not: null } },
+      where: {
+        userId,
+        completed: true,
+        completedAt: { not: null, gte: since365 },
+      },
       select: { completedAt: true },
     });
 
@@ -71,7 +78,7 @@ export const GET = withAuth(async (req, { userId }) => {
       currentStreak,
       longestStreak,
       studyFrequency,
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Analytics overview error:", error);
     return NextResponse.json(

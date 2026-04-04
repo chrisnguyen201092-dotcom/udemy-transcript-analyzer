@@ -8,14 +8,15 @@ import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
 export const GET = withAuth(async (_req: NextRequest, { userId }) => {
-  const [
-    recentCourses,
-    srsCards,
-    lessonArtifacts,
-    allCourseData,
-    totalCoursesCount,
-    totalLessonsCount,
-  ] = await Promise.all([
+  try {
+    const [
+      recentCourses,
+      srsCards,
+      lessonArtifacts,
+      allCourseData,
+      totalCoursesCount,
+      totalLessonsCount,
+    ] = await Promise.all([
     // Recent courses with lesson count (for "continue learning" widget)
     prisma.course.findMany({
       where: { userId },
@@ -84,13 +85,17 @@ export const GET = withAuth(async (_req: NextRequest, { userId }) => {
   }));
 
   return NextResponse.json({
-    continueLearning,
-    srsDue: srsCards,
-    stats: {
-      totalCourses: totalCoursesCount,
-      completedLessons,
-      totalLessons: totalLessonsCount,
-      totalArtifacts: lessonArtifacts,
-    },
-  });
+      continueLearning,
+      srsDue: srsCards,
+      stats: {
+        totalCourses: totalCoursesCount,
+        completedLessons,
+        totalLessons: totalLessonsCount,
+        totalArtifacts: lessonArtifacts,
+      },
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Dashboard error:", error);
+    return NextResponse.json({ error: "Failed to load dashboard" }, { status: 500 });
+  }
 });

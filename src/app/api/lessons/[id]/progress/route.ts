@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -70,7 +70,7 @@ export const POST = withAuth(async (req, { userId, params }) => {
   }
 
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -181,7 +181,7 @@ export const PATCH = withAuth(async (req, { userId, params }) => {
   }
 
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },

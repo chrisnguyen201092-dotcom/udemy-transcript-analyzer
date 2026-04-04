@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -39,7 +39,7 @@ export const GET = withAuth(async (_req, { userId, params }) => {
 
 export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const body = await req.json();
     if (typeof body.notes !== "string") {

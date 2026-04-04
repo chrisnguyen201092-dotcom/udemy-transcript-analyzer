@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
@@ -10,7 +10,7 @@ const ChatMessageSchema = z.object({
 
 export const GET = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -37,7 +37,7 @@ export const GET = withAuth(async (_req, { userId, params }) => {
 
 export const DELETE = withAuth(async (_req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const lesson = await prisma.lesson.findFirst({
       where: { id, course: { userId } },
@@ -62,7 +62,7 @@ export const DELETE = withAuth(async (_req, { userId, params }) => {
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
     const body = ChatMessageSchema.parse(await req.json());
 
     const lesson = await prisma.lesson.findFirst({

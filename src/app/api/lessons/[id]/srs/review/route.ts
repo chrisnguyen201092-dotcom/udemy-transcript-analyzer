@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { calculateSM2 } from "@/lib/srs";
@@ -11,7 +11,7 @@ const ReviewSchema = z.object({
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
 
     const body = await req.json();
     const parsed = ReviewSchema.safeParse(body);

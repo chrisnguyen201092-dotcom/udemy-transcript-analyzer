@@ -57,7 +57,9 @@ export const GET = withAuth(async (_req, { userId }) => {
       };
     });
 
-    return NextResponse.json({ totalDue, lessons });
+    return NextResponse.json({ totalDue, lessons }, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

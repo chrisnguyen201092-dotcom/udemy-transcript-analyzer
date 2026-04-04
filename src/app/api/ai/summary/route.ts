@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt, type ContentType } from "@/lib/ai/prompts";
@@ -9,6 +9,9 @@ import { withAuth } from "@/lib/auth";
 
 // M-11: Module-level map to deduplicate concurrent AI calls for the same lesson
 const inFlightGenerations = new Map<string, Promise<void>>();
+
+// C-4: Prevent oversized transcripts from exceeding LLM context limits
+const MAX_TRANSCRIPT_CHARS = 50_000;
 
 const SummarySchema = z.object({
   lessonId: z.string(),
@@ -54,7 +57,7 @@ export const POST = withAuth(async (req, { userId }) => {
     }
 
     // M-11: If another request is already generating this summary, wait for it then re-check cache
-    const cacheKey = `summary-${lessonId}`;
+    const cacheKey = `summary-${userId}-${lessonId}`;
     if (inFlightGenerations.has(cacheKey)) {
       await inFlightGenerations.get(cacheKey)!.catch(() => {});
       const refreshed = await prisma.lessonArtifact.findUnique({
@@ -84,7 +87,7 @@ export const POST = withAuth(async (req, { userId }) => {
         },
         {
           role: "user",
-          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript}${learnerContext}`,
+          content: `Tóm tắt bài học sau đây:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung:\n${lesson.transcript.slice(0, MAX_TRANSCRIPT_CHARS)}${learnerContext}`,
         },
       ],
       stream: true,

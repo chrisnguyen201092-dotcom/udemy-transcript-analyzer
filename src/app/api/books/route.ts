@@ -4,7 +4,7 @@
  *
  * DELETE /api/books?id=... — clean up an uncommitted stub on cancel.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -9,7 +9,7 @@ const UpdateTranscriptSchema = z.object({
 
 export const PUT = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
     const { transcript } = UpdateTranscriptSchema.parse(await req.json());
 
     // Verify lesson belongs to a course owned by this user

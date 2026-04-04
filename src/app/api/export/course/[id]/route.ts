@@ -1,30 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 import { withAuth } from "@/lib/auth";
+import { sanitizeFilename, escapeCSVField } from "@/lib/export-utils";
 
 const VALID_TYPES = ["full-notes", "all-flashcards"] as const;
-type CourseExportType = (typeof VALID_TYPES)[number];
 const VALID_FORMATS = ["markdown", "csv"] as const;
-type CourseExportFormat = (typeof VALID_FORMATS)[number];
 
-function sanitizeFilename(name: string): string {
-  return (
-    name
-      .replace(/[^\x20-\x7E]/g, "")
-      .replace(/[/\\:*?"<>|]/g, "")
-      .replace(/\s+/g, "-")
-      .slice(0, 100) || "export"
-  );
-}
-
-function escapeCSVField(value: string): string {
-  // M-19: Prevent spreadsheet formula injection
-  if (/^[=+\-@\t\r]/.test(value)) {
-    value = "'" + value;
-  }
-  const escaped = value.replace(/"/g, '""');
-  return `"${escaped}"`;
-}
+const CourseExportRequestSchema = z.object({
+  type: z.enum(VALID_TYPES),
+  format: z.enum(VALID_FORMATS),
+});
 
 function formatFullNotes(
   courseTitle: string,
@@ -71,21 +57,18 @@ function formatAllFlashcardsCSV(
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
-    const body = await req.json();
-    const { type, format } = body as { type: string; format: string };
-
-    if (
-      !type ||
-      !format ||
-      !VALID_TYPES.includes(type as CourseExportType) ||
-      !VALID_FORMATS.includes(format as CourseExportFormat)
-    ) {
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: "Missing course id" }, { status: 400 });
+    }
+    const parseResult = CourseExportRequestSchema.safeParse(await req.json());
+    if (!parseResult.success) {
       return NextResponse.json(
         { error: "type hoặc format không hợp lệ" },
         { status: 400 }
       );
     }
+    const { type, format } = parseResult.data;
 
     if (type === "full-notes" && format !== "markdown") {
       return NextResponse.json(

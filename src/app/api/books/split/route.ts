@@ -6,13 +6,12 @@
  *
  * Covers: B-17 (heuristic), B-18 (AI fallback)
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parsePdf, parseDocx, parseMarkdownChapters } from "@/lib/parse-book";
+import { parsePdf, parseDocx } from "@/lib/parse-book";
 import { parseEpub } from "@/lib/parse-epub";
 import { validateMagicBytes } from "@/lib/file-security";
 import { detectChapters } from "@/lib/split-chapters";
-import type { DetectedChapter } from "@/lib/split-chapters";
 import { detectChaptersWithAI } from "@/lib/split-ai";
 import { MAX_BOOK_CONTENT_LENGTH, SUPPORTED_BOOK_EXTENSIONS } from "@/lib/book-constants";
 import { z } from "zod";

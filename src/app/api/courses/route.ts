@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -13,13 +13,41 @@ const CreateCourseSchema = z.object({
   publisher: z.string().optional(),
 });
 
-export const GET = withAuth(async (_req, { userId }) => {
+export const GET = withAuth(async (req, { userId }) => {
+  const url = req?.url ? new URL(req.url) : null;
+  const includeLessons = url?.searchParams.get("include") === "lessons";
+
+  if (includeLessons) {
+    const courses = await prisma.course.findMany({
+      where: { userId },
+      include: { lessons: { orderBy: { order: "asc" } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json(courses, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const courses = await prisma.course.findMany({
     where: { userId },
-    include: { lessons: { orderBy: { order: "asc" } } },
+    select: {
+      id: true,
+      url: true,
+      title: true,
+      contentType: true,
+      author: true,
+      isbn: true,
+      publisher: true,
+      userId: true,
+      createdAt: true,
+      updatedAt: true,
+      lastAccessedAt: true,
+    },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json(courses);
+  return NextResponse.json(courses, {
+    headers: { "Cache-Control": "no-store" },
+  });
 });
 
 export const POST = withAuth(async (req, { userId }) => {

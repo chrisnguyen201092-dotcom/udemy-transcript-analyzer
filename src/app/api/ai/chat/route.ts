@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getSystemPrompt, SOCRATIC_INSTRUCTION, type ContentType } from "@/lib/ai/prompts";
@@ -6,6 +6,9 @@ import { createAIClient } from "@/lib/ai/client";
 import { createThinkFilteredStream, STREAM_HEADERS } from "@/lib/ai/stream";
 import { validateBaseUrl } from "@/lib/security/validateBaseUrl";
 import { withAuth } from "@/lib/auth";
+
+// C-4: Prevent oversized transcripts from exceeding LLM context limits
+const MAX_TRANSCRIPT_CHARS = 50_000;
 
 const MessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -54,7 +57,7 @@ export const POST = withAuth(async (req, { userId }) => {
       systemPromptContent += "\n\n" + SOCRATIC_INSTRUCTION;
     }
 
-    const transcriptContext = `Dựa trên bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung: ${lesson.transcript}`;
+    const transcriptContext = `Dựa trên bài học sau:\n\nKhóa học: ${lesson.course.title}\nTiêu đề bài học: ${lesson.title}\nNội dung: ${lesson.transcript.slice(0, MAX_TRANSCRIPT_CHARS)}`;
 
     const chatMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: systemPromptContent },

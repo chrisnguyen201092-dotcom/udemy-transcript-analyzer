@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -10,7 +10,7 @@ const CreateLessonSchema = z.object({
 
 export const POST = withAuth(async (req, { userId, params }) => {
   try {
-    const id = params?.id!;
+    const id = params?.id ?? "";
     const { title, transcript } = CreateLessonSchema.parse(await req.json());
 
     // Verify course ownership
@@ -35,6 +35,9 @@ export const POST = withAuth(async (req, { userId, params }) => {
 
     return NextResponse.json(lesson, { status: 201 });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
     console.error(error);
     return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
   }

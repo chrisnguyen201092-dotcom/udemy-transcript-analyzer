@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
@@ -8,7 +8,7 @@ const UpdateSchema = z.object({
 });
 
 export const PUT = withAuth(async (req, { userId, params }) => {
-  const id = params?.id!;
+  const id = params?.id ?? "";
   const body = await req.json();
   const parsed = UpdateSchema.safeParse(body);
   if (!parsed.success) {
@@ -29,7 +29,7 @@ export const PUT = withAuth(async (req, { userId, params }) => {
 });
 
 export const DELETE = withAuth(async (_req, { userId, params }) => {
-  const id = params?.id!;
+  const id = params?.id ?? "";
   // Verify lesson belongs to a course owned by this user
   const lesson = await prisma.lesson.findFirst({
     where: { id, course: { userId } },
