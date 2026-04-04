@@ -114,13 +114,16 @@ export function ExportDropdown({
       const blob = await res.blob();
       const filename = `${option.type}.${option.format}`;
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
       toast.success(`Đã xuất ${option.label}`);
     } catch {
       toast.error("Lỗi khi xuất file");

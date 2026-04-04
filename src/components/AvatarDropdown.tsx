@@ -17,18 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-function getInitials(name: string | null, email: string): string {
-  if (name) {
-    return name
-      .split(" ")
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-  }
-  return email[0].toUpperCase();
-}
+import { getInitials } from "@/lib/user-utils";
 
 interface AvatarDropdownProps {
   user: AuthUser;

@@ -36,7 +36,7 @@ export function ConceptCrossRefLinks({
       <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium shrink-0">
         Xem thêm ở:
       </span>
-      {visible.map((ch, i) => (
+      {visible.map((ch) => (
         <button
           key={ch.id}
           type="button"
@@ -48,7 +48,6 @@ export function ConceptCrossRefLinks({
           title={ch.title}
         >
           {ch.title.length > 24 ? ch.title.slice(0, 22) + "…" : ch.title}
-          {i < visible.length - 1 && overflow === 0 ? "" : ""}
         </button>
       ))}
       {overflow > 0 && (

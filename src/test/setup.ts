@@ -9,8 +9,8 @@ import { vi } from 'vitest'
  */
 vi.mock('@/lib/auth', () => ({
   getAuthUserId: vi.fn().mockResolvedValue('test-user-id'),
-  withAuth: vi.fn((handler: Function) => {
-    return async (req: any, routeCtx?: any) => {
+  withAuth: vi.fn((handler: (req: Request, ctx: { userId: string; params: Record<string, string> | undefined }) => Promise<Response>) => {
+    return async (req: Request, routeCtx?: { params?: Promise<Record<string, string>> | Record<string, string> }) => {
       const params = routeCtx?.params ? await routeCtx.params : undefined;
       return handler(req, { userId: 'test-user-id', params });
     };

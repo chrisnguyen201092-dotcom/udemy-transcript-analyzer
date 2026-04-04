@@ -14,9 +14,11 @@ export default function GlobalError({
         <pre style={{ whiteSpace: "pre-wrap", color: "red" }}>
           {error.message}
         </pre>
-        <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", color: "#666" }}>
-          {error.stack}
-        </pre>
+        {process.env.NODE_ENV === "development" && (
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", color: "#666" }}>
+            {error.stack}
+          </pre>
+        )}
         {error.digest && <p>Digest: {error.digest}</p>}
         <button onClick={() => reset()}>Try again</button>
       </body>
