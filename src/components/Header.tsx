@@ -14,9 +14,9 @@ interface HeaderProps {
 }
 
 const NAV_LINKS = [
-  { href: "/",          label: "Học",       icon: BookOpen },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/import",    label: "Import",    icon: Upload },
+  { href: "/",          label: "Học",       icon: BookOpen },
   { href: "/settings",  label: "Settings",  icon: Settings },
 ] as const;
 
