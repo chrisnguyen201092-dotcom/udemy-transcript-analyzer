@@ -15,7 +15,7 @@ import {
   FLASHCARD_SYSTEM_PROMPT,
   EXERCISE_SYSTEM_PROMPT,
 } from "@/lib/ai/prompts";
-import type { PromptType, ContentType } from "@/lib/ai/prompts";
+import type { PromptType } from "@/lib/ai/prompts";
 
 describe("getSystemPrompt", () => {
   it('returns SUMMARY_SYSTEM_PROMPT for type "summary"', () => {

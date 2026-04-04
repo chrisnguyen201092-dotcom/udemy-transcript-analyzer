@@ -5,6 +5,7 @@ import { Loader2, BookOpen, Tag, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConceptCrossRefLinks } from "@/components/ConceptCrossRefLinks";
+import { CATEGORY_COLORS } from "@/lib/category-colors";
 
 interface Concept {
   term: string;
@@ -30,14 +31,6 @@ interface KeyConceptsPanelProps {
   /** Called when user clicks a cross-reference chapter link */
   onNavigateToChapter?: (chapterId: string) => void;
 }
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "khái niệm": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  "phương pháp": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  "công cụ": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  "lý thuyết": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  "thuật ngữ": "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-};
 
 export function KeyConceptsPanel({
   concepts,

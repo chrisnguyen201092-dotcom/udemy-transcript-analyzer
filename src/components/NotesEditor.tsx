@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Check, Loader2, AlertCircle, Search, X } from "lucide-react";
+import { Check, Loader2, AlertCircle, Search } from "lucide-react";
+import { useFetchNotes } from "@/hooks/use-fetch-notes";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NotesSearchPanel } from "@/components/NotesSearchPanel";
 
 interface NotesEditorProps {
   lessonId: string;
@@ -27,115 +28,31 @@ export function NotesEditor({
   const [content, setContent] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipAutoSaveRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Cross-lesson notes search
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{
-    lessonId: string;
-    lessonTitle: string;
-    lessonOrder: number;
-    snippet: string;
-  }>>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  // useFetchNotes: unified fetch with AbortController (replaces two duplicate impls)
+  const { isLoading, fetchError, refetch: refetchNotes } = useFetchNotes(
+    lessonId,
+    // onLoaded: update content and re-enable autosave after short delay
+    (loaded) => {
+      setContent(loaded);
+      setAutosaveEnabled(true);
+      setTimeout(() => { skipAutoSaveRef.current = false; }, 100);
+    },
+    // onLoadStart: reset editor state before fetch
+    () => {
+      setSaveStatus("idle");
+      setLastSaved(null);
+      setAutosaveEnabled(false);
+      skipAutoSaveRef.current = true;
+    },
+  );
+
+  // Cross-lesson notes search toggle
   const [showSearch, setShowSearch] = useState(false);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // H-9: AbortController for user-initiated refetch
-  const refetchAbortRef = useRef<AbortController | null>(null);
-  // M-17: AbortController for in-flight search requests
-  const searchAbortRef = useRef<AbortController | null>(null);
-
-  // Fetch notes when lesson changes (H-9: abort previous in-flight refetch)
-  const refetchNotes = () => {
-    // Abort any previous in-flight refetch before starting a new one
-    if (refetchAbortRef.current) refetchAbortRef.current.abort();
-    const controller = new AbortController();
-    refetchAbortRef.current = controller;
-
-    setIsLoading(true);
-    setSaveStatus("idle");
-    setLastSaved(null);
-    setFetchError(false);
-    skipAutoSaveRef.current = true;
-
-    fetch(`/api/lessons/${lessonId}/notes`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) {
-          setFetchError(true);
-          setAutosaveEnabled(false);
-          setIsLoading(false);
-          return;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data !== undefined) {
-          setContent(data.notes ?? "");
-          setIsLoading(false);
-          setAutosaveEnabled(true);
-          // Allow auto-save after next user edit
-          setTimeout(() => {
-            skipAutoSaveRef.current = false;
-          }, 100);
-        }
-      })
-      .catch((err) => {
-        // Suppress AbortError — a new refetch is already in flight
-        if (err instanceof Error && err.name === "AbortError") return;
-        setFetchError(true);
-        setAutosaveEnabled(false);
-        setIsLoading(false);
-      });
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setSaveStatus("idle");
-    setLastSaved(null);
-    setFetchError(false);
-    setAutosaveEnabled(true);
-    skipAutoSaveRef.current = true;
-
-    fetch(`/api/lessons/${lessonId}/notes`)
-      .then((res) => {
-        if (!res.ok) {
-          if (!cancelled) {
-            setFetchError(true);
-            setAutosaveEnabled(false);
-            setIsLoading(false);
-          }
-          return undefined;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data !== undefined && !cancelled) {
-          setContent(data.notes ?? "");
-          setIsLoading(false);
-          // Allow auto-save after next user edit
-          setTimeout(() => {
-            skipAutoSaveRef.current = false;
-          }, 100);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFetchError(true);
-          setAutosaveEnabled(false);
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [lessonId]);
 
   // Handle insertText from parent (e.g. "Lưu vào ghi chú" button from chat)
   useEffect(() => {
@@ -194,46 +111,6 @@ export function NotesEditor({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [content, saveNotes, autosaveEnabled]);
-
-  // Cross-lesson search with debounce (M-17: cancel in-flight request on new search/clear)
-  useEffect(() => {
-    if (!courseId || !searchQuery.trim()) {
-      // Cancel any in-flight search when query is cleared
-      if (searchAbortRef.current) {
-        searchAbortRef.current.abort();
-        searchAbortRef.current = null;
-      }
-      setSearchResults([]);
-      return;
-    }
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(async () => {
-      // Abort previous in-flight search before starting a new one
-      if (searchAbortRef.current) searchAbortRef.current.abort();
-      const controller = new AbortController();
-      searchAbortRef.current = controller;
-
-      setSearchLoading(true);
-      try {
-        const res = await fetch(
-          `/api/courses/${courseId}/notes/search?q=${encodeURIComponent(searchQuery.trim())}`,
-          { signal: controller.signal }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data.results ?? []);
-        }
-      } catch (err) {
-        // Suppress AbortError — superseded by a newer search
-        if (err instanceof Error && err.name === "AbortError") return;
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 300);
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
-  }, [searchQuery, courseId]);
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const charCount = content.length;
@@ -301,13 +178,7 @@ export function NotesEditor({
           {courseId && (
             <button
               type="button"
-              onClick={() => {
-                setShowSearch(!showSearch);
-                if (showSearch) {
-                  setSearchQuery("");
-                  setSearchResults([]);
-                }
-              }}
+              onClick={() => setShowSearch(!showSearch)}
               className={`p-1 rounded transition-colors cursor-pointer ${
                 showSearch
                   ? "text-[#A435F0] bg-purple-50 dark:bg-purple-900/20"
@@ -325,56 +196,8 @@ export function NotesEditor({
       </div>
 
       {/* Cross-lesson notes search */}
-      {showSearch && (
-        <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm trong ghi chú các bài..."
-              className="pl-8 pr-8 text-xs h-8 border-gray-200 dark:border-gray-700"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => { setSearchQuery(""); setSearchResults([]); }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {searchLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400 px-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Đang tìm...
-            </div>
-          )}
-          {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
-            <div className="text-xs text-gray-400 px-1">
-              Không tìm thấy ghi chú nào.
-            </div>
-          )}
-          {searchResults.length > 0 && (
-            <div className="max-h-[200px] overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-              {searchResults.map((r) => (
-                <div
-                  key={r.lessonId}
-                  className="px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                  title={`Bài ${r.lessonOrder}: ${r.lessonTitle}`}
-                >
-                  <div className="font-medium text-gray-700 dark:text-gray-300 truncate">
-                    {r.lessonOrder}. {r.lessonTitle}
-                  </div>
-                  <div className="text-gray-400 mt-0.5 line-clamp-2">
-                    {r.snippet}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {showSearch && courseId && (
+        <NotesSearchPanel courseId={courseId} />
       )}
 
       {/* Editor */}

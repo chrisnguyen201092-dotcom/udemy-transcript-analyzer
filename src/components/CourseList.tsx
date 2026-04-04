@@ -5,8 +5,7 @@ import { Trash2, BookOpen, Search, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
+import { AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
@@ -16,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { normalizeText } from "@/lib/string-utils";
 
 interface Lesson {
   id: string;
@@ -53,9 +53,7 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
   // M-15: Prevent double rename when Enter triggers blur
   const isSubmittingRef = useRef(false);
 
-  const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
-  const filtered = courses.filter(c => normalize(c.title).includes(normalize(searchQuery)));
+  const filtered = courses.filter(c => normalizeText(c.title).includes(normalizeText(searchQuery)));
   const isFiltering = searchQuery.trim().length > 0;
 
   return (
@@ -102,7 +100,10 @@ export function CourseList({ courses, loading, selectedCourseId, onSelect, onDel
                   return (
                     <li
                       key={course.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onSelect(course)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(course); } }}
                       className={`group flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-100 ${
                         isSelected
                           ? "bg-[#A435F0]/10 text-[#A435F0]"

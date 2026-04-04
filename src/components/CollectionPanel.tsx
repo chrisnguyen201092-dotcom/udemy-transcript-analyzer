@@ -4,10 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   StickyNote,
   Layers,
-  ChevronDown,
-  ChevronRight,
   Search,
-  Loader2,
   BookOpen,
   X,
 } from "lucide-react";
@@ -15,8 +12,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { FlashcardDeck } from "@/components/FlashcardDeck";
-import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { CollectionItemList } from "@/components/CollectionItemList";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -97,8 +93,10 @@ export function CollectionPanel({
     });
   };
 
-  const items =
-    activeTab === "notes" ? data?.notes ?? [] : data?.flashcards ?? [];
+  const items = useMemo(
+    () => (activeTab === "notes" ? data?.notes ?? [] : data?.flashcards ?? []),
+    [activeTab, data]
+  );
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return items;
@@ -259,122 +257,18 @@ export function CollectionPanel({
                 Thử lại
               </button>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-3">
-                {activeTab === "notes" ? (
-                  <StickyNote className="w-5 h-5 text-gray-300 dark:text-gray-600" />
-                ) : (
-                  <BookOpen className="w-5 h-5 text-gray-300 dark:text-gray-600" />
-                )}
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                {searchQuery
-                  ? "Không tìm thấy kết quả"
-                  : activeTab === "notes"
-                    ? "Chưa có ghi chú nào"
-                    : "Chưa có flashcard nào"}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {searchQuery
-                  ? "Thử từ khóa khác"
-                  : activeTab === "notes"
-                    ? "Vào từng bài học và thêm ghi chú ở tab Ghi chú"
-                    : "Vào từng bài học và tạo flashcard ở tab Luyện tập"}
-              </p>
-            </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {filtered.map((item) => {
-                const isExpanded = expandedLessons.has(item.lessonId);
-                return (
-                  <div
-                    key={`${activeTab}-${item.lessonId}`}
-                    className="rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900"
-                  >
-                    {/* Lesson header - use div instead of button to avoid nested button */}
-                    <div
-                      onClick={() => toggleLesson(item.lessonId)}
-                      className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
-                          <span className="text-gray-400 dark:text-gray-500 mr-1">
-                            #{item.lessonOrder}
-                          </span>
-                          {item.lessonTitle}
-                        </p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                          {activeTab === "notes"
-                            ? `${item.content.length} ký tự`
-                            : `${countFlashcards(item.content)} thẻ`}
-                          {" · "}
-                          {formatRelativeTime(item.updatedAt)}
-                        </p>
-                      </div>
-                      {onNavigateToLesson && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigateToLesson(item.lessonId);
-                          }}
-                          className="shrink-0 text-[10px] text-[#A435F0] hover:text-[#8710D8] font-medium cursor-pointer px-2 py-1 rounded hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors"
-                        >
-                          Đi tới bài
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Expanded content */}
-                    {isExpanded && (
-                      <div className="border-t border-gray-100 dark:border-gray-800 p-3.5">
-                        {activeTab === "notes" ? (
-                          <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-                            {item.content}
-                          </div>
-                        ) : (
-                          <FlashcardDeck markdown={item.content} lessonId={item.lessonId} />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <CollectionItemList
+              items={filtered}
+              activeTab={activeTab}
+              expandedLessons={expandedLessons}
+              searchQuery={searchQuery}
+              onToggleLesson={toggleLesson}
+              onNavigateToLesson={onNavigateToLesson}
+            />
           )}
         </div>
       </ScrollArea>
     </div>
   );
-}
-
-// ── Helpers ──────────────────────────────────────────────────
-
-function countFlashcards(markdown: string): number {
-  const matches = markdown.match(/^####\s+Thẻ\s+\d+/gm);
-  return matches ? matches.length : 0;
-}
-
-function formatRelativeTime(isoString: string): string {
-  const date = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return "Vừa xong";
-  if (diffMin < 60) return `${diffMin} phút trước`;
-  if (diffHr < 24) return `${diffHr} giờ trước`;
-  if (diffDay < 7) return `${diffDay} ngày trước`;
-  return date.toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }

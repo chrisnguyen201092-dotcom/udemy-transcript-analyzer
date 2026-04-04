@@ -5,6 +5,8 @@ import { Loader2, BookMarked, Search, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CATEGORY_COLORS } from "@/lib/category-colors";
+import { ConceptCrossRefLinks } from "@/components/ConceptCrossRefLinks";
 
 interface GlossaryChapter {
   id: string;
@@ -27,14 +29,6 @@ interface GlossaryPanelProps {
   elapsedSeconds?: number;
   onNavigateToChapter?: (chapterId: string) => void;
 }
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "khái niệm": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  "phương pháp": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  "công cụ": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  "lý thuyết": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  "thuật ngữ": "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-};
 
 export function GlossaryPanel({
   glossary,
@@ -195,35 +189,15 @@ export function GlossaryPanel({
                     <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
                       {entry.definition}
                     </p>
-                    {/* Chapter references — visible when expanded or few entries */}
+                    {/* Chapter references — reuse ConceptCrossRefLinks */}
                     {(expandedIndex === i || filtered.length <= 5) &&
                       entry.chapters &&
-                      entry.chapters.length > 0 && (
-                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                          <span className="text-[10px] text-gray-400">Chương:</span>
-                          {entry.chapters.map((ch) =>
-                            onNavigateToChapter ? (
-                              <button
-                                key={ch.id}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onNavigateToChapter(ch.id);
-                                }}
-                                className="text-[10px] px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
-                              >
-                                {ch.title}
-                              </button>
-                            ) : (
-                              <span
-                                key={ch.id}
-                                className="text-[10px] px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-amber-700 dark:text-amber-400"
-                              >
-                                {ch.title}
-                              </span>
-                            )
-                          )}
-                        </div>
+                      entry.chapters.length > 0 &&
+                      onNavigateToChapter && (
+                        <ConceptCrossRefLinks
+                          chapters={entry.chapters}
+                          onNavigate={onNavigateToChapter}
+                        />
                       )}
                   </div>
                 </div>
